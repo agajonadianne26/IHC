@@ -1,0 +1,64 @@
+<?php
+// 1. Get the database connection
+$host = '127.0.0.1';
+$db   = 'ihc';
+$user = 'root'; // default XAMPP user
+$pass = '';     // default XAMPP password is empty
+
+$pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+// 2. Decode the incoming JSON from your clerk-dashboard.html
+$data = json_decode(file_get_contents('php://input'), true);
+
+// 3. Extract variables mapping to your JSON structure
+$clientName = $data['client']['fullName'];
+$email = $data['client']['email'];
+$phone = $data['client']['phone'];
+
+$totalPrice = $data['contract']['totalPrice'];
+$downpayment = $data['contract']['downpayment'];
+$terms = $data['contract']['terms'];
+$startDate = $data['contract']['startDate'];
+
+// Capture your NEW input here (make sure the JS payload sends 'propertyAddress')
+$propertyAddress = $data['contract']['propertyAddress'] ?? '';
+
+// 4. Prepare the SQL statement using your exact table columns
+$sql = "INSERT INTO contracts (
+            client_name, 
+            email, 
+            cellphone_number, 
+            total_contract_price, 
+            downpayment, 
+            installment_terms, 
+            start_date, 
+            property_address
+        ) VALUES (
+            :client_name, 
+            :email, 
+            :cellphone_number, 
+            :total_contract_price, 
+            :downpayment, 
+            :installment_terms, 
+            :start_date, 
+            :property_address
+        )";
+
+$stmt = $pdo->prepare($sql);
+
+// 5. Execute the statement with the bound variables
+$stmt->execute([
+    ':client_name' => $clientName,
+    ':email' => $email,
+    ':cellphone_number' => $phone,
+    ':total_contract_price' => $totalPrice,
+    ':downpayment' => $downpayment,
+    ':installment_terms' => $terms,
+    ':start_date' => $startDate,
+    ':property_address' => $propertyAddress
+]);
+
+// Return success to the frontend
+echo json_encode(['success' => true, 'message' => 'Contract created successfully']);
+?>

@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IHC Portal — My Account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="../js/portal-store.js"></script>
+  <style>
+    :root {
+      --sidebar-bg: #0f172a;
+      --sidebar-hover: #1e293b;
+      --sidebar-active: #1e293b;
+      --sidebar-active-border: #3b82f6;
+      --sidebar-width: 260px;
+
+      --bg-main: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-input: #f8fafc;
+
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --text-sidebar: #94a3b8;
+      --text-sidebar-active: #ffffff;
+
+      --border: #e2e8f0;
+      --border-light: #f1f5f9;
+
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-emerald-bg: #ecfdf5;
+      --accent-amber: #f59e0b;
+      --accent-amber-bg: #fffbeb;
+      --accent-rose: #f43f5e;
+      --accent-rose-bg: #fff1f2;
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+
+      --radius: 10px;
+      --radius-sm: 6px;
+      --radius-lg: 14px;
+      --transition: 0.2s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    .layout { display: flex; min-height: 100vh; }
+
+    .main-area {
+      flex: 1;
+      margin-left: var(--sidebar-width);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: margin-left var(--transition);
+    }
+
+    .content { flex: 1; padding: 28px 32px 48px; max-width: 1200px; width: 100%; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Header */
+    .header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .hamburger { display: none; background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 6px; border-radius: var(--radius-sm); }
+    .hamburger:hover { background: var(--bg-main); }
+
+    .header-title h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .header-title p { font-size: 11px; color: var(--text-secondary); }
+
+    .header-right { display: flex; align-items: center; }
+    .header-profile { display: flex; align-items: center; gap: 10px; }
+    .header-profile-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+      color: #fff; font-size: 11px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .header-profile-info strong { display: block; font-size: 12px; font-weight: 700; }
+    .header-profile-info small { font-size: 10px; color: var(--text-secondary); }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: var(--sidebar-width); background: var(--sidebar-bg);
+      display: flex; flex-direction: column; z-index: 100;
+      transition: transform var(--transition);
+    }
+
+    .sidebar-brand {
+      display: flex; align-items: center; gap: 12px;
+      padding: 20px 20px 28px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 8px;
+    }
+    .sidebar-brand img { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+    .sidebar-brand-text { overflow: hidden; }
+    .sidebar-brand-text strong { display: block; font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; }
+    .sidebar-brand-text small { display: block; font-size: 10px; color: var(--text-sidebar); white-space: nowrap; }
+
+    .sidebar-nav { flex: 1; padding: 0 12px; }
+    .sidebar-section-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+      color: rgba(148,163,184,0.5); padding: 12px 12px 6px;
+    }
+
+    .sidebar-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: var(--radius-sm);
+      color: var(--text-sidebar); text-decoration: none; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all var(--transition);
+      border-left: 3px solid transparent; margin-bottom: 2px;
+    }
+    .sidebar-link i { width: 20px; height: 20px; flex-shrink: 0; }
+    .sidebar-link span { white-space: nowrap; }
+    .sidebar-link:hover { background: var(--sidebar-hover); color: #cbd5e1; }
+    .sidebar-link.active {
+      background: var(--sidebar-active); color: var(--text-sidebar-active);
+      border-left-color: var(--sidebar-active-border); font-weight: 600;
+    }
+
+    .sidebar-footer { padding: 16px 16px 20px; border-top: 1px solid rgba(255,255,255,0.08); }
+    .sidebar-admin { display: flex; align-items: center; gap: 10px; }
+    .sidebar-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+      color: #fff; font-size: 12px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .sidebar-admin-info { overflow: hidden; flex: 1; }
+    .sidebar-admin-info strong { display: block; font-size: 12px; color: #e2e8f0; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+    .sidebar-admin-info small { display: block; font-size: 10px; color: var(--text-sidebar); white-space: nowrap; }
+    .sidebar-role-badge {
+      display: inline-block; padding: 2px 7px; border-radius: 4px;
+      font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px;
+    }
+    .sidebar-role-badge.client { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+    .btn-logout-sidebar {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      padding: 8px 12px; margin-top: 10px;
+      border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm);
+      background: transparent; color: var(--text-sidebar);
+      font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all var(--transition);
+    }
+    .btn-logout-sidebar:hover { background: rgba(244,63,94,0.1); color: #fca5a5; border-color: rgba(244,63,94,0.3); }
+
+    .sidebar-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 90;
+      opacity: 0; visibility: hidden; transition: opacity var(--transition), visibility var(--transition);
+    }
+    .sidebar-overlay.visible { opacity: 1; visibility: visible; }
+
+    /* KPI cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 22px; }
+    .kpi-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px; box-shadow: var(--shadow-sm);
+    }
+    .kpi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+    .kpi-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .kpi-icon.blue { background: #eff6ff; color: var(--accent-blue); }
+    .kpi-icon.emerald { background: var(--accent-emerald-bg); color: var(--accent-emerald); }
+    .kpi-icon.amber { background: var(--accent-amber-bg); color: var(--accent-amber); }
+    .kpi-icon.rose { background: var(--accent-rose-bg); color: var(--accent-rose); }
+    .kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .kpi-value.blue { color: var(--accent-blue); }
+    .kpi-value.emerald { color: var(--accent-emerald); }
+    .kpi-value.amber { color: var(--accent-amber); }
+    .kpi-value.rose { color: var(--accent-rose); }
+    .kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Cards */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+    .card-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border-light); }
+    .card-head h3 { font-size: 13px; font-weight: 700; }
+    .card-head p { font-size: 11px; color: var(--text-secondary); }
+    .card-body { padding: 18px; }
+
+    .officer-row { display: flex; align-items: center; gap: 14px; }
+    .officer-avatar {
+      width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+      color: #fff; font-size: 14px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .officer-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+    .officer-meta strong { font-size: 15px; font-weight: 700; }
+    .officer-email { font-size: 11px; color: var(--text-secondary); }
+    .officer-fallback { font-size: 12px; color: var(--text-muted); }
+
+    .subhead { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; }
+    .subhead h2 { font-size: 15px; font-weight: 700; }
+    .subhead p { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+    /* Info list */
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px 24px; }
+    .info-item .info-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); margin-bottom: 4px; }
+    .info-item .info-value { font-size: 14px; font-weight: 600; color: var(--text-primary); word-break: break-word; }
+
+    .progress-wrap { margin-top: 18px; }
+    .progress-top { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
+    .progress-bar { height: 10px; background: var(--border-light); border-radius: 20px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 20px; background: linear-gradient(90deg, var(--accent-emerald), #34d399); transition: width var(--transition); }
+
+    /* Table */
+    .table-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+    .table-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border-light); }
+    .table-header-left h3 { font-size: 13px; font-weight: 700; }
+    .table-header-left p { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .table-tools { display: flex; gap: 10px; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 640px; }
+    thead th {
+      text-align: left; padding: 11px 18px; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);
+      background: #f8fafc; border-bottom: 1px solid var(--border-light); white-space: nowrap;
+    }
+    tbody td { padding: 12px 18px; font-size: 13px; border-bottom: 1px solid var(--border-light); white-space: nowrap; color: var(--text-primary); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #fafbfc; }
+    td .muted { color: var(--text-muted); font-size: 11px; }
+
+    .row-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .row-status .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .row-status.ok { background: var(--accent-emerald-bg); color: #065f46; }
+    .row-status.ok .dot { background: var(--accent-emerald); }
+    .row-status.warn { background: var(--accent-amber-bg); color: #92400e; }
+    .row-status.warn .dot { background: var(--accent-amber); }
+    .row-status.danger { background: var(--accent-rose-bg); color: #9f1239; }
+    .row-status.danger .dot { background: var(--accent-rose); }
+    .row-status.neutral { background: var(--bg-main); color: var(--text-secondary); }
+    .row-status.neutral .dot { background: var(--text-muted); }
+
+    .btn-primary {
+      height: 34px; padding: 0 16px; border: none; border-radius: var(--radius-sm);
+      background: var(--accent-blue); color: #fff; font-size: 12px; font-weight: 700;
+      font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition);
+    }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-ghost {
+      height: 34px; padding: 0 16px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: #fff; color: var(--text-secondary); font-size: 12px; font-weight: 600;
+      font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition);
+    }
+    .btn-ghost:hover { background: var(--bg-main); }
+
+    /* Notifications feed */
+    .notif-list { display: flex; flex-direction: column; gap: 10px; }
+    .notif-item {
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; box-shadow: var(--shadow-sm);
+    }
+    .notif-icon {
+      width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .notif-icon.welcome { background: #eff6ff; color: var(--accent-blue); }
+    .notif-icon.payment { background: var(--accent-emerald-bg); color: var(--accent-emerald); }
+    .notif-icon.reminder { background: var(--accent-amber-bg); color: var(--accent-amber); }
+    .notif-meta { flex: 1; }
+    .notif-meta strong { display: block; font-size: 13px; font-weight: 700; }
+    .notif-meta p { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+    .notif-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .notif-time { font-size: 10px; color: var(--text-muted); }
+    .channel-chip { padding: 2px 8px; border-radius: 4px; background: #f1f5f9; color: var(--text-secondary); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+    .empty-state i { margin-bottom: 10px; opacity: 0.4; }
+    .empty-state strong { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+    .empty-state small { font-size: 11px; }
+
+    /* Toast */
+    .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 3000; }
+    .toast {
+      display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+      background: #0f172a; color: #fff; border-radius: var(--radius);
+      font-size: 12px; font-weight: 600; box-shadow: var(--shadow-lg);
+      animation: toastIn 0.25s ease;
+    }
+    .toast.success i { color: #34d399; }
+    .toast.info i { color: #60a5fa; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main-area { margin-left: 0; }
+      .hamburger { display: block; }
+      .content { padding: 20px 16px 40px; }
+      .header { padding: 12px 16px; }
+    }
+
+    /* Print (SOA-style ledger) */
+    @media print {
+      .sidebar, .header, .subhead .btn-ghost, .no-print { display: none !important; }
+      body { background: #fff; }
+      .main-area { margin: 0; }
+      .content { padding: 0; max-width: none; }
+      .view { display: block !important; }
+      table { min-width: 0; }
+      thead th { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    /* ==========================================
+       SESSION GUARD
+    ========================================== */
+    let stored = localStorage.getItem('IHC_USER');
+    if (!stored) { window.location.href = '../log in.html'; return; }
+    let session;
+    try {
+      session = JSON.parse(stored);
+      if (!session || !session.role) throw new Error();
+    } catch (e) {
+      localStorage.removeItem('IHC_USER');
+      window.location.href = '../log in.html';
+      return;
+    }
+    if (session.role !== 'client') { window.location.href = '../log in.html'; return; }
+
+    const P = window.portalStore;
+    if (!P) return;
+
+    /* ==========================================
+       DATA — client record + portal ledger
+    ========================================== */
+    portalStore.seedDemoClients();
+    const client = portalStore.getClientRecord(session.contractId);
+    const portal = client ? portalStore.ensurePortal(client) : null;
+
+    const fmtPHP = (n) => P.fmtPeso(n);
+    const fmtDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const fmtTS = (iso) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    /* ==========================================
+       SESSION UI
+    ========================================== */
+    const avatar = session.avatar || (session.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase());
+    document.getElementById('sidebarAvatar').textContent = avatar;
+    document.getElementById('headerAvatar').textContent = avatar;
+    document.getElementById('sidebarName').textContent = session.name;
+    document.getElementById('headerName').textContent = session.name;
+    document.getElementById('sidebarRole').innerHTML = '<span class="sidebar-role-badge client">Client</span>';
+    document.getElementById('headerRole').textContent = session.name.split(' ')[0] + '\u2019s Buyer Portal';
+
+    /* ==========================================
+       VIEW SWITCHING
+    ========================================== */
+    const viewTitles = {
+      overview: ['My Account', 'Your contract at a glance'],
+      ledger: ['Payment Ledger', 'Your installment schedule and balances'],
+      notifications: ['Notifications', 'Updates on your account']
+    };
+
+    function showView(name) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const target = document.querySelector('.view[data-view="' + name + '"]');
+      if (target) target.classList.add('active');
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+      const link = document.querySelector('.sidebar-link[data-page="' + name + '"]');
+      if (link) link.classList.add('active');
+      document.getElementById('headerTitle').textContent = viewTitles[name][0];
+      document.getElementById('headerSub').textContent = viewTitles[name][1];
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('visible');
+      window.scrollTo(0, 0);
+    }
+    document.querySelectorAll('.sidebar-link[data-page]').forEach(el => {
+      el.addEventListener('click', () => showView(el.dataset.page));
+    });
+    document.getElementById('hamburgerBtn').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('visible');
+    });
+    document.getElementById('sidebarOverlay').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('visible');
+    });
+
+    /* ==========================================
+       LOGOUT
+    ========================================== */
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('IHC_USER');
+      window.location.href = '../log in.html';
+    });
+
+    /* ==========================================
+       NO-ACCOUNT STATE
+    ========================================== */
+    if (!client || !portal) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelector('.view[data-view="empty"]').classList.add('active');
+      document.getElementById('headerTitle').textContent = 'My Account';
+      document.getElementById('headerSub').textContent = 'Account not found';
+      lucide.createIcons();
+      return;
+    }
+
+    /* ==========================================
+       LEDGER HELPERS
+    ========================================== */
+    function scheduleStatus(s) {
+      if (s.paid) return { label: 'Paid', cls: 'ok' };
+      const due = new Date(s.dueDate + 'T00:00:00');
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (due < today) return { label: 'Overdue', cls: 'danger' };
+      return { label: 'Pending', cls: 'warn' };
+    }
+
+    const financing = Number(client.totalPrice) - Number(client.downpayment);
+    const monthlyAmort = Math.round((financing / Math.max(1, Number(client.terms))) * 100) / 100;
+    const paidRows = portal.schedules.filter(s => s.paid);
+    const totalPaid = paidRows.reduce((sum, s) => sum + Number(s.amount), 0);
+    const remainingBalance = Math.max(0, financing - totalPaid);
+    const nextDue = portal.schedules.find(s => !s.paid);
+    const downPct = Number(client.totalPrice) > 0 ? ((Number(client.downpayment) / Number(client.totalPrice)) * 100).toFixed(1) + '%' : '\u2014';
+
+    /* ==========================================
+       RENDER: OVERVIEW
+    ========================================== */
+    const kpiDefs = [
+      { cls: 'blue',   icon: 'wallet',        label: 'Total Contract Price',   value: fmtPHP(client.totalPrice),  sub: client.propertyAddress },
+      { cls: 'emerald', icon: 'arrow-down-circle', label: 'Downpayment',       value: fmtPHP(client.downpayment), sub: downPct + ' of contract price' },
+      { cls: 'amber',  icon: 'scale',         label: 'Remaining Balance',      value: fmtPHP(remainingBalance),  sub: paidRows.length + ' installment(s) paid' },
+      { cls: 'rose',   icon: 'calendar-clock', label: 'Next Due',              value: nextDue ? fmtPHP(nextDue.amount) : 'All paid', sub: nextDue ? 'Due ' + fmtDate(nextDue.dueDate) : 'You\u2019re all caught up' }
+    ];
+    document.getElementById('kpiGrid').innerHTML = kpiDefs.map(k => `
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">${k.label}</span>
+          <div class="kpi-icon ${k.cls}"><i data-lucide="${k.icon}" style="width:18px;height:18px;"></i></div>
+        </div>
+        <div class="kpi-value ${k.cls}">${k.value}</div>
+        <div class="kpi-sub">${k.sub}</div>
+      </div>`).join('');
+
+    document.getElementById('ovName').textContent = client.name;
+    document.getElementById('ovProperty').textContent = client.propertyAddress || '\u2014';
+    document.getElementById('ovEmail').textContent = client.email;
+    document.getElementById('ovPhone').textContent = client.phone || '\u2014';
+    document.getElementById('ovStartDate').textContent = fmtDate(client.startDate);
+    document.getElementById('ovTerms').textContent = client.terms + ' months';
+    document.getElementById('ovMonthly').textContent = fmtPHP(monthlyAmort);
+    document.getElementById('ovFinancing').textContent = fmtPHP(financing);
+
+    document.getElementById('progressLabel').textContent = paidRows.length + ' of ' + portal.schedules.length + ' installments paid';
+    document.getElementById('progressPct').textContent = portal.schedules.length ? Math.round((paidRows.length / portal.schedules.length) * 100) + '%' : '0%';
+    document.getElementById('progressFill').style.width = portal.schedules.length ? Math.round((paidRows.length / portal.schedules.length) * 100) + '%' : '0%';
+
+    /* Handling Billing Officer */
+    if (client.officerName) {
+      const oInitials = client.officerName.split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase();
+      document.getElementById('officerAvatar').textContent = oInitials;
+      document.getElementById('officerName').textContent = client.officerName;
+      document.getElementById('officerEmail').textContent = client.officerEmail || '';
+    } else {
+      document.getElementById('officerRow').innerHTML = '<p class="officer-fallback">Your billing officer will be shown here after your contract is set up. For now, please contact the billing department.</p>';
+    }
+
+    /* ==========================================
+       RENDER: LEDGER
+    ========================================== */
+    document.getElementById('ledgerPaidCount').textContent = paidRows.length + ' paid';
+    document.getElementById('ledgerTotalPaid').textContent = fmtPHP(totalPaid);
+    document.getElementById('ledgerRemaining').textContent = fmtPHP(remainingBalance);
+    document.getElementById('ledgerMonthly').textContent = fmtPHP(monthlyAmort);
+
+    document.getElementById('ledgerBody').innerHTML = portal.schedules.map(s => {
+      const st = scheduleStatus(s);
+      return `
+        <tr>
+          <td><strong>${s.no}</strong></td>
+          <td>${fmtDate(s.dueDate)}</td>
+          <td><strong>${fmtPHP(s.amount)}</strong></td>
+          <td><span class="row-status ${st.cls}"><span class="dot"></span>${st.label}</span></td>
+          <td>${s.payDate ? fmtDate(s.payDate) : '<span class="muted">\u2014</span>'}</td>
+          <td>${s.orNumber || '<span class="muted">\u2014</span>'}</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('printLedgerBtn').addEventListener('click', () => { showView('ledger'); setTimeout(() => window.print(), 50); });
+
+    /* ==========================================
+       RENDER: NOTIFICATIONS
+    ========================================== */
+    const iconFor = { welcome: 'party-popper', payment: 'badge-check', reminder: 'bell' };
+    const list = portal.notifications.slice().sort((a, b) => new Date(b.time) - new Date(a.time));
+    const notifList = document.getElementById('notifList');
+    if (list.length === 0) {
+      notifList.innerHTML = '<div class="empty-state"><i data-lucide="bell" style="width:36px;height:36px;"></i><strong>No notifications yet</strong><small>Updates about your payments will appear here.</small></div>';
+    } else {
+      notifList.innerHTML = list.map(n => `
+        <div class="notif-item">
+          <div class="notif-icon ${n.kind || 'reminder'}"><i data-lucide="${iconFor[n.kind] || 'bell'}" style="width:18px;height:18px;"></i></div>
+          <div class="notif-meta">
+            <strong>${n.title}</strong>
+            <p>${n.message}</p>
+            <div class="notif-foot">
+              <span class="channel-chip">${n.channel || 'Portal'}</span>
+              <span class="notif-time">${fmtTS(n.time)}</span>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    lucide.createIcons();
+    showView('overview');
+  });
+  </script>
+
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <img src="../img/ihc logo.png" alt="IHC Logo">
+        <div class="sidebar-brand-text">
+          <strong>Imperial Homes Corporation</strong>
+          <small>Buyer Portal</small>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-section-label">Home</div>
+        <a class="sidebar-link active" href="#" data-page="overview">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Overview</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="ledger">
+          <i data-lucide="list-checks"></i>
+          <span>Ledger</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="notifications">
+          <i data-lucide="bell"></i>
+          <span>Notifications</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-admin">
+          <div class="sidebar-avatar" id="sidebarAvatar">—</div>
+          <div class="sidebar-admin-info">
+            <strong id="sidebarName">Buyer</strong>
+            <small id="sidebarRole">Role</small>
+          </div>
+        </div>
+        <button class="btn-logout-sidebar" id="logoutBtn">
+          <i data-lucide="log-out" style="width:14px;height:14px;"></i>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- MAIN AREA -->
+    <div class="main-area">
+
+      <!-- HEADER -->
+      <header class="header">
+        <div class="header-left">
+          <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">
+            <i data-lucide="menu" style="width:22px;height:22px;"></i>
+          </button>
+          <div class="header-title">
+            <h1 id="headerTitle">My Account</h1>
+            <p id="headerSub">Your contract at a glance</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="header-profile">
+            <div class="header-profile-avatar" id="headerAvatar">—</div>
+            <div class="header-profile-info">
+              <strong id="headerName">Buyer</strong>
+              <small id="headerRole">Client Portal</small>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT -->
+      <div class="content">
+
+        <!-- EMPTY / NO ACCOUNT -->
+        <section class="view" data-view="empty">
+          <div class="empty-state" id="emptyView">
+            <i data-lucide="user-x" style="width:44px;height:44px;"></i>
+            <strong>No portal account found</strong>
+            <small>Your portal record could not be found in this browser. Contact your billing officer.</small>
+          </div>
+        </section>
+
+        <!-- VIEW: OVERVIEW -->
+        <section class="view active" data-view="overview">
+
+          <div class="kpi-grid" id="kpiGrid"></div>
+
+          <div class="card">
+            <div class="card-head">
+              <i data-lucide="file-text" style="width:18px;height:18px;color:var(--accent-blue);"></i>
+              <div>
+                <h3>Contract Details</h3>
+                <p>Your registered account information</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="info-grid">
+                <div class="info-item"><div class="info-label">Buyer</div><div class="info-value" id="ovName">—</div></div>
+                <div class="info-item"><div class="info-label">Property</div><div class="info-value" id="ovProperty">—</div></div>
+                <div class="info-item"><div class="info-label">Email</div><div class="info-value" id="ovEmail">—</div></div>
+                <div class="info-item"><div class="info-label">Mobile</div><div class="info-value" id="ovPhone">—</div></div>
+                <div class="info-item"><div class="info-label">Start Date</div><div class="info-value" id="ovStartDate">—</div></div>
+                <div class="info-item"><div class="info-label">Installment Terms</div><div class="info-value" id="ovTerms">—</div></div>
+                <div class="info-item"><div class="info-label">Monthly Amortization</div><div class="info-value" id="ovMonthly">—</div></div>
+                <div class="info-item"><div class="info-label">Financing Amount</div><div class="info-value" id="ovFinancing">—</div></div>
+              </div>
+
+              <div class="progress-wrap">
+                <div class="progress-top">
+                  <span id="progressLabel">0 of 0 installments paid</span>
+                  <span id="progressPct">0%</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:18px;">
+            <div class="card-head">
+              <i data-lucide="user-check" style="width:18px;height:18px;color:var(--accent-blue);"></i>
+              <div>
+                <h3>Handling Billing Officer</h3>
+                <p>The clerk assigned to your account</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="officer-row" id="officerRow">
+                <div class="officer-avatar" id="officerAvatar">—</div>
+                <div class="officer-meta">
+                  <strong id="officerName">—</strong>
+                  <span class="channel-chip">Billing Officer</span>
+                  <span class="officer-email" id="officerEmail"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW: LEDGER -->
+        <section class="view" data-view="ledger">
+
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-header"><span class="kpi-label">Installments Paid</span><div class="kpi-icon emerald"><i data-lucide="check-circle" style="width:18px;height:18px;"></i></div></div>
+              <div class="kpi-value emerald" id="ledgerPaidCount">0 paid</div>
+              <div class="kpi-sub">Cleared installments</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-header"><span class="kpi-label">Total Paid</span><div class="kpi-icon blue"><i data-lucide="banknote" style="width:18px;height:18px;"></i></div></div>
+              <div class="kpi-value blue" id="ledgerTotalPaid">—</div>
+              <div class="kpi-sub">Cumulative payments</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-header"><span class="kpi-label">Remaining Balance</span><div class="kpi-icon amber"><i data-lucide="scale" style="width:18px;height:18px;"></i></div></div>
+              <div class="kpi-value amber" id="ledgerRemaining">—</div>
+              <div class="kpi-sub">Financing outstanding</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-header"><span class="kpi-label">Monthly Due</span><div class="kpi-icon rose"><i data-lucide="calendar-clock" style="width:18px;height:18px;"></i></div></div>
+              <div class="kpi-value rose" id="ledgerMonthly">—</div>
+              <div class="kpi-sub">Principal-only estimate</div>
+            </div>
+          </div>
+
+          <div class="table-section">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h3>Installment Schedules</h3>
+                <p>Due dates, amounts and status of every installment</p>
+              </div>
+              <div class="table-tools">
+                <button class="btn-ghost" id="printLedgerBtn"><i data-lucide="printer" style="width:15px;height:15px;"></i> Print SOA</button>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Installment</th>
+                    <th>Due Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Payment Date</th>
+                    <th>OR / Ref #</th>
+                  </tr>
+                </thead>
+                <tbody id="ledgerBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW: NOTIFICATIONS -->
+        <section class="view" data-view="notifications">
+          <div class="notif-list" id="notifList"></div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toastContainer"></div>
+</body>
+</html>

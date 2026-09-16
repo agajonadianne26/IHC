@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IHC Portal - Login</title>
+    
+    <link rel="stylesheet" href="css/log in.css">
+    <script src="js/portal-store.js" defer></script>
+    <script src="js/log in.js" defer></script>
+
+    <!-- Google Fonts for typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="login-container">
+        <!-- Left Pane: Form -->
+        <div class="form-pane">
+            <!-- Small Logo on the Upper Left -->
+            <div class="form-logo-header">
+                <img src="img/ihc logo.png" alt="Imperial Homes Logo" class="portal-logo">
+            </div>
+
+            <div class="form-wrapper">
+                <div class="brand-header">
+                    <h2>WELCOME BACK!</h2>
+                    <p>Enter your credentials to access your workspace.</p>
+                </div>
+
+                <form id="loginForm">
+                    <div id="errorMessage" class="error-message hidden"></div>
+
+                    <div class="input-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" placeholder="name@company.com" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="password">Password</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="password" placeholder="••••••••" required>
+                            <i class="fa-regular fa-eye" id="togglePassword"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <label class="remember-me">
+                            <input type="checkbox" id="rememberMe"> Remember me
+                        </label>
+                        <a href="#" class="forgot-password">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Sign In</button>
+                </form>
+
+                <div class="demo-credentials">
+                  <div class="demo-title">Demo Credentials</div>
+                  <div class="demo-grid">
+                    <div class="demo-item">
+                      <span class="demo-role admin">Admin</span>
+                      <span class="demo-email">admin@ihc.com</span>
+                      <span class="demo-pass">admin123</span>
+                    </div>
+                    <div class="demo-item">
+                      <span class="demo-role clerk">Clerk</span>
+                      <span class="demo-email">ana@ihc.com</span>
+                      <span class="demo-pass">clerk123</span>
+                    </div>
+                    <div class="demo-item">
+                      <span class="demo-role clerk">Clerk</span>
+                      <span class="demo-email">mark@ihc.com</span>
+                      <span class="demo-pass">clerk123</span>
+                    </div>
+                    <div class="demo-item">
+                      <span class="demo-role clerk">Clerk</span>
+                      <span class="demo-email">jessica@ihc.com</span>
+                      <span class="demo-pass">clerk123</span>
+                    </div>
+                    <div class="demo-item">
+                      <span class="demo-role client">Client</span>
+                      <span class="demo-email">agajonadianne@gmail.com</span>
+                      <span class="demo-pass">client123</span>
+                    </div>
+                  </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Pane: Video Background & Content -->
+        <div class="media-pane">
+    <div class="media-overlay"></div>
+    <div class="media-content">
+        <h3>Streamlined Management</h3>
+        <p>Empowering operations through integrated request and task handling.</p>
+    </div>
+</div>
+    </div>
+</body>
+</html>

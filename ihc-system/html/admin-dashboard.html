@@ -1,0 +1,2333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IHC Admin — Payment Monitoring & Analytics Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* ==========================================
+       DESIGN TOKENS
+    ========================================== */
+    :root {
+      --sidebar-bg: #0f172a;
+      --sidebar-hover: #1e293b;
+      --sidebar-active: #1e293b;
+      --sidebar-active-border: #10b981;
+      --sidebar-width: 260px;
+      --sidebar-collapsed: 72px;
+
+      --bg-main: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-input: #f8fafc;
+
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --text-sidebar: #94a3b8;
+      --text-sidebar-active: #ffffff;
+
+      --border: #e2e8f0;
+      --border-light: #f1f5f9;
+
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-emerald-bg: #ecfdf5;
+      --accent-amber: #f59e0b;
+      --accent-amber-bg: #fffbeb;
+      --accent-rose: #f43f5e;
+      --accent-rose-bg: #fff1f2;
+      --accent-slate: #64748b;
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+
+      --radius: 10px;
+      --radius-sm: 6px;
+      --radius-lg: 14px;
+      --transition: 0.2s ease;
+    }
+
+    /* ==========================================
+       RESET & BASE
+    ========================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ==========================================
+       LAYOUT
+    ========================================== */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .main-area {
+      flex: 1;
+      margin-left: var(--sidebar-width);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: margin-left var(--transition);
+    }
+
+    .content {
+      flex: 1;
+      padding: 28px 32px 48px;
+      max-width: 1400px;
+      width: 100%;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* Row status badges used across views */
+    .row-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .row-status .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .row-status.ok { background: var(--accent-emerald-bg); color: #065f46; }
+    .row-status.ok .dot { background: var(--accent-emerald); }
+    .row-status.warn { background: var(--accent-amber-bg); color: #92400e; }
+    .row-status.warn .dot { background: var(--accent-amber); }
+    .row-status.danger { background: var(--accent-rose-bg); color: #9f1239; }
+    .row-status.danger .dot { background: var(--accent-rose); }
+
+    .subhead { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; }
+    .subhead h2 { font-size: 15px; font-weight: 700; }
+    .subhead p { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+    .btn-primary {
+      height: 34px; padding: 0 16px; border: none; border-radius: var(--radius-sm);
+      background: var(--accent-blue); color: #fff; font-size: 12px; font-weight: 700;
+      font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition);
+    }
+    .btn-primary:hover { background: #2563eb; }
+
+    .report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
+    .report-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
+    .report-card .rp-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+    .report-card .rp-icon.blue { background: #eff6ff; color: var(--accent-blue); }
+    .report-card .rp-icon.emerald { background: var(--accent-emerald-bg); color: var(--accent-emerald); }
+    .report-card .rp-icon.amber { background: var(--accent-amber-bg); color: var(--accent-amber); }
+    .report-card .rp-icon.rose { background: var(--accent-rose-bg); color: var(--accent-rose); }
+    .report-card h3 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .report-card p { font-size: 11px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+    .report-card .btn-primary { height: 30px; font-size: 11px; }
+
+    /* ==========================================
+       SIDEBAR
+    ========================================== */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: var(--sidebar-width);
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      transition: width var(--transition), transform var(--transition);
+      overflow: hidden;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 20px 28px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 8px;
+    }
+
+    .sidebar-brand img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand-text {
+      overflow: hidden;
+    }
+
+    .sidebar-brand-text strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .sidebar-brand-text small {
+      display: block;
+      font-size: 10px;
+      color: var(--text-sidebar);
+      white-space: nowrap;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 0 12px;
+    }
+
+    .sidebar-section-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(148,163,184,0.5);
+      padding: 12px 12px 6px;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text-sidebar);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+      border-left: 3px solid transparent;
+      margin-bottom: 2px;
+      position: relative;
+    }
+
+    .sidebar-link i {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-link span {
+      white-space: nowrap;
+    }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: #cbd5e1;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: var(--text-sidebar-active);
+      border-left-color: var(--sidebar-active-border);
+      font-weight: 600;
+    }
+
+    .sidebar-link .nav-badge {
+      margin-left: auto;
+      background: var(--accent-rose);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      line-height: 1.3;
+    }
+
+    .sidebar-footer {
+      padding: 16px 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .sidebar-admin {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-emerald), #059669);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sidebar-admin-info {
+      overflow: hidden;
+    }
+
+    .sidebar-admin-info strong {
+      display: block;
+      font-size: 12px;
+      color: #e2e8f0;
+      font-weight: 600;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .sidebar-admin-info small {
+      display: block;
+      font-size: 10px;
+      color: var(--text-sidebar);
+      white-space: nowrap;
+    }
+
+    .btn-logout-sidebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      margin-top: 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-sidebar);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .btn-logout-sidebar:hover {
+      background: rgba(244,63,94,0.1);
+      color: #fca5a5;
+      border-color: rgba(244,63,94,0.3);
+    }
+
+    /* ==========================================
+       HEADER
+    ========================================== */
+    .header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+    }
+
+    .hamburger:hover { background: var(--bg-main); }
+
+    .header-title h1 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .header-title p {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+    }
+
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: var(--accent-emerald-bg);
+      border: 1px solid #a7f3d0;
+      font-size: 11px;
+      font-weight: 600;
+      color: #065f46;
+    }
+
+    .sync-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .header-search {
+      position: relative;
+    }
+
+    .header-search i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      width: 16px;
+      height: 16px;
+    }
+
+    .header-search input {
+      width: 260px;
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0 12px 0 36px;
+      font-size: 12px;
+      font-family: inherit;
+      background: var(--bg-input);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .header-search input:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+      background: #fff;
+    }
+
+    .header-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .header-profile:hover { background: var(--bg-main); }
+
+    .header-profile-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-profile-info strong {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .header-profile-info small {
+      display: block;
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+
+    /* ==========================================
+       KPI STAT CARDS
+    ========================================== */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card:hover { box-shadow: var(--shadow-md); }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .kpi-card.blue::before { background: var(--accent-blue); }
+    .kpi-card.emerald::before { background: var(--accent-emerald); }
+    .kpi-card.amber::before { background: var(--accent-amber); }
+    .kpi-card.rose::before { background: var(--accent-rose); }
+
+    .kpi-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .kpi-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .kpi-icon.blue { background: #eff6ff; color: var(--accent-blue); }
+    .kpi-icon.emerald { background: var(--accent-emerald-bg); color: var(--accent-emerald); }
+    .kpi-icon.amber { background: var(--accent-amber-bg); color: var(--accent-amber); }
+    .kpi-icon.rose { background: var(--accent-rose-bg); color: var(--accent-rose); }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text-secondary);
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+
+    .kpi-value.blue { color: var(--accent-blue); }
+    .kpi-value.emerald { color: var(--accent-emerald); }
+    .kpi-value.amber { color: var(--accent-amber); }
+    .kpi-value.rose { color: var(--accent-rose); }
+
+    .kpi-sub {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .kpi-trend {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      font-weight: 600;
+    }
+
+    .kpi-trend.up { color: var(--accent-emerald); }
+    .kpi-trend.down { color: var(--accent-rose); }
+
+    /* ==========================================
+       CHART GRID
+    ========================================== */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .chart-card-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .chart-card-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 18px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 220px;
+    }
+
+    /* ==========================================
+       TABLE SECTION
+    ========================================== */
+    .table-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .table-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .table-header-left h2 {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .table-header-left p {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-main);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+
+    .filter-tab {
+      padding: 6px 14px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+
+    .filter-tab:hover {
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.7);
+    }
+
+    .filter-tab.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .filter-tab .tab-count {
+      display: inline-block;
+      margin-left: 4px;
+      background: var(--bg-main);
+      padding: 1px 6px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .filter-tab.active .tab-count {
+      background: var(--bg-main);
+    }
+
+    .table-scroll {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 1100px;
+    }
+
+    .data-table th {
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+
+    .data-table tbody tr {
+      transition: background var(--transition);
+    }
+
+    .data-table tbody tr:hover {
+      background: #f8fafc;
+    }
+
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Client cell */
+    .client-cell strong {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .client-cell small {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* Contract ID */
+    .contract-id {
+      font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      background: #eff6ff;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    /* Payment type */
+    .payment-type {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    /* Amount */
+    .amount-due {
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    /* Status badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-badge .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-badge.paid {
+      background: var(--accent-emerald-bg);
+      color: #065f46;
+    }
+    .status-badge.paid .status-dot { background: var(--accent-emerald); }
+
+    .status-badge.due-soon {
+      background: var(--accent-amber-bg);
+      color: #92400e;
+    }
+    .status-badge.due-soon .status-dot { background: var(--accent-amber); }
+
+    .status-badge.overdue {
+      background: var(--accent-rose-bg);
+      color: #9f1239;
+    }
+    .status-badge.overdue .status-dot { background: var(--accent-rose); }
+
+    /* Notification badges */
+    .notif-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .notif-badge.sent {
+      background: var(--accent-emerald-bg);
+      color: #065f46;
+    }
+
+    .notif-badge.pending {
+      background: var(--accent-amber-bg);
+      color: #92400e;
+    }
+
+    .notif-badge.failed {
+      background: var(--accent-rose-bg);
+      color: #9f1239;
+    }
+
+    /* Clerk */
+    .clerk-cell {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Action buttons */
+    .action-btns {
+      display: flex;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .btn-print, .btn-remind {
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all var(--transition);
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    .btn-print {
+      background: #f8fafc;
+      border-color: var(--border);
+      color: var(--text-primary);
+    }
+    .btn-print:hover {
+      background: var(--bg-main);
+    }
+
+    .btn-remind {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+    .btn-remind:hover {
+      background: #2563eb;
+    }
+
+    .btn-disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    /* Table empty state */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+
+    .empty-state i { margin-bottom: 10px; opacity: 0.4; }
+    .empty-state strong { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+    .empty-state small { font-size: 11px; }
+
+    /* ==========================================
+       TOAST NOTIFICATION
+    ========================================== */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+    }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px;
+      border-radius: var(--radius-sm);
+      background: #065f46;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      animation: slideIn 0.3s ease, fadeOut 0.3s ease 3s forwards;
+      max-width: 400px;
+    }
+
+    .toast i { flex-shrink: 0; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes fadeOut {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(40px); }
+    }
+
+    /* ==========================================
+       PRINT SOA MODAL
+    ========================================== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.55);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      padding: 20px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s, visibility 0.25s;
+    }
+
+    .modal-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .soa-modal {
+      background: #fff;
+      width: 100%;
+      max-width: 640px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: transform 0.25s;
+    }
+
+    .modal-overlay.visible .soa-modal {
+      transform: scale(1);
+    }
+
+    .soa-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+
+    .soa-toolbar button {
+      height: 34px;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: all var(--transition);
+    }
+
+    .btn-close-modal {
+      background: #fff;
+      color: var(--text-secondary);
+    }
+    .btn-close-modal:hover { background: var(--bg-main); }
+
+    .btn-do-print {
+      background: var(--accent-blue);
+      color: #fff;
+      border-color: var(--accent-blue);
+    }
+    .btn-do-print:hover { background: #2563eb; }
+
+    /* SOA Document */
+    .soa-document {
+      padding: 36px 40px;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    .soa-doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--sidebar-bg);
+    }
+
+    .soa-doc-header .soa-brand img {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 8px;
+    }
+
+    .soa-doc-header .soa-brand strong {
+      display: block;
+      font-size: 16px;
+      color: var(--sidebar-bg);
+    }
+
+    .soa-doc-header .soa-brand small {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .soa-doc-title {
+      text-align: right;
+    }
+
+    .soa-doc-title h3 {
+      font-size: 14px;
+      color: var(--accent-rose);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .soa-doc-title p {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .soa-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .soa-info-group label {
+      display: block;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .soa-info-group span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .soa-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 11px;
+    }
+
+    .soa-table th {
+      padding: 8px 12px;
+      background: #f1f5f9;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .soa-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .soa-table .total-row td {
+      border-top: 2px solid var(--text-primary);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .soa-footer-note {
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      line-height: 1.6;
+    }
+
+    /* ==========================================
+       SIDEBAR OVERLAY (mobile)
+    ========================================== */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 90;
+    }
+
+    .sidebar-overlay.visible { display: block; }
+
+    /* ==========================================
+       RESPONSIVE
+    ========================================== */
+    @media (max-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .chart-grid { grid-template-columns: 1fr; }
+      .sidebar { width: var(--sidebar-collapsed); }
+      .sidebar .sidebar-brand-text,
+      .sidebar .sidebar-link span,
+      .sidebar .sidebar-section-label,
+      .sidebar .sidebar-link .nav-badge,
+      .sidebar .sidebar-admin-info { display: none; }
+      .sidebar .sidebar-brand { padding: 16px; justify-content: center; }
+      .sidebar .sidebar-link { justify-content: center; padding: 10px; border-left: none; }
+      .sidebar .sidebar-link i { margin: 0; }
+      .sidebar .sidebar-admin { justify-content: center; }
+      .main-area { margin-left: var(--sidebar-collapsed); }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        width: var(--sidebar-width);
+        transform: translateX(-100%);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar .sidebar-brand-text,
+      .sidebar .sidebar-link span,
+      .sidebar .sidebar-section-label,
+      .sidebar .sidebar-link .nav-badge,
+      .sidebar .sidebar-admin-info { display: block; }
+      .sidebar .sidebar-brand { padding: 20px 20px 28px; justify-content: flex-start; }
+      .sidebar .sidebar-link { justify-content: flex-start; padding: 10px 12px; border-left: 3px solid transparent; }
+      .main-area { margin-left: 0; }
+      .hamburger { display: flex; }
+      .header { padding: 12px 16px; }
+      .content { padding: 20px 16px 40px; }
+      .header-search input { width: 180px; }
+      .header-profile-info { display: none; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .kpi-value { font-size: 20px; }
+    }
+
+    @media (max-width: 640px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .header-center { display: none; }
+      .header-search { display: none; }
+      .filter-tabs { overflow-x: auto; }
+      .table-header { flex-direction: column; align-items: flex-start; }
+      .soa-document { padding: 24px 20px; }
+      .soa-doc-header { flex-direction: column; gap: 12px; }
+      .soa-doc-title { text-align: left; }
+      .soa-info-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ==========================================
+       PRINT STYLES
+    ========================================== */
+    @media print {
+      body * { visibility: hidden !important; }
+      .soa-document, .soa-document * { visibility: visible !important; }
+      .soa-document {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        max-height: none;
+        overflow: visible;
+        padding: 24px 32px;
+      }
+      .soa-toolbar, .modal-overlay { background: none !important; backdrop-filter: none !important; }
+      .modal-overlay { position: absolute; }
+      .soa-modal {
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        max-width: 100% !important;
+      }
+      @page { margin: 15mm; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="layout">
+
+    <!-- ============================================
+         SIDEBAR
+    ============================================= -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <img src="../img/ihc logo.png" alt="IHC Logo">
+        <div class="sidebar-brand-text">
+          <strong>Imperial Homes Corporation</strong>
+          <small>Admin Payment Console</small>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-section-label">Main</div>
+
+        <a class="sidebar-link active" href="#" data-page="dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="contracts">
+          <i data-lucide="file-text"></i>
+          <span>Contracts</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="schedules">
+          <i data-lucide="calendar-clock"></i>
+          <span>Payment Schedules</span>
+        </a>
+
+        <div class="sidebar-section-label">Management</div>
+
+        <a class="sidebar-link" href="#" data-page="notifications">
+          <i data-lucide="bell"></i>
+          <span>Notifications Log</span>
+          <span class="nav-badge">3</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="reports">
+          <i data-lucide="bar-chart-3"></i>
+          <span>Reports</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-admin">
+          <div class="sidebar-avatar" id="sidebarAvatar">JC</div>
+          <div class="sidebar-admin-info">
+            <strong id="sidebarAdminName">Jeremy Cantalejo</strong>
+            <small>System Admin</small>
+          </div>
+        </div>
+        <button class="btn-logout-sidebar" id="logoutBtn">
+          <i data-lucide="log-out" style="width:14px;height:14px;"></i>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Sidebar overlay for mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- ============================================
+         MAIN AREA
+    ============================================= -->
+    <div class="main-area">
+
+      <!-- HEADER -->
+      <header class="header">
+        <div class="header-left">
+          <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">
+            <i data-lucide="menu" style="width:22px;height:22px;"></i>
+          </button>
+          <div class="header-title">
+            <h1>Payment Monitoring & Analytics</h1>
+            <p>Admin Console &bull; Fiscal Year 2026</p>
+          </div>
+        </div>
+
+        <div class="header-center">
+          <div class="sync-badge">
+            <span class="sync-dot"></span>
+            System Online
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="header-search">
+            <i data-lucide="search"></i>
+            <input type="text" id="globalSearch" placeholder="Search client name or contract ID...">
+          </div>
+          <div class="header-profile">
+            <div class="header-profile-avatar" id="headerProfileAvatar">JC</div>
+            <div class="header-profile-info">
+              <strong id="headerProfileName">Jeremy C.</strong>
+              <small>Admin</small>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT -->
+      <div class="content">
+
+        <!-- ============================
+             VIEW: DASHBOARD (default)
+        ============================= -->
+        <section class="view active" data-view="dashboard">
+
+        <!-- KPI CARDS -->
+        <section class="kpi-grid">
+          <div class="kpi-card blue">
+            <div class="kpi-header">
+              <span class="kpi-label">Total Expected Collections</span>
+              <div class="kpi-icon blue"><i data-lucide="wallet" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value blue" id="kpiExpected">₱0.00</div>
+            <div class="kpi-sub">Fiscal Year 2026</div>
+          </div>
+
+          <div class="kpi-card emerald">
+            <div class="kpi-header">
+              <span class="kpi-label">Actual Collected (This Month)</span>
+              <div class="kpi-icon emerald"><i data-lucide="trending-up" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value emerald" id="kpiCollected">₱0.00</div>
+            <div class="kpi-sub"><span class="kpi-trend up">↑ 12.5%</span> vs last month</div>
+          </div>
+
+          <div class="kpi-card amber">
+            <div class="kpi-header">
+              <span class="kpi-label">Collection Efficiency</span>
+              <div class="kpi-icon amber"><i data-lucide="percent" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value amber" id="kpiEfficiency">0%</div>
+            <div class="kpi-sub">Target: 90%</div>
+          </div>
+
+          <div class="kpi-card rose">
+            <div class="kpi-header">
+              <span class="kpi-label">Accounts Due in 3 Days</span>
+              <div class="kpi-icon rose"><i data-lucide="alert-triangle" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value rose" id="kpiDueSoon">0</div>
+            <div class="kpi-sub">Alert threshold: 5</div>
+          </div>
+        </section>
+
+        <!-- CHARTS -->
+        <section class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-card-title">6-Month Cash Flow Forecast vs. Actual</div>
+            <div class="chart-card-sub">Apr – Sep 2026 Collections Overview</div>
+            <div class="chart-wrap">
+              <canvas id="cashFlowChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-card-title">Aging of Accounts / Delinquency Bracket</div>
+            <div class="chart-card-sub">Current distribution across aging periods</div>
+            <div class="chart-wrap">
+              <canvas id="agingChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAYMENT MONITORING TABLE -->
+        <section class="table-section">
+          <div class="table-header">
+            <div class="table-header-left">
+              <h2>Payment Monitoring Ledger</h2>
+              <p>Contract portfolio &bull; Updated in real-time</p>
+            </div>
+            <div class="filter-tabs" id="filterTabs">
+              <button class="filter-tab active" data-filter="all">All <span class="tab-count" id="countAll">0</span></button>
+              <button class="filter-tab" data-filter="due-soon">Due in 3 Days <span class="tab-count" id="countDueSoon">0</span></button>
+              <button class="filter-tab" data-filter="overdue">Overdue <span class="tab-count" id="countOverdue">0</span></button>
+              <button class="filter-tab" data-filter="paid">Paid <span class="tab-count" id="countPaid">0</span></button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Client Name & Property</th>
+                  <th>Contract ID</th>
+                  <th>Payment Type</th>
+                  <th>Amount Due</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Notification</th>
+                  <th>Clerk</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="paymentTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        </section><!-- /view dashboard -->
+
+        <!-- ============================
+             VIEW: CONTRACTS
+        ============================= -->
+        <section class="view" data-view="contracts">
+          <div class="subhead">
+            <div>
+              <h2>Contracts Register</h2>
+              <p>All buyer contracts with payment reconciliation summary.</p>
+            </div>
+            <button class="btn-primary" id="generateRegisterBtn">
+              <i data-lucide="download" style="width:14px;height:14px;"></i> Generate Contract Register
+            </button>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Contract ID / IHC Ref</th>
+                  <th>Client</th>
+                  <th>Property</th>
+                  <th>Total TCP</th>
+                  <th>Downpayment</th>
+                  <th>Outstanding</th>
+                  <th>Terms</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="contractsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: PAYMENT SCHEDULES
+        ============================= -->
+        <section class="view" data-view="schedules">
+          <div class="subhead">
+            <div>
+              <h2>Payment Schedules</h2>
+              <p>Select a contract to view its installment / amortization schedule.</p>
+            </div>
+          </div>
+          <div style="margin-bottom:18px; max-width:380px;">
+            <label style="font-size:11px; font-weight:700; color:var(--text-secondary); display:block; margin-bottom:6px;">Select Contract</label>
+            <select id="scheduleSelect" style="width:100%; height:42px; border:1px solid var(--border); border-radius:var(--radius-sm); padding:0 12px; font-size:13px; font-family:inherit; background:#fff; color:var(--text-primary); outline:none;">
+            </select>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Installment #</th>
+                  <th>Due Date</th>
+                  <th>Amount Due</th>
+                  <th>Status</th>
+                  <th>Reminder</th>
+                </tr>
+              </thead>
+              <tbody id="scheduleBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: NOTIFICATIONS LOG
+        ============================= -->
+        <section class="view" data-view="notifications">
+          <div class="subhead">
+            <div>
+              <h2>Notifications Log</h2>
+              <p>Record of all payment reminder SMS &amp; Email dispatches.</p>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date / Time</th>
+                  <th>Client</th>
+                  <th>Contract ID</th>
+                  <th>Channel</th>
+                  <th>Recipient</th>
+                  <th>Subject / Message</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="notificationsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: REPORTS
+        ============================= -->
+        <section class="view" data-view="reports">
+          <div class="subhead">
+            <div>
+              <h2>Reports & Exports</h2>
+              <p>Generate and export financial summary reports for your collection records.</p>
+            </div>
+          </div>
+          <div class="report-grid">
+            <div class="report-card">
+              <div class="rp-icon blue"><i data-lucide="wallet" style="width:20px;height:20px;"></i></div>
+              <h3>Collection Summary</h3>
+              <p>Total expected vs. actual collections across all contracts.</p>
+              <button class="btn-primary" data-report="Collection Summary Report">Generate</button>
+            </div>
+            <div class="report-card">
+              <div class="rp-icon emerald"><i data-lucide="calendar-range" style="width:20px;height:20px;"></i></div>
+              <h3>Cash Flow Forecast</h3>
+              <p>6-month forecast vs. actual collection trend chart and figures.</p>
+              <button class="btn-primary" data-report="Cash Flow Forecast Report">Generate</button>
+            </div>
+            <div class="report-card">
+              <div class="rp-icon amber"><i data-lucide="clock" style="width:20px;height:20px;"></i></div>
+              <h3>Aging of Accounts</h3>
+              <p>Delinquency bracket breakdown by aging period.</p>
+              <button class="btn-primary" data-report="Aging of Accounts Report">Generate</button>
+            </div>
+            <div class="report-card">
+              <div class="rp-icon rose"><i data-lucide="alert-triangle" style="width:20px;height:20px;"></i></div>
+              <h3>Due &amp; Overdue Register</h3>
+              <p>List of accounts due within 3 days and all overdue accounts.</p>
+              <button class="btn-primary" data-report="Due & Overdue Register">Generate</button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- PRINT SOA MODAL -->
+  <div class="modal-overlay" id="soaModal">
+    <div class="soa-modal">
+      <div class="soa-toolbar">
+        <button class="btn-close-modal" id="closeSoaModal">Close</button>
+        <button class="btn-do-print" id="doPrintSoa">Print SOA</button>
+      </div>
+      <div class="soa-document" id="soaDocument"></div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       JAVASCRIPT
+  ============================================= -->
+  <script>
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded', () => {
+
+    /* ==========================================
+       SESSION GUARD — Admin only
+    ========================================== */
+    const stored = localStorage.getItem('IHC_USER');
+    if (!stored) {
+      window.location.href = '../log in.html';
+      return;
+    }
+
+    let currentUser;
+    try {
+      currentUser = JSON.parse(stored);
+      if (!currentUser || !currentUser.role) throw new Error();
+    } catch {
+      localStorage.removeItem('IHC_USER');
+      window.location.href = '../log in.html';
+      return;
+    }
+
+    if (currentUser.role !== 'admin') {
+      window.location.href = currentUser.role === 'clerk'
+        ? 'clerk-dashboard.html'
+        : '../log in.html';
+      return;
+    }
+
+    // Populate user data into sidebar & header
+    const userInitials = currentUser.avatar || currentUser.name.split(' ').map(n => n[0]).join('');
+    document.getElementById('sidebarAvatar').textContent = userInitials;
+    document.getElementById('sidebarAdminName').textContent = currentUser.name;
+    document.getElementById('headerProfileAvatar').textContent = userInitials;
+    document.getElementById('headerProfileName').textContent = currentUser.name;
+
+    /* ==========================================
+       MOCK DATA — 12 Contracts
+    ========================================== */
+    const TODAY = new Date('2026-09-09');
+
+    const contracts = [
+      {
+        id: 'IHC-2026-0041',
+        client: 'Juan Dela Cruz',
+        property: 'Blk 5 Lot 12, Phase 3',
+        paymentType: 'Monthly Amortization #8',
+        amount: 15500,
+        dueDate: new Date('2026-09-12'),
+        status: 'due-soon',
+        notification: 'sent',
+        clerk: 'Ana Reyes'
+      },
+      {
+        id: 'IHC-2026-0023',
+        client: 'Maria Santos',
+        property: 'Blk 2 Lot 7, Phase 1',
+        paymentType: 'Downpayment #2',
+        amount: 50000,
+        dueDate: new Date('2026-09-05'),
+        status: 'overdue',
+        notification: 'sent',
+        clerk: 'Ana Reyes'
+      },
+      {
+        id: 'IHC-2026-0067',
+        client: 'Pedro Mendoza',
+        property: 'Blk 8 Lot 3, Phase 4',
+        paymentType: 'Monthly Amortization #5',
+        amount: 15500,
+        dueDate: new Date('2026-08-28'),
+        status: 'paid',
+        notification: 'sent',
+        clerk: 'Mark Cruz'
+      },
+      {
+        id: 'IHC-2026-0089',
+        client: 'Ana Villanueva',
+        property: 'Blk 11 Lot 22, Phase 2',
+        paymentType: 'Monthly Amortization #3',
+        amount: 18200,
+        dueDate: new Date('2026-09-11'),
+        status: 'due-soon',
+        notification: 'pending',
+        clerk: 'Jessica Lim'
+      },
+      {
+        id: 'IHC-2026-0102',
+        client: 'Roberto Garcia',
+        property: 'Blk 3 Lot 19, Phase 1',
+        paymentType: 'Monthly Amortization #12',
+        amount: 15500,
+        dueDate: new Date('2026-08-12'),
+        status: 'overdue',
+        notification: 'failed',
+        clerk: 'Ana Reyes'
+      },
+      {
+        id: 'IHC-2026-0055',
+        client: 'Carmen Reyes',
+        property: 'Blk 7 Lot 5, Phase 3',
+        paymentType: 'Monthly Amortization #10',
+        amount: 16800,
+        dueDate: new Date('2026-09-01'),
+        status: 'paid',
+        notification: 'sent',
+        clerk: 'Mark Cruz'
+      },
+      {
+        id: 'IHC-2026-0034',
+        client: 'Ricardo Bautista',
+        property: 'Blk 1 Lot 14, Phase 1',
+        paymentType: 'Downpayment #1',
+        amount: 75000,
+        dueDate: new Date('2026-09-02'),
+        status: 'paid',
+        notification: 'sent',
+        clerk: 'Jessica Lim'
+      },
+      {
+        id: 'IHC-2026-0078',
+        client: 'Sofia Torres',
+        property: 'Blk 9 Lot 8, Phase 4',
+        paymentType: 'Monthly Amortization #6',
+        amount: 15500,
+        dueDate: new Date('2026-09-10'),
+        status: 'due-soon',
+        notification: 'sent',
+        clerk: 'Ana Reyes'
+      },
+      {
+        id: 'IHC-2026-0091',
+        client: 'Miguel Flores',
+        property: 'Blk 6 Lot 30, Phase 2',
+        paymentType: 'Monthly Amortization #9',
+        amount: 16800,
+        dueDate: new Date('2026-08-30'),
+        status: 'paid',
+        notification: 'sent',
+        clerk: 'Mark Cruz'
+      },
+      {
+        id: 'IHC-2026-0045',
+        client: 'Elena Ramos',
+        property: 'Blk 4 Lot 2, Phase 1',
+        paymentType: 'Monthly Amortization #4',
+        amount: 15500,
+        dueDate: new Date('2026-09-03'),
+        status: 'paid',
+        notification: 'sent',
+        clerk: 'Jessica Lim'
+      },
+      {
+        id: 'IHC-2026-0110',
+        client: 'Jose Aquino',
+        property: 'Blk 10 Lot 16, Phase 3',
+        paymentType: 'Downpayment #3',
+        amount: 40000,
+        dueDate: new Date('2026-09-13'),
+        status: 'due-soon',
+        notification: 'pending',
+        clerk: 'Ana Reyes'
+      },
+      {
+        id: 'IHC-2026-0073',
+        client: 'Teresa Lim',
+        property: 'Blk 12 Lot 9, Phase 4',
+        paymentType: 'Monthly Amortization #7',
+        amount: 18200,
+        dueDate: new Date('2026-08-20'),
+        status: 'overdue',
+        notification: 'sent',
+        clerk: 'Mark Cruz'
+      }
+    ];
+
+    /* ==========================================
+       HELPERS
+    ========================================== */
+    const formatPHP = (n) => {
+      return '\u20B1' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const formatDate = (d) => {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    const daysDiff = (d1, d2) => {
+      const diff = d1 - d2;
+      return Math.ceil(diff / (1000 * 60 * 60 * 24));
+    };
+
+    const getStatusLabel = (row) => {
+      if (row.status === 'paid') return 'Paid';
+      if (row.status === 'overdue') return 'Overdue by ' + daysDiff(TODAY, row.dueDate) + ' Days';
+      if (row.status === 'due-soon') return 'Due in ' + daysDiff(row.dueDate, TODAY) + ' Days';
+      return 'Current';
+    };
+
+    const getNotifLabel = (n) => {
+      if (n === 'sent') return 'SMS & Email Sent';
+      if (n === 'pending') return 'Pending';
+      return 'Failed';
+    };
+
+    /* ==========================================
+       KPI CARDS
+    ========================================== */
+    const totalExpected = contracts.reduce((s, c) => s + c.amount, 0);
+    const totalCollected = contracts.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
+    const efficiency = totalExpected > 0 ? ((totalCollected / totalExpected) * 100).toFixed(1) : 0;
+    const dueSoonCount = contracts.filter(c => c.status === 'due-soon').length;
+
+    document.getElementById('kpiExpected').textContent = formatPHP(totalExpected);
+    document.getElementById('kpiCollected').textContent = formatPHP(totalCollected);
+    document.getElementById('kpiEfficiency').textContent = efficiency + '%';
+    document.getElementById('kpiDueSoon').textContent = dueSoonCount;
+
+    /* ==========================================
+       CHARTS
+    ========================================== */
+    // Cash Flow Chart
+    const cashFlowCtx = document.getElementById('cashFlowChart').getContext('2d');
+    new Chart(cashFlowCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'],
+        datasets: [
+          {
+            label: 'Forecast',
+            data: [420000, 450000, 480000, 500000, 490000, 510000],
+            backgroundColor: 'rgba(59,130,246,0.75)',
+            borderColor: 'rgba(59,130,246,1)',
+            borderWidth: 1,
+            borderRadius: 4,
+            barPercentage: 0.7,
+            categoryPercentage: 0.6
+          },
+          {
+            label: 'Actual',
+            data: [395000, 462000, 470000, 510000, 475000, 485000],
+            backgroundColor: 'rgba(16,185,129,0.75)',
+            borderColor: 'rgba(16,185,129,1)',
+            borderWidth: 1,
+            borderRadius: 4,
+            barPercentage: 0.7,
+            categoryPercentage: 0.6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+            align: 'end',
+            labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'rectRounded', font: { size: 10, weight: '600' } }
+          },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            titleFont: { size: 11 },
+            bodyFont: { size: 11 },
+            padding: 10,
+            cornerRadius: 6,
+            callbacks: {
+              label: (ctx) => ctx.dataset.label + ': ' + formatPHP(ctx.raw)
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' } },
+          y: {
+            grid: { color: '#f1f5f9' },
+            ticks: {
+              font: { size: 10 },
+              color: '#94a3b8',
+              callback: (v) => '\u20B1' + (v / 1000).toFixed(0) + 'K'
+            }
+          }
+        }
+      }
+    });
+
+    // Aging Chart
+    const agingCtx = document.getElementById('agingChart').getContext('2d');
+    const agingData = {
+      current: contracts.filter(c => c.status === 'paid' || (c.status === 'due-soon' && daysDiff(c.dueDate, TODAY) <= 0)).length,
+      '1to30': contracts.filter(c => c.status === 'due-soon' || (c.status === 'overdue' && daysDiff(TODAY, c.dueDate) <= 30)).length,
+      '31to60': contracts.filter(c => c.status === 'overdue' && daysDiff(TODAY, c.dueDate) > 12 && daysDiff(TODAY, c.dueDate) <= 60).length,
+      '90plus': contracts.filter(c => c.status === 'overdue' && daysDiff(TODAY, c.dueDate) > 60).length
+    };
+
+    new Chart(agingCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Current', '1–30 Days', '31–60 Days', '61–90 Days', '90+ Days'],
+        datasets: [{
+          label: 'Accounts',
+          data: [5, 4, 2, 1, 0],
+          backgroundColor: [
+            'rgba(16,185,129,0.8)',
+            'rgba(251,191,36,0.8)',
+            'rgba(245,158,11,0.8)',
+            'rgba(244,63,94,0.7)',
+            'rgba(244,63,94,0.9)'
+          ],
+          borderColor: [
+            'rgba(16,185,129,1)',
+            'rgba(251,191,36,1)',
+            'rgba(245,158,11,1)',
+            'rgba(244,63,94,1)',
+            'rgba(244,63,94,1)'
+          ],
+          borderWidth: 1,
+          borderRadius: 4,
+          barPercentage: 0.65
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            titleFont: { size: 11 },
+            bodyFont: { size: 11 },
+            padding: 10,
+            cornerRadius: 6,
+            callbacks: {
+              label: (ctx) => ctx.raw + ' account(s)'
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#f1f5f9' },
+            ticks: { font: { size: 10 }, color: '#94a3b8', stepSize: 1 },
+            beginAtZero: true
+          },
+          y: {
+            grid: { display: false },
+            ticks: { font: { size: 10, weight: '600' }, color: '#64748b' }
+          }
+        }
+      }
+    });
+
+    /* ==========================================
+       TABLE RENDERING
+    ========================================== */
+    const tableBody = document.getElementById('paymentTableBody');
+    const globalSearch = document.getElementById('globalSearch');
+    const filterTabs = document.querySelectorAll('.filter-tab');
+
+    let activeFilter = 'all';
+
+    const renderTable = (data) => {
+      if (!data.length) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="9">
+              <div class="empty-state">
+                <i data-lucide="search-x" style="width:40px;height:40px;"></i>
+                <strong>No matching records found</strong>
+                <small>Try adjusting your search or filter criteria</small>
+              </div>
+            </td>
+          </tr>`;
+        lucide.createIcons();
+        return;
+      }
+
+      tableBody.innerHTML = data.map((row, i) => {
+        const statusLabel = getStatusLabel(row);
+        const notifLabel = getNotifLabel(row.notification);
+        const dayDiff = daysDiff(row.dueDate, TODAY);
+
+        return `
+          <tr>
+            <td>
+              <div class="client-cell">
+                <strong>${row.client}</strong>
+                <small>${row.property}</small>
+              </div>
+            </td>
+            <td><span class="contract-id">${row.id}</span></td>
+            <td class="payment-type">${row.paymentType}</td>
+            <td><span class="amount-due">${formatPHP(row.amount)}</span></td>
+            <td style="white-space:nowrap; font-size:12px;">${formatDate(row.dueDate)}</td>
+            <td>
+              <span class="status-badge ${row.status}">
+                <span class="status-dot"></span>
+                ${statusLabel}
+              </span>
+            </td>
+            <td>
+              <span class="notif-badge ${row.notification}">${notifLabel}</span>
+            </td>
+            <td class="clerk-cell">${row.clerk}</td>
+            <td>
+              <div class="action-btns">
+                <button class="btn-print" onclick="printSOA(${i})" title="Print Statement of Account">
+                  Print SOA
+                </button>
+                <button class="btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${i})" title="Send/Resend Payment Reminder">
+                  Remind
+                </button>
+              </div>
+            </td>
+          </tr>`;
+      }).join('');
+
+      lucide.createIcons();
+    };
+
+    const updateCounts = () => {
+      const search = globalSearch.value.toLowerCase().trim();
+      const filter = (status) => {
+        return contracts.filter(c => {
+          const matchSearch = !search || c.client.toLowerCase().includes(search) || c.id.toLowerCase().includes(search);
+          return matchSearch && (status === 'all' || c.status === status);
+        });
+      };
+      document.getElementById('countAll').textContent = filter('all').length;
+      document.getElementById('countDueSoon').textContent = filter('due-soon').length;
+      document.getElementById('countOverdue').textContent = filter('overdue').length;
+      document.getElementById('countPaid').textContent = filter('paid').length;
+    };
+
+    const applyFilters = () => {
+      const search = globalSearch.value.toLowerCase().trim();
+      const filtered = contracts.filter(c => {
+        const matchSearch = !search || c.client.toLowerCase().includes(search) || c.id.toLowerCase().includes(search);
+        const matchFilter = activeFilter === 'all' || c.status === activeFilter;
+        return matchSearch && matchFilter;
+      });
+      renderTable(filtered);
+      updateCounts();
+    };
+
+    // Search
+    globalSearch.addEventListener('input', applyFilters);
+
+    // Filter tabs
+    filterTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        filterTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeFilter = tab.dataset.filter;
+        applyFilters();
+      });
+    });
+
+    // Initial render
+    renderTable(contracts);
+    updateCounts();
+
+    /* ==========================================
+       REMINDER TOAST
+    ========================================== */
+    function showToast(message, type) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      if (type === 'info') toast.style.background = '#1e40af';
+      toast.innerHTML = `<i data-lucide="${type === 'info' ? 'info' : 'check-circle'}" style="width:18px;height:18px;"></i> ${message}`;
+      container.appendChild(toast);
+      lucide.createIcons();
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, 3500);
+    }
+
+    window.sendReminder = async (index) => {
+      const row = contracts[index];
+      const btn = document.querySelector(`[onclick="sendReminder(${index})"]`);
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+      try {
+        const res = await fetch('http://localhost:3000/api/contracts/' + row.id + '/send-reminder', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          row.notification = 'sent';
+          showToast(data.message, 'success');
+        } else {
+          showToast(data.message || 'Failed to send reminder', 'info');
+        }
+      } catch (err) {
+        showToast('Server unreachable. Reminder not sent.', 'info');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Remind'; }
+      }
+    };
+
+    /* ==========================================
+       PRINT SOA MODAL
+    ========================================== */
+    const soaModal = document.getElementById('soaModal');
+    const soaDocument = document.getElementById('soaDocument');
+
+    window.printSOA = (index) => {
+      const row = contracts[index];
+      const dueDateFormatted = formatDate(row.dueDate);
+      const statusLabel = getStatusLabel(row);
+
+      soaDocument.innerHTML = `
+        <div class="soa-doc-header">
+          <div class="soa-brand">
+            <img src="../img/ihc logo.png" alt="IHC">
+            <strong>Imperial Homes Corporation</strong>
+            <small>Imperial Homes Corporation &bull; Billing & Accounts Receivable</small>
+          </div>
+          <div class="soa-doc-title">
+            <h3>Statement of Account</h3>
+            <p>SOA-${row.id} &bull; Generated ${formatDate(TODAY)}</p>
+          </div>
+        </div>
+
+        <div class="soa-info-grid">
+          <div class="soa-info-group">
+            <label>Client Name</label>
+            <span>${row.client}</span>
+          </div>
+          <div class="soa-info-group">
+            <label>Contract / IHC Ref</label>
+            <span>${row.id}</span>
+          </div>
+          <div class="soa-info-group">
+            <label>Property</label>
+            <span>${row.property}</span>
+          </div>
+          <div class="soa-info-group">
+            <label>Assigned Clerk</label>
+            <span>${row.clerk}</span>
+          </div>
+        </div>
+
+        <table class="soa-table">
+          <thead>
+            <tr>
+              <th>Payment Type</th>
+              <th>Due Date</th>
+              <th>Amount Due</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${row.paymentType}</td>
+              <td>${dueDateFormatted}</td>
+              <td style="font-weight:700;">${formatPHP(row.amount)}</td>
+              <td>${statusLabel}</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="2" style="text-align:right;">TOTAL DUE</td>
+              <td style="font-weight:800;">${formatPHP(row.amount)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="soa-footer-note">
+          This is a system-generated Statement of Account from Imperial Homes Corporation.<br>
+          For concerns, contact Imperial Homes Corporation Billing Department.
+        </div>
+      `;
+
+      soaModal.classList.add('visible');
+    };
+
+    document.getElementById('closeSoaModal').addEventListener('click', () => {
+      soaModal.classList.remove('visible');
+    });
+
+    document.getElementById('doPrintSoa').addEventListener('click', () => {
+      window.print();
+    });
+
+    soaModal.addEventListener('click', (e) => {
+      if (e.target === soaModal) soaModal.classList.remove('visible');
+    });
+
+    /* ==========================================
+       VIEW SWITCHING — Sidebar navigation
+    ========================================== */
+    const viewTitles = {
+      dashboard:     ['Payment Monitoring & Analytics', 'Admin Console \u2022 Fiscal Year 2026'],
+      contracts:     ['Contracts', 'Contract Portfolio \u2022 Management & Reconciliation'],
+      schedules:     ['Payment Schedules', 'Installment & Dowpayment Schedules Per Contract'],
+      notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
+      reports:       ['Reports', 'Generate & Export Collection Reports']
+    };
+
+    function showView(name) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const target = document.querySelector('.view[data-view="' + name + '"]');
+      if (target) target.classList.add('active');
+
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+      const link = document.querySelector('.sidebar-link[data-page="' + name + '"]');
+      if (link) link.classList.add('active');
+
+      const t = viewTitles[name];
+      const titleEl = document.querySelector('.header-title h1');
+      const subEl = document.querySelector('.header-title p');
+      if (t) {
+        if (titleEl) titleEl.textContent = t[0];
+        if (subEl) subEl.textContent = t[1];
+      }
+
+      if (name === 'contracts') renderContracts();
+      if (name === 'schedules') renderScheduleSelect();
+      if (name === 'notifications') renderNotifications();
+
+      sidebar.classList.remove('open');
+      overlay.classList.remove('visible');
+    }
+
+    document.querySelectorAll('.sidebar-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        showView(link.dataset.page || 'dashboard');
+      });
+    });
+
+    /* ==========================================
+       CONTRACTS VIEW
+    ========================================== */
+    function renderContracts() {
+      const body = document.getElementById('contractsBody');
+      const statusMap = { 'paid': 'ok', 'due-soon': 'warn', 'overdue': 'danger' };
+      body.innerHTML = contracts.map(c => {
+        const st = c.status;
+        const stLabel = st === 'paid' ? 'Current / Settled' : (st === 'overdue' ? 'Overdue' : 'Due Soon');
+        return `
+          <tr>
+            <td><span class="contract-id">${c.id}</span></td>
+            <td class="client-cell"><strong>${c.client}</strong></td>
+            <td class="clerk-cell">${c.property}</td>
+            <td class="amount-due">${formatPHP(c.amount)}</td>
+            <td class="clerk-cell" style="color:var(--accent-emerald); font-weight:600;">${formatPHP(Math.round(c.amount * 0.2))}</td>
+            <td style="color:var(--accent-blue); font-weight:600;">${formatPHP(Math.round(c.amount * 0.8))}</td>
+            <td class="clerk-cell">12 Months</td>
+            <td><span class="row-status ${statusMap[st] || 'ok'}"><span class="dot"></span>${stLabel}</span></td>
+          </tr>`;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    document.getElementById('generateRegisterBtn').addEventListener('click', () => {
+      showToast('Contract register generated & ready for export', 'success');
+    });
+
+    /* ==========================================
+       PAYMENT SCHEDULES VIEW
+    ========================================== */
+    function renderScheduleSelect() {
+      const sel = document.getElementById('scheduleSelect');
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">Select a contract...</option>' + contracts.map(c =>
+        `<option value="${c.id}" ${c.id === prev ? 'selected' : ''}>${c.id} \u2014 ${c.client}</option>`
+      ).join('');
+      renderSchedule(sel.value);
+    }
+
+    function renderSchedule(contractId) {
+      const row = contracts.find(c => c.id === contractId);
+      const body = document.getElementById('scheduleBody');
+      if (!row) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">Select a contract to view its schedule.</td></tr>';
+        return;
+      }
+      const base = Math.round((row.amount) / 8 * 100) / 100;
+      const statusMap = { 'paid': 'ok', 'due-soon': 'warn', 'overdue': 'danger' };
+      const notifMap = { 'sent': 'SMS & Email Sent', 'pending': 'Pending', 'failed': 'Failed' };
+      const rows = [];
+      for (let i = 1; i <= 8; i++) {
+        const due = new Date(row.dueDate.getFullYear(), row.dueDate.getMonth() - (8 - i), row.dueDate.getDate());
+        const isLast = i === 8;
+        const amt = isLast ? Math.round((row.amount - base * 7) * 100) / 100 : base;
+        const paid = i < 8;
+        const st = paid ? 'paid' : row.status;
+        const notif = paid ? 'sent' : (row.notification === 'failed' ? 'failed' : (st === 'paid' ? 'sent' : 'pending'));
+        rows.push(`<tr>
+          <td class="clerk-cell"><strong>Installment #${i}</strong></td>
+          <td style="white-space:nowrap; font-size:12px; font-weight:600;">${formatDate(due)}</td>
+          <td class="amount-due">${formatPHP(amt)}</td>
+          <td><span class="row-status ${statusMap[st] || 'ok'}"><span class="dot"></span>${st === 'paid' ? 'Cleared & Posted' : (st === 'overdue' ? 'Overdue' : 'Due Soon')}</span></td>
+          <td><span class="notif-badge ${notif}">${notifMap[notif]}</span></td>
+        </tr>`);
+      }
+      body.innerHTML = rows.join('');
+      lucide.createIcons();
+    }
+
+    document.getElementById('scheduleSelect').addEventListener('change', (e) => {
+      renderSchedule(e.target.value);
+    });
+
+    /* ==========================================
+       NOTIFICATIONS LOG VIEW
+    ========================================== */
+    function renderNotifications() {
+      const body = document.getElementById('notificationsBody');
+      const notifData = contracts.map((c, i) => ({
+        time: new Date(2026, 8, 1 + (i % 9), 9 + (i % 8), (i * 13) % 60),
+        client: c.client,
+        id: c.id,
+        channel: c.notification === 'failed' ? 'SMS Only' : 'SMS & Email',
+        recipient: c.client.split(' ')[0] + '@ihc.com',
+        subject: 'Payment Reminder \u2014 ' + c.paymentType,
+        status: c.notification
+      })).sort((a, b) => b.time - a.time);
+
+      const stClass = { 'sent': 'ok', 'pending': 'warn', 'failed': 'danger' };
+      const stMap = { 'sent': 'Sent', 'pending': 'Pending', 'failed': 'Failed' };
+
+      body.innerHTML = notifData.map(n => `
+        <tr>
+          <td style="white-space:nowrap; font-size:11px;">${n.time.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+          <td class="client-cell"><strong>${n.client}</strong></td>
+          <td><span class="contract-id">${n.id}</span></td>
+          <td class="clerk-cell">${n.channel}</td>
+          <td class="clerk-cell">${n.recipient}</td>
+          <td class="clerk-cell">${n.subject}</td>
+          <td><span class="row-status ${stClass[n.status]}"><span class="dot"></span>${stMap[n.status]}</span></td>
+        </tr>`).join('');
+      lucide.createIcons();
+    }
+
+    /* ==========================================
+       REPORTS VIEW
+    ========================================== */
+    document.querySelectorAll('.report-card .btn-primary').forEach(btn => {
+      btn.addEventListener('click', () => {
+        showToast(btn.dataset.report + ' generated & ready for export', 'success');
+      });
+    });
+
+    /* ==========================================
+       SIDEBAR TOGGLE (MOBILE)
+    ========================================== */
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const hamburger = document.getElementById('hamburgerBtn');
+
+    hamburger.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('visible');
+    });
+
+    overlay.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('visible');
+    });
+
+    /* ==========================================
+       LOGOUT
+    ========================================== */
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('IHC_USER');
+      window.location.href = '../log in.html';
+    });
+
+    /* ==========================================
+       LUCIDE ICONS INIT
+    ========================================== */
+    lucide.createIcons();
+  });
+  </script>
+</body>
+</html>
