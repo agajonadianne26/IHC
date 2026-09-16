@@ -62,7 +62,42 @@ try {
         ':start_date'=>$startDate, ':officer_id'=>$officerId !== '' ? $officerId : null
     ]);
 
-    echo json_encode(['success'=>true,'message'=>'Contract created and saved to the IHC database.','id'=>(int)$pdo->lastInsertId()]);
+    $contractId = (int)$pdo->lastInsertId();
+
+    // Send the three-day reminder immediately when a clerk creates a contract
+    // whose first payment is due in exactly three calendar days. This closes
+    // the gap when the contract is entered after the daily scheduler ran.
+    $today = new DateTimeImmutable('today');
+    $daysUntilDue = (int)$today->diff($date)->format('%r%a');
+    $reminderQueued = false;
+    if ($daysUntilDue === 3) {
+        $serviceUrl = rtrim(getenv('REMINDER_SERVICE_URL') ?: 'http://127.0.0.1:3000', '/');
+        $payload = json_encode([
+            'client' => $clientName,
+            'amount' => (float)$downpayment,
+            'dueDate' => $startDate,
+            'recipientEmail' => $email,
+            'reminderType' => 'due_soon'
+        ]);
+        $context = stream_context_create(['http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json\r\nContent-Length: " . strlen($payload) . "\r\n",
+            'content' => $payload,
+            'timeout' => 8,
+            'ignore_errors' => true
+        ]]);
+        // A mail-service outage must never roll back a successfully saved contract.
+        $response = @file_get_contents($serviceUrl . '/api/contracts/IHC-' . $contractId . '/send-reminder', false, $context);
+        $responseData = is_string($response) ? json_decode($response, true) : null;
+        $reminderQueued = is_array($responseData) && !empty($responseData['success']);
+    }
+
+    echo json_encode([
+        'success'=>true,
+        'message'=>'Contract created and saved to the IHC database.',
+        'id'=>$contractId,
+        'reminderQueued'=>$reminderQueued
+    ]);
 } catch (Throwable $e) {
     http_response_code(400);
     echo json_encode(['success'=>false,'message'=>$e->getMessage()]);

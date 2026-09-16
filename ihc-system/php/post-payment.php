@@ -50,9 +50,10 @@ try {
         $numericId = (int)$m[1];
     }
 
-    $check = $pdo->prepare('SELECT id FROM contracts WHERE id = ?');
+    $check = $pdo->prepare('SELECT id, client_name, email FROM contracts WHERE id = ?');
     $check->execute([$numericId]);
-    if (!$check->fetch()) throw new RuntimeException('Contract not found in database.');
+    $contract = $check->fetch();
+    if (!$contract) throw new RuntimeException('Contract not found in database.');
 
     // I-save ang payment sa payments table
     $sql = 'INSERT INTO payments (contract_id, amount, payment_method, date_collected, or_number, remarks, posted_by)
@@ -68,10 +69,40 @@ try {
         ':posted_by'      => $postedBy !== '' ? $postedBy : null,
     ]);
 
+    $paymentId = (int)$pdo->lastInsertId();
+
+    // The ledger entry is already committed. Send the email receipt afterwards
+    // so a temporary mail outage never rejects a valid client payment.
+    $receiptEmailSent = false;
+    $receiptPayload = json_encode([
+        'client' => $contract['client_name'],
+        'recipientEmail' => $contract['email'],
+        'contractId' => $contractId,
+        'amount' => (float)$amount,
+        'paymentDate' => $dateCollected,
+        'method' => $method,
+        'orNumber' => $orNumber,
+        'paymentId' => $paymentId
+    ]);
+    $receiptServiceUrl = rtrim(getenv('REMINDER_SERVICE_URL') ?: 'http://127.0.0.1:3000', '/');
+    $receiptContext = stream_context_create(['http' => [
+        'method' => 'POST',
+        'header' => "Content-Type: application/json\r\nContent-Length: " . strlen($receiptPayload) . "\r\n",
+        'content' => $receiptPayload,
+        'timeout' => 8,
+        'ignore_errors' => true
+    ]]);
+    $receiptResponse = @file_get_contents($receiptServiceUrl . '/api/payments/receipt', false, $receiptContext);
+    $receiptResult = is_string($receiptResponse) ? json_decode($receiptResponse, true) : null;
+    $receiptEmailSent = is_array($receiptResult) && !empty($receiptResult['success']);
+
     echo json_encode([
         'success' => true,
-        'message' => 'Payment successfully posted to the ledger.',
-        'id'      => (int)$pdo->lastInsertId()
+        'message' => $receiptEmailSent
+            ? 'Payment successfully posted and receipt emailed to the client.'
+            : 'Payment successfully posted to the ledger. The receipt email could not be sent.',
+        'id'      => $paymentId,
+        'receiptEmailSent' => $receiptEmailSent
     ]);
 } catch (Throwable $e) {
     http_response_code(400);

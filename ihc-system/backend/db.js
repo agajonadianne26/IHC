@@ -15,5 +15,6 @@ module.exports = {
   query: async (sql, params) => {
     const [rows] = await pool.execute(sql, params);
     return rows;
-  }
+  },
+  close: () => pool.end()
 };

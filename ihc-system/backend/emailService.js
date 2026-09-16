@@ -104,22 +104,31 @@ function buildReminderEmail(clientName, contractId, amountDue, dueDate, daysUnti
 async function logNotification(fields) {
   try {
     await db.query(
-      `INSERT INTO notification_logs (contract_id, installment_id, client_email, channel, subject, status, sent_at, error_message)
-       VALUES (?, ?, ?, 'email', ?, ?, NOW(), ?)`,
-      [fields.contractId, fields.installmentId || null, fields.to, fields.subject, fields.status, fields.errorMessage || null]
+      `INSERT INTO notifications_logs
+        (contract_id, client_email, channel, reminder_type, due_date, subject, status, sent_at, error_message)
+       VALUES (?, ?, 'email', ?, ?, ?, ?, NOW(), ?)`,
+      [
+        fields.contractId,
+        fields.to,
+        fields.reminderType || 'manual',
+        fields.dueDate || null,
+        fields.subject,
+        fields.status,
+        fields.errorMessage || null
+      ]
     );
   } catch (logErr) {
     console.error('notification_logs insert failed (email itself was unaffected):', logErr.message);
   }
 }
 
-async function sendPaymentReminder(to, clientName, contractId, amountDue, dueDate, daysUntil, installmentId = null) {
+async function sendPaymentReminder(to, clientName, contractId, amountDue, dueDate, daysUntil, options = {}) {
   const isOverdue = daysUntil < 0;
   const subject = isOverdue
     ? `OVERDUE: Payment of ${formatCurrency(amountDue)} for ${contractId} is past due`
     : `Reminder: Payment of ${formatCurrency(amountDue)} for ${contractId} due in ${daysUntil} day(s)`;
 
-  const html = buildReminderEmail(clientName, contractId, amountDue, dueDate, daysUntil, to, installmentId);
+  const html = buildReminderEmail(clientName, contractId, amountDue, dueDate, daysUntil, to, options.installmentId);
 
   let info;
   try {
@@ -133,18 +142,76 @@ async function sendPaymentReminder(to, clientName, contractId, amountDue, dueDat
   } catch (error) {
     // Only an actual send failure lands here.
     console.error(`Failed to send email to ${to}:`, error.message);
-    await logNotification({ contractId, installmentId, to, subject, status: 'failed', errorMessage: error.message });
+    await logNotification({
+      contractId,
+      to,
+      subject,
+      status: 'failed',
+      errorMessage: error.message,
+      reminderType: options.reminderType,
+      dueDate
+    });
     return { success: false, error: error.message };
   }
 
   // The email is already out — a logging problem past this point must not
   // flip the result back to failure.
-  await logNotification({ contractId, installmentId, to, subject, status: 'sent' });
+  await logNotification({
+    contractId,
+    to,
+    subject,
+    status: 'sent',
+    reminderType: options.reminderType,
+    dueDate
+  });
   return { success: true, messageId: info.messageId };
+}
+
+function buildPaymentReceiptEmail(clientName, contractId, amount, paymentDate, method, orNumber, paymentId, recipientEmail) {
+  return `
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#065f46,#059669);padding:28px 32px;text-align:center;">
+        <h1 style="color:#fff;margin:0;font-size:22px;">Imperial Homes Corporation</h1>
+        <p style="color:#d1fae5;margin:6px 0 0;font-size:13px;">Official Payment Receipt</p>
+      </div>
+      <div style="padding:32px;color:#475569;">
+        <h2 style="color:#1e293b;margin:0 0 16px;font-size:20px;">Payment received</h2>
+        <p>Dear <strong>${clientName}</strong>,</p>
+        <p>Thank you. We have recorded your payment. This email serves as your payment receipt.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fff;border:1px solid #e2e8f0;">
+          <tr><td style="padding:10px 16px;font-weight:600;">Contract ID</td><td style="padding:10px 16px;">${contractId}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Receipt / OR No.</td><td style="padding:10px 16px;">${orNumber}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Payment date</td><td style="padding:10px 16px;">${formatDate(paymentDate)}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Payment method</td><td style="padding:10px 16px;">${method}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Amount received</td><td style="padding:10px 16px;color:#047857;font-size:17px;font-weight:700;">${formatCurrency(amount)}</td></tr>
+        </table>
+        <p style="margin-bottom:24px;">Receipt reference: <strong>PAY-${paymentId}</strong></p>
+        <p style="text-align:center;"><a href="${getClientAccessUrl(recipientEmail)}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:6px;">Open Client Dashboard</a></p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0 16px;">
+        <p style="color:#94a3b8;font-size:12px;margin:0;">This is a system-generated receipt from Imperial Homes Corporation.</p>
+      </div>
+    </div>`;
+}
+
+async function sendPaymentReceipt(to, clientName, contractId, amount, paymentDate, method, orNumber, paymentId) {
+  const subject = `Payment Receipt: ${formatCurrency(amount)} received for ${contractId}`;
+  const html = buildPaymentReceiptEmail(clientName, contractId, amount, paymentDate, method, orNumber, paymentId, to);
+
+  try {
+    const info = await transporter.sendMail({ from: process.env.EMAIL_FROM, to, subject, html });
+    await logNotification({ contractId, to, subject, status: 'sent', reminderType: 'payment_receipt', dueDate: paymentDate });
+    console.log(`Payment receipt sent to ${to}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error(`Failed to send payment receipt to ${to}:`, error.message);
+    await logNotification({ contractId, to, subject, status: 'failed', errorMessage: error.message, reminderType: 'payment_receipt', dueDate: paymentDate });
+    return { success: false, error: error.message };
+  }
 }
 
 module.exports = {
   sendPaymentReminder,
+  sendPaymentReceipt,
   formatCurrency,
   formatDate,
   transporter,

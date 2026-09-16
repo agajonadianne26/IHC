@@ -40,8 +40,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(require('./reminders-route'));
+app.use(require('./payment-receipt-route'));
 app.use(require('./acknowledgement-route'));
-require('./cronJobs');
+// Daily dispatch is owned by Windows Task Scheduler (`run-reminders.js`).
+// Set ENABLE_IN_PROCESS_CRON=true only when a process manager keeps this
+// service alive continuously and no OS-level reminder task is configured.
+if (process.env.ENABLE_IN_PROCESS_CRON === 'true') {
+  require('./cronJobs');
+}
 app.get('/', (req, res) => res.json({ status: 'ok', service: 'ihc-reminder-service' }));
 
 const PORT = process.env.PORT || 3000;

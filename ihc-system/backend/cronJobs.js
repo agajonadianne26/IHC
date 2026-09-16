@@ -3,75 +3,82 @@ const db = require('./db');
 const { sendPaymentReminder } = require('./emailService');
 require('dotenv').config();
 
-cron.schedule('0 8 * * *', async () => {
+function dateInTimeZone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+// Safe to call from the server scheduler or from run-reminders.js.
+async function runDailyReminders() {
   console.log('[CRON] Running daily payment reminder check...');
 
   try {
     const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayStr = dateInTimeZone(today, process.env.REMINDER_TIMEZONE || 'Asia/Manila');
 
-    const [upcomingRows] = await db.query(
+    // db.query returns rows directly, rather than mysql2's [rows, fields] tuple.
+    const upcomingRows = await db.query(
       `SELECT
-        s.id AS installment_id,
-        s.contract_id,
-        s.due_date,
-        s.amount_due,
-        CONCAT('IHC-2026-', LPAD(c.id, 3, '0')) AS contract_code,
-        cl.full_name AS client_name,
-        cl.email AS client_email
-       FROM installment_schedules s
-       JOIN contracts c ON s.contract_id = c.id
-       JOIN clients cl ON c.client_id = cl.id
-       WHERE s.status = 'Pending Payment'
-        AND DATE(s.due_date) = DATE_ADD(?, INTERVAL 3 DAY)
+        c.id AS contract_id,
+        c.start_date AS due_date,
+        c.downpayment AS amount_due,
+        CONCAT('IHC-', c.id) AS contract_code,
+        c.client_name,
+        c.email AS client_email
+       FROM contracts c
+       WHERE DATE(c.start_date) BETWEEN ? AND DATE_ADD(?, INTERVAL 3 DAY)
         AND NOT EXISTS (
           SELECT 1
-          FROM notification_logs nl
-          WHERE nl.installment_id = s.id
+          FROM notifications_logs nl
+          WHERE nl.contract_id = CAST(c.id AS CHAR)
            AND nl.channel = 'email'
+           AND nl.reminder_type = 'due_soon'
            AND nl.status = 'sent'
-           AND DATE(nl.sent_at) = ?
         )`,
       [todayStr, todayStr]
     );
 
     for (const row of upcomingRows) {
-      const dueDate = new Date(row.due_date);
-      const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-
       if (row.client_email) {
-        await sendPaymentReminder(
+        const result = await sendPaymentReminder(
           row.client_email,
           row.client_name,
           row.contract_code,
           row.amount_due,
-          row.due_date,
-          daysUntil,
-          row.installment_id
+        row.due_date,
+          Math.floor(
+            (Date.parse(`${new Date(row.due_date).toISOString().slice(0, 10)}T00:00:00Z`) - Date.parse(`${todayStr}T00:00:00Z`)) / 86400000
+          ),
+          { reminderType: 'due_soon' }
         );
-        console.log(`[CRON] Reminder sent to ${row.client_email} for ${row.contract_code}`);
+        if (result.success) {
+          console.log(`[CRON] Reminder sent to ${row.client_email} for ${row.contract_code}`);
+        }
       }
     }
 
-    const [overdueRows] = await db.query(
+    const overdueRows = await db.query(
       `SELECT
-        s.id AS installment_id,
-        s.contract_id,
-        s.due_date,
-        s.amount_due,
-        CONCAT('IHC-2026-', LPAD(c.id, 3, '0')) AS contract_code,
-        cl.full_name AS client_name,
-        cl.email AS client_email
-       FROM installment_schedules s
-       JOIN contracts c ON s.contract_id = c.id
-       JOIN clients cl ON c.client_id = cl.id
-       WHERE s.status = 'Pending Payment'
-        AND DATE(s.due_date) < ?
+        c.id AS contract_id,
+        c.start_date AS due_date,
+        c.downpayment AS amount_due,
+        CONCAT('IHC-', c.id) AS contract_code,
+        c.client_name,
+        c.email AS client_email
+       FROM contracts c
+       WHERE DATE(c.start_date) < ?
         AND NOT EXISTS (
           SELECT 1
-          FROM notification_logs nl
-          WHERE nl.installment_id = s.id
+          FROM notifications_logs nl
+          WHERE nl.contract_id = CAST(c.id AS CHAR)
            AND nl.channel = 'email'
+           AND nl.reminder_type = 'overdue'
            AND nl.status = 'sent'
            AND DATE(nl.sent_at) = ?
         )`,
@@ -79,29 +86,42 @@ cron.schedule('0 8 * * *', async () => {
     );
 
     for (const row of overdueRows) {
-      const dueDate = new Date(row.due_date);
-      const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+      const dueDateStr = new Date(row.due_date).toISOString().slice(0, 10);
+      const daysUntil = Math.floor(
+        (Date.parse(`${dueDateStr}T00:00:00Z`) - Date.parse(`${todayStr}T00:00:00Z`)) / 86400000
+      );
 
       if (row.client_email) {
-        await sendPaymentReminder(
+        const result = await sendPaymentReminder(
           row.client_email,
           row.client_name,
           row.contract_code,
           row.amount_due,
           row.due_date,
           daysUntil,
-          row.installment_id
+          { reminderType: 'overdue' }
         );
-        console.log(`[CRON] Overdue reminder sent to ${row.client_email} for ${row.contract_code}`);
+        if (result.success) {
+          console.log(`[CRON] Overdue reminder sent to ${row.client_email} for ${row.contract_code}`);
+        }
       }
     }
 
     console.log(`[CRON] Daily reminder check complete. Upcoming: ${upcomingRows.length}, Overdue: ${overdueRows.length}`);
   } catch (error) {
     console.error('[CRON] Error during daily reminder check:', error);
+    throw error;
   }
-}, {
-  timezone: 'Asia/Manila'
-});
+}
 
-console.log('[CRON] Payment reminder scheduler initialized (runs daily at 8:00 AM)');
+// Long-running service option. For a Windows scheduled task, run the job
+// once without creating a persistent cron timer.
+if (process.env.RUN_REMINDERS_ONCE !== 'true') {
+  cron.schedule('0 8 * * *', () => runDailyReminders().catch(() => {}), {
+    noOverlap: true,
+    timezone: process.env.REMINDER_TIMEZONE || 'Asia/Manila'
+  });
+  console.log('[CRON] Payment reminder scheduler initialized (runs daily at 8:00 AM)');
+}
+
+module.exports = { runDailyReminders };

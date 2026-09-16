@@ -1759,6 +1759,7 @@
     const notificationStorageKey = 'IHC_NOTIFICATION_STATUS_' + (currentUser.officerId || currentUser.id || 'default');
     const TODAY = new Date();
     let myContracts = [];
+    let myTotalCollections = 0;
     let loadingError = null;
 
     const readNotificationStatuses = () => {
@@ -1842,10 +1843,9 @@
     ========================================== */
     const renderKPIs = () => {
       const totalAssigned = myContracts.length;
-      const totalCollected = myContracts.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
       const acknowledged = myContracts.filter(c => c.acknowledged).length;
       document.getElementById('kpiAssigned').textContent = totalAssigned;
-      document.getElementById('kpiMyCollected').textContent = formatPHP(totalCollected);
+      document.getElementById('kpiMyCollected').textContent = formatPHP(myTotalCollections);
       document.getElementById('kpiAcknowledged').textContent = acknowledged;
       document.getElementById('kpiAcknowledgedSub').textContent = totalAssigned
         ? `${acknowledged} of ${totalAssigned} assigned clients acknowledged`
@@ -1959,7 +1959,7 @@
         totalPrice: c.totalPrice,
         terms: c.terms,
         paymentType: paymentType,
-        amount: pending ? Number(c.nextAmount) : c.outstanding,
+        amount: Number(c.nextAmount) || 0,
         dueDate: pending ? new Date(c.nextDueDate) : TODAY,
         status: statusFromDate(c.nextDueDate, pending),
         notification: notificationStatuses[String(c.contractId)] || 'pending',
@@ -2019,6 +2019,7 @@
           return;
         }
         myContracts = (data.clients || []).map(mapClientToRow);
+        myTotalCollections = Number(data.totalCollections) || 0;
         await loadAcknowledgementStatuses();
       } catch (err) {
         loadingError = 'Server unreachable. Showing live data is unavailable.';

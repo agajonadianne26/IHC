@@ -32,13 +32,35 @@ if ($officerId === '') {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT * FROM contracts WHERE officer_id = ?");
+$stmt = $pdo->prepare(
+    "SELECT c.*, COALESCE((
+        SELECT SUM(p.amount)
+        FROM payments p
+        WHERE p.contract_id = CONCAT('CON-', c.id)
+    ), 0) AS amount_paid
+    FROM contracts c
+    WHERE c.officer_id = ?"
+);
 $stmt->execute([$officerId]);
 $clients = $stmt->fetchAll(PDO::FETCH_ASSOC); // FETCH_ASSOC keeps the array clean
+
+// Collections belong to the clerk who posted the payment, not merely to a
+// contract that happens to be assigned to them. This makes the KPI persist
+// across page reloads and reflect every successful Post to Ledger action.
+$collectionsStmt = $pdo->prepare(
+    'SELECT COALESCE(SUM(amount), 0) AS total_collections FROM payments WHERE posted_by = ?'
+);
+$collectionsStmt->execute([$officerId]);
+$totalCollections = (float)($collectionsStmt->fetch()['total_collections'] ?? 0);
 
 // Map the database columns to the keys expected by the frontend
 $formattedClients = [];
 foreach ($clients as $c) {
+    $amountDue = (float)($c['downpayment'] ?? 0);
+    $amountPaid = (float)($c['amount_paid'] ?? 0);
+    $isPaid = $amountDue > 0 && $amountPaid >= $amountDue;
+    $remainingAmount = max(0, $amountDue - $amountPaid);
+
     $formattedClients[] = [
         'accountCode'     => 'CON-' . $c['id'],          // Using the primary key 'id'
         'contractId'      => (int)$c['id'],
@@ -49,9 +71,15 @@ foreach ($clients as $c) {
         'totalPrice'      => isset($c['total_contract_price']) ? (float)$c['total_contract_price'] : null,
         'terms'           => isset($c['installment_terms']) ? (int)$c['installment_terms'] : null,
         'nextDueDate'     => $c['start_date'],            // mapped to your DB
-        'nextAmount'      => $c['downpayment'],           // mapped to your DB
-        'nextStatus'      => 'Pending Payment'
+        // A payment record controls the dashboard status. Partial payments
+        // remain pending and show the balance; fully paid dues show Paid.
+        'nextAmount'      => $isPaid ? 0 : $remainingAmount,
+        'nextStatus'      => $isPaid ? 'Paid' : 'Pending Payment'
     ];
 }
 
-echo json_encode(['success' => true, 'clients' => $formattedClients]);
+echo json_encode([
+    'success' => true,
+    'clients' => $formattedClients,
+    'totalCollections' => $totalCollections
+]);
