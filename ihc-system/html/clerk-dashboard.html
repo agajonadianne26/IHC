@@ -1,0 +1,2642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IHC Portal — Billing Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* ==========================================
+       DESIGN TOKENS
+    ========================================== */
+    :root {
+      --sidebar-bg: #0f172a;
+      --sidebar-hover: #1e293b;
+      --sidebar-active: #1e293b;
+      --sidebar-active-border: #10b981;
+      --sidebar-width: 260px;
+      --sidebar-collapsed: 72px;
+
+      --bg-main: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-input: #f8fafc;
+
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --text-sidebar: #94a3b8;
+      --text-sidebar-active: #ffffff;
+
+      --border: #e2e8f0;
+      --border-light: #f1f5f9;
+
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-emerald-bg: #ecfdf5;
+      --accent-amber: #f59e0b;
+      --accent-amber-bg: #fffbeb;
+      --accent-rose: #f43f5e;
+      --accent-rose-bg: #fff1f2;
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+
+      --radius: 10px;
+      --radius-sm: 6px;
+      --radius-lg: 14px;
+      --transition: 0.2s ease;
+    }
+
+    /* ==========================================
+       RESET & BASE
+    ========================================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ==========================================
+       LAYOUT
+    ========================================== */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .main-area {
+      flex: 1;
+      margin-left: var(--sidebar-width);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: margin-left var(--transition);
+    }
+
+    .content {
+      flex: 1;
+      padding: 28px 32px 48px;
+      max-width: 1400px;
+      width: 100%;
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .row-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .row-status .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .row-status.ok { background: var(--accent-emerald-bg); color: #065f46; }
+    .row-status.ok .dot { background: var(--accent-emerald); }
+    .row-status.warn { background: var(--accent-amber-bg); color: #92400e; }
+    .row-status.warn .dot { background: var(--accent-amber); }
+    .row-status.danger { background: var(--accent-rose-bg); color: #9f1239; }
+    .row-status.danger .dot { background: var(--accent-rose); }
+
+    .subhead { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; }
+    .subhead h2 { font-size: 15px; font-weight: 700; }
+    .subhead p { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+    .btn-primary {
+      height: 34px; padding: 0 16px; border: none; border-radius: var(--radius-sm);
+      background: var(--accent-emerald); color: #fff; font-size: 12px; font-weight: 700;
+      font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition);
+    }
+    .btn-primary:hover { background: #059669; }
+
+    /* ==========================================
+       SIDEBAR
+    ========================================== */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: var(--sidebar-width);
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      transition: width var(--transition), transform var(--transition);
+      overflow: hidden;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 20px 28px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 8px;
+    }
+
+    .sidebar-brand img {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand-text { overflow: hidden; }
+
+    .sidebar-brand-text strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .sidebar-brand-text small {
+      display: block;
+      font-size: 10px;
+      color: var(--text-sidebar);
+      white-space: nowrap;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 0 12px;
+    }
+
+    .sidebar-section-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: rgba(148,163,184,0.5);
+      padding: 12px 12px 6px;
+    }
+
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text-sidebar);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition);
+      border-left: 3px solid transparent;
+      margin-bottom: 2px;
+    }
+
+    .sidebar-link i { width: 20px; height: 20px; flex-shrink: 0; }
+    .sidebar-link span { white-space: nowrap; }
+
+    .sidebar-link:hover {
+      background: var(--sidebar-hover);
+      color: #cbd5e1;
+    }
+
+    .sidebar-link.active {
+      background: var(--sidebar-active);
+      color: var(--text-sidebar-active);
+      border-left-color: var(--sidebar-active-border);
+      font-weight: 600;
+    }
+
+    .sidebar-footer {
+      padding: 16px 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .sidebar-admin {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-emerald), #059669);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sidebar-avatar.clerk-grad { background: linear-gradient(135deg, var(--accent-blue), #2563eb); }
+
+    .sidebar-admin-info { overflow: hidden; flex: 1; }
+
+    .sidebar-admin-info strong {
+      display: block;
+      font-size: 12px;
+      color: #e2e8f0;
+      font-weight: 600;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .sidebar-admin-info small {
+      display: block;
+      font-size: 10px;
+      color: var(--text-sidebar);
+      white-space: nowrap;
+    }
+
+    .sidebar-role-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 3px;
+    }
+
+    .sidebar-role-badge.clerk {
+      background: rgba(16,185,129,0.15);
+      color: #34d399;
+    }
+
+    .btn-logout-sidebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      margin-top: 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-sidebar);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .btn-logout-sidebar:hover {
+      background: rgba(244,63,94,0.1);
+      color: #fca5a5;
+      border-color: rgba(244,63,94,0.3);
+    }
+
+    /* ==========================================
+       HEADER
+    ========================================== */
+    .header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hamburger {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+    }
+
+    .hamburger:hover { background: var(--bg-main); }
+
+    .header-title h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .header-title p { font-size: 11px; color: var(--text-secondary); }
+
+    .header-center { display: flex; align-items: center; }
+
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: var(--accent-emerald-bg);
+      border: 1px solid #a7f3d0;
+      font-size: 11px;
+      font-weight: 600;
+      color: #065f46;
+    }
+
+    .sync-dot {
+      width: 7px; height: 7px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .header-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    .header-profile-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-emerald), #059669);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-profile-avatar.clerk-grad { background: linear-gradient(135deg, var(--accent-blue), #2563eb); }
+
+    .header-profile-info strong { display: block; font-size: 12px; font-weight: 600; }
+    .header-profile-info small { display: block; font-size: 10px; color: var(--text-secondary); }
+
+    .role-badge-header {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-left: 6px;
+    }
+
+    .role-badge-header.clerk { background: #ecfdf5; color: #059669; }
+
+    /* ==========================================
+       KPI CARDS
+    ========================================== */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+
+    .kpi-card.blue::before { background: var(--accent-blue); }
+    .kpi-card.emerald::before { background: var(--accent-emerald); }
+
+    .kpi-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .kpi-icon {
+      width: 40px; height: 40px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .kpi-icon.blue { background: #eff6ff; color: var(--accent-blue); }
+    .kpi-icon.emerald { background: var(--accent-emerald-bg); color: var(--accent-emerald); }
+
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text-secondary);
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+
+    .kpi-value.blue { color: var(--accent-blue); }
+    .kpi-value.emerald { color: var(--accent-emerald); }
+
+    .kpi-sub {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ==========================================
+       TABLE SECTION
+    ========================================== */
+    .table-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .table-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .table-header-left h2 { font-size: 15px; font-weight: 700; }
+    .table-header-left p { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+    .table-tools {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .table-search {
+      position: relative;
+    }
+
+    .table-search i {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      width: 14px; height: 14px;
+    }
+
+    .table-search input {
+      height: 34px;
+      width: 220px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0 10px 0 30px;
+      font-size: 11px;
+      font-family: inherit;
+      background: var(--bg-input);
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .table-search input:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
+    .filter-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-main);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+    }
+
+    .filter-tab {
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+      white-space: nowrap;
+    }
+
+    .filter-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.7); }
+
+    .filter-tab.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .filter-tab .tab-count {
+      display: inline-block;
+      margin-left: 4px;
+      background: var(--bg-main);
+      padding: 1px 6px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .filter-tab.active .tab-count { background: var(--bg-main); }
+
+    .table-scroll {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 1040px;
+    }
+
+    .data-table th {
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+
+    .data-table tbody tr { transition: background var(--transition); }
+    .data-table tbody tr:hover { background: #f8fafc; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+
+    .client-cell strong { display: block; font-size: 12px; font-weight: 600; }
+    .client-cell small { font-size: 11px; color: var(--text-secondary); }
+
+    .contract-id {
+      font-family: 'SF Mono', 'Consolas', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      background: #eff6ff;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .amount-due { font-weight: 700; font-size: 12px; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-badge.paid { background: var(--accent-emerald-bg); color: #065f46; }
+    .status-badge.paid .dot { background: var(--accent-emerald); }
+
+    .status-badge.due-soon { background: var(--accent-amber-bg); color: #92400e; }
+    .status-badge.due-soon .dot { background: var(--accent-amber); }
+
+    .status-badge.overdue { background: var(--accent-rose-bg); color: #9f1239; }
+    .status-badge.overdue .dot { background: var(--accent-rose); }
+
+    .notif-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .notif-badge.sent { background: var(--accent-emerald-bg); color: #065f46; }
+    .notif-badge.pending { background: var(--accent-amber-bg); color: #92400e; }
+    .notif-badge.failed { background: var(--accent-rose-bg); color: #9f1239; }
+
+    .action-btns { display: flex; gap: 6px; white-space: nowrap; }
+
+    .btn-action {
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all var(--transition);
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    .btn-print {
+      background: #f8fafc;
+      border-color: var(--border);
+      color: var(--text-primary);
+    }
+    .btn-print:hover { background: var(--bg-main); }
+
+    .btn-remind {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+    .btn-remind:hover { background: #2563eb; }
+
+    .btn-post {
+      background: var(--accent-emerald);
+      border-color: var(--accent-emerald);
+      color: #fff;
+    }
+    .btn-post:hover { background: #059669; }
+
+    .btn-disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+
+    .empty-state i { margin-bottom: 10px; opacity: 0.4; }
+    .empty-state strong { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+    .empty-state small { font-size: 11px; }
+
+    /* ==========================================
+       PAYMENT POSTING MODAL
+    ========================================== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.55);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      padding: 20px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.25s, visibility 0.25s;
+    }
+
+    .modal-overlay.visible { opacity: 1; visibility: visible; }
+
+    .modal-card {
+      background: #fff;
+      width: 100%;
+      max-width: 520px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: transform 0.25s;
+    }
+
+    .modal-overlay.visible .modal-card { transform: scale(1); }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 { font-size: 16px; font-weight: 700; }
+    .modal-header p { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+    .modal-close {
+      border: none;
+      background: none;
+      font-size: 22px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    }
+
+    .modal-close:hover { background: var(--bg-main); }
+
+    .modal-body { padding: 20px 24px; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-group { display: flex; flex-direction: column; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    .form-group label {
+      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .form-group input,
+    .form-group select {
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid #d1d5db;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
+    .form-group input[readonly] {
+      background: #f8fafc;
+      color: var(--text-secondary);
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn-cancel {
+      height: 38px;
+      padding: 0 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .btn-cancel:hover { background: var(--bg-main); }
+
+    .btn-submit {
+      height: 38px;
+      padding: 0 18px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--accent-emerald);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .btn-submit:hover { background: #059669; }
+
+    /* ==========================================
+       NEW CONTRACT PAGE
+    ========================================== */
+    .nc-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .nc-main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+    .nc-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .nc-card-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-light);
+      background: #fbfcfe;
+    }
+
+    .nc-card-head h3 { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .nc-card-head p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .nc-card-icon {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9px;
+      background: var(--accent-emerald-bg);
+      color: var(--accent-emerald);
+      flex-shrink: 0;
+    }
+
+    .nc-card-icon i { width: 17px; height: 17px; }
+
+    .nc-body {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .nc-field { display: flex; flex-direction: column; }
+    .nc-field.full { grid-column: 1 / -1; }
+
+    .nc-field label {
+      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .nc-field label .req { color: var(--accent-rose); }
+
+    .nc-field input,
+    .nc-field select {
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid #d1d5db;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .nc-field input:focus,
+    .nc-field select:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
+    .nc-field input.valid,
+    .nc-field select.valid { border-color: var(--accent-emerald); }
+    .nc-field input.invalid,
+    .nc-field select.invalid { border-color: var(--accent-rose); }
+
+    .input-affix { position: relative; }
+
+    .input-affix > span {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+
+    .input-affix input { width: 100%; padding-left: 28px; }
+
+    .nc-hint {
+      min-height: 14px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .nc-hint.ok { color: #059669; font-weight: 600; }
+    .nc-hint.err { color: #dc2626; font-weight: 600; }
+
+    .nc-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+    .nc-actions .btn-cancel {
+      height: 38px;
+      padding: 0 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .nc-actions .btn-cancel:hover { background: var(--bg-main); }
+    #ncSubmitBtn:disabled { background: #9ac9b9; cursor: not-allowed; box-shadow: none; }
+    #ncSubmitBtn:disabled:hover { background: #9ac9b9; }
+
+    /* SUMMARY */
+    .nc-summary {
+      position: sticky;
+      top: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .nc-summary-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-light);
+      background: #fbfcfe;
+    }
+
+    .nc-summary-head h3 { font-size: 13px; font-weight: 700; }
+    .nc-summary-head p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .nc-summary-body { padding: 18px 20px 20px; }
+
+    .nc-summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 0;
+      font-size: 12px;
+    }
+
+    .nc-summary-row span { color: var(--text-secondary); }
+    .nc-summary-row strong { font-weight: 700; color: var(--text-primary); font-size: 12px; text-align: right; }
+
+    .nc-summary-rule { border-top: 1px dashed var(--border); margin: 10px 0; }
+
+    .nc-summary-row.primary {
+      margin-top: 4px;
+      padding: 11px 12px;
+      background: var(--accent-emerald-bg);
+      border-radius: var(--radius-sm);
+    }
+
+    .nc-summary-row.primary span { color: #065f46; font-weight: 700; }
+    .nc-summary-row.primary strong { color: var(--accent-emerald); font-size: 15px; }
+
+    .nc-summary-note {
+      margin-top: 12px;
+      font-size: 10.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ==========================================
+       TOAST
+    ========================================== */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 4000;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+    }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      animation: slideIn 0.3s ease, fadeOut 0.3s ease 3s forwards;
+      max-width: 420px;
+    }
+
+    .toast.success { background: #065f46; color: #fff; }
+    .toast.info { background: #1e40af; color: #fff; }
+
+    .toast i { flex-shrink: 0; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes fadeOut {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(40px); }
+    }
+
+    /* ==========================================
+       PRINT SOA MODAL
+    ========================================== */
+    .soa-modal {
+      background: #fff;
+      width: 100%;
+      max-width: 640px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: transform 0.25s;
+    }
+
+    .modal-overlay.visible .soa-modal { transform: scale(1); }
+
+    .soa-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+
+    .soa-toolbar button {
+      height: 34px;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: all var(--transition);
+    }
+
+    .btn-close-soa { background: #fff; color: var(--text-secondary); }
+    .btn-close-soa:hover { background: var(--bg-main); }
+
+    .btn-do-print { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+    .btn-do-print:hover { background: #2563eb; }
+
+    .soa-document { padding: 36px 40px; max-height: 70vh; overflow-y: auto; }
+
+    .soa-doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--sidebar-bg);
+    }
+
+    .soa-brand strong { display: block; font-size: 16px; color: var(--sidebar-bg); }
+    .soa-brand small { font-size: 11px; color: var(--text-secondary); }
+
+    .soa-doc-title { text-align: right; }
+    .soa-doc-title h3 { font-size: 14px; color: var(--accent-rose); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .soa-doc-title p { font-size: 11px; color: var(--text-secondary); }
+
+    .soa-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .soa-info-group label {
+      display: block;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .soa-info-group span { font-size: 12px; font-weight: 600; }
+
+    .soa-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      font-size: 11px;
+    }
+
+    .soa-table th {
+      padding: 8px 12px;
+      background: #f1f5f9;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .soa-table td { padding: 8px 12px; border-bottom: 1px solid var(--border-light); }
+
+    .soa-table .total-row td {
+      border-top: 2px solid var(--text-primary);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .soa-footer-note {
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      line-height: 1.6;
+    }
+
+    /* ==========================================
+       SIDEBAR OVERLAY (mobile)
+    ========================================== */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 90;
+    }
+
+    .sidebar-overlay.visible { display: block; }
+
+    /* ==========================================
+       RESPONSIVE
+    ========================================== */
+    @media (max-width: 1024px) {
+      .sidebar { width: var(--sidebar-collapsed); }
+      .sidebar .sidebar-brand-text,
+      .sidebar .sidebar-link span,
+      .sidebar .sidebar-section-label,
+      .sidebar .sidebar-admin-info,
+      .sidebar .btn-logout-sidebar span { display: none; }
+      .sidebar .sidebar-brand { padding: 16px; justify-content: center; }
+      .sidebar .sidebar-link { justify-content: center; padding: 10px; border-left: none; }
+      .sidebar .sidebar-admin { justify-content: center; }
+      .sidebar .btn-logout-sidebar { justify-content: center; padding: 8px; }
+      .main-area { margin-left: var(--sidebar-collapsed); }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        width: var(--sidebar-width);
+        transform: translateX(-100%);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar .sidebar-brand-text,
+      .sidebar .sidebar-link span,
+      .sidebar .sidebar-section-label,
+      .sidebar .sidebar-admin-info,
+      .sidebar .btn-logout-sidebar span { display: block; }
+      .sidebar .sidebar-brand { padding: 20px 20px 28px; justify-content: flex-start; }
+      .sidebar .sidebar-link { justify-content: flex-start; padding: 10px 12px; border-left: 3px solid transparent; }
+      .sidebar .btn-logout-sidebar { justify-content: flex-start; }
+      .main-area { margin-left: 0; }
+      .hamburger { display: flex; }
+      .header { padding: 12px 16px; }
+      .content { padding: 20px 16px 40px; }
+      .header-profile-info { display: none; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .table-header { flex-direction: column; align-items: flex-start; }
+      .table-tools { flex-wrap: wrap; }
+      .table-search input { width: 180px; }
+    }
+
+    @media (max-width: 640px) {
+      .header-center { display: none; }
+      .filter-tabs { overflow-x: auto; }
+      .form-grid { grid-template-columns: 1fr; }
+      .nc-layout { grid-template-columns: 1fr; }
+      .nc-body { grid-template-columns: 1fr; }
+      .nc-summary { position: static; }
+    }
+
+    /* ==========================================
+       PRINT STYLES
+    ========================================== */
+    @media print {
+      body * { visibility: hidden !important; }
+      .soa-document, .soa-document * { visibility: visible !important; }
+      .soa-document {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%;
+        max-height: none;
+        overflow: visible;
+        padding: 24px 32px;
+      }
+      .soa-toolbar { display: none !important; }
+      .soa-modal { box-shadow: none !important; border-radius: 0 !important; max-width: 100% !important; }
+      @page { margin: 15mm; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <img src="../img/ihc logo.png" alt="IHC Logo">
+        <div class="sidebar-brand-text">
+          <strong>Imperial Homes Corporation</strong>
+          <small id="sidebarSubtitle">Billing Dashboard</small>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="sidebar-section-label">Main</div>
+
+        <a class="sidebar-link active" href="#" data-page="clients">
+          <i data-lucide="users"></i>
+          <span>My Assigned Clients</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="payments">
+          <i data-lucide="credit-card"></i>
+          <span>Payment Posting</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="notifications">
+          <i data-lucide="bell"></i>
+          <span>Notifications Log</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="new-contract">
+          <i data-lucide="user-plus"></i>
+          <span>New Contract</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-admin">
+          <div class="sidebar-avatar" id="sidebarAvatar">JC</div>
+          <div class="sidebar-admin-info">
+            <strong id="sidebarName">User</strong>
+            <small id="sidebarRole">Role</small>
+          </div>
+        </div>
+        <button class="btn-logout-sidebar" id="logoutBtn">
+          <i data-lucide="log-out" style="width:14px;height:14px;"></i>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- MAIN AREA -->
+    <div class="main-area">
+
+      <!-- HEADER -->
+      <header class="header">
+        <div class="header-left">
+          <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">
+            <i data-lucide="menu" style="width:22px;height:22px;"></i>
+          </button>
+          <div class="header-title">
+            <h1 id="headerTitle">Billing Dashboard</h1>
+            <p id="headerSub">Assigned Accounts &bull; Payment Monitoring</p>
+          </div>
+        </div>
+
+        <div class="header-center">
+          <div class="sync-badge">
+            <span class="sync-dot"></span>
+            System Online
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="header-profile">
+            <div class="header-profile-avatar" id="headerAvatar">JC</div>
+            <div class="header-profile-info">
+              <strong id="headerName">User</strong>
+              <small id="headerRole">Role</small>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT -->
+      <div class="content">
+
+        <!-- ============================
+             VIEW: MY ASSIGNED CLIENTS (default)
+        ============================= -->
+        <section class="view active" data-view="clients">
+
+        <!-- KPI CARDS -->
+        <section class="kpi-grid">
+          <div class="kpi-card blue">
+            <div class="kpi-header">
+              <span class="kpi-label">My Assigned Accounts</span>
+              <div class="kpi-icon blue"><i data-lucide="users" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value blue" id="kpiAssigned">0</div>
+            <div class="kpi-sub">Active contracts under your ID</div>
+          </div>
+
+          <div class="kpi-card emerald">
+            <div class="kpi-header">
+              <span class="kpi-label">My Total Collections</span>
+              <div class="kpi-icon emerald"><i data-lucide="trending-up" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value emerald" id="kpiMyCollected">₱0.00</div>
+            <div class="kpi-sub">Cleared payments processed by you</div>
+          </div>
+
+          <div class="kpi-card blue">
+            <div class="kpi-header">
+              <span class="kpi-label">Email acknowledgments</span>
+              <div class="kpi-icon blue"><i data-lucide="badge-check" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value blue" id="kpiAcknowledged">0</div>
+            <div class="kpi-sub" id="kpiAcknowledgedSub">Awaiting client responses</div>
+          </div>
+        </section>
+
+        <!-- TABLE -->
+        <section class="table-section">
+          <div class="table-header">
+            <div class="table-header-left">
+              <h2>Assigned Client Payments</h2>
+              <p>Filtered to your assigned accounts only</p>
+            </div>
+            <div class="table-tools">
+              <div class="table-search">
+                <i data-lucide="search"></i>
+                <input type="text" id="tableSearch" placeholder="Search client or contract ID...">
+              </div>
+              <div class="filter-tabs" id="filterTabs">
+                <button class="filter-tab active" data-filter="all">All <span class="tab-count" id="countAll">0</span></button>
+                <button class="filter-tab" data-filter="due-soon">Due Soon <span class="tab-count" id="countDueSoon">0</span></button>
+                <button class="filter-tab" data-filter="overdue">Overdue <span class="tab-count" id="countOverdue">0</span></button>
+                <button class="filter-tab" data-filter="paid">Paid <span class="tab-count" id="countPaid">0</span></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Client & Property</th>
+                  <th>Contract ID</th>
+                  <th>Payment Type</th>
+                  <th>Amount Due</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Notification</th>
+                  <th>Email acknowledgment</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        </section><!-- /view clients -->
+
+        <!-- ============================
+             VIEW: PAYMENT POSTING
+        ============================= -->
+        <section class="view" data-view="payments">
+          <div class="subhead">
+            <div>
+              <h2>Payment Posting Queue</h2>
+              <p>Unpaid dues for your assigned accounts awaiting collection posting.</p>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Client & Property</th>
+                  <th>Contract ID</th>
+                  <th>Payment Type</th>
+                  <th>Amount Due</th>
+                  <th>Due Date</th>
+                  <th>Days Due</th>
+                  <th>Post Action</th>
+                </tr>
+              </thead>
+              <tbody id="postingBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: NOTIFICATIONS LOG
+        ============================= -->
+        <section class="view" data-view="notifications">
+          <div class="subhead">
+            <div>
+              <h2>Notifications Log</h2>
+              <p>Reminder dispatches for your assigned accounts.</p>
+            </div>
+            <button class="btn-primary" id="refreshAcknowledgmentsBtn" type="button">
+              <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i>
+              Refresh acknowledgments
+            </button>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date / Time</th>
+                  <th>Client</th>
+                  <th>Contract ID</th>
+                  <th>Channel</th>
+                  <th>Recipient</th>
+                  <th>Subject / Message</th>
+                  <th>Status</th>
+                  <th>Client Acknowledgment</th>
+                </tr>
+              </thead>
+              <tbody id="notifLogBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: NEW CONTRACT
+        ============================= -->
+        <section class="view" data-view="new-contract">
+          <div class="subhead">
+            <div>
+              <h2>New Contract</h2>
+              <p>Enroll a new buyer with their contact details and payment terms.</p>
+            </div>
+          </div>
+
+          <div class="nc-layout">
+
+            <!-- FORM COLUMN -->
+            <div class="nc-main">
+
+              <!-- SECTION: BUYER INFORMATION -->
+              <div class="nc-card">
+                <div class="nc-card-head">
+                  <div class="nc-card-icon"><i data-lucide="user"></i></div>
+                  <div>
+                    <h3>Buyer Information</h3>
+                    <p>Personal and contact details of the buyer</p>
+                  </div>
+                </div>
+                <div class="nc-body">
+                  <div class="nc-field full">
+                    <label>Client Full Name <span class="req">*</span></label>
+                    <input type="text" id="ncClientName" placeholder="e.g., Juan Dela Cruz">
+                    <small class="nc-hint" id="hintName"></small>
+                  </div>
+                  <div class="nc-field full">
+                    <label>Email Address <span class="req">*</span></label>
+                    <input type="email" id="ncClientEmail" placeholder="e.g., juan@gmail.com">
+                    <small class="nc-hint" id="ncEmailStatus">A working email is required so we can send payment reminders and SOA.</small>
+                  </div>
+                  <div class="nc-field full">
+                    <label>Cellphone Number <span class="req">*</span></label>
+                    <input type="tel" id="ncClientPhone" placeholder="e.g., 0917 123 4567">
+                    <small class="nc-hint" id="hintPhone"></small>
+                  </div>
+                  <div class="nc-field full">
+                    <label>Client Portal Password <span class="req">*</span></label>
+                    <input type="text" id="ncClientPassword" placeholder="Give the buyer a Portal password" autocomplete="off">
+                    <small class="nc-hint" id="hintPassword">At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.</small>
+                  </div>
+                  <div class="nc-field full">
+                    <label>Property Address <span class="req">*</span></label>
+                    <input type="text" id="ncPropertyAddress" placeholder="e.g., Block 1 Lot 2, Sample Subdivision, City">
+                    <small class="nc-hint" id="hintAddress"></small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SECTION: PAYMENT TERMS -->
+              <div class="nc-card">
+                <div class="nc-card-head">
+                  <div class="nc-card-icon"><i data-lucide="credit-card"></i></div>
+                  <div>
+                    <h3>Payment Terms</h3>
+                    <p>Contract price and installment schedule</p>
+                  </div>
+                </div>
+                <div class="nc-body">
+                  <div class="nc-field">
+                    <label>Total Contract Price <span class="req">*</span></label>
+                    <div class="input-affix"><span>₱</span><input type="text" id="ncTotalPrice" inputmode="decimal" placeholder="0.00"></div>
+                    <small class="nc-hint" id="hintPrice"></small>
+                  </div>
+                  <div class="nc-field">
+                    <label>Downpayment <span class="req">*</span></label>
+                    <div class="input-affix"><span>₱</span><input type="text" id="ncDownpayment" inputmode="decimal" placeholder="0.00"></div>
+                    <small class="nc-hint" id="hintDownpayment"></small>
+                  </div>
+                  <div class="nc-field">
+                    <label>Installment Terms (months) <span class="req">*</span></label>
+                    <select id="ncTerms">
+                      <option value="">Select term</option>
+                      <option value="6">6 months</option>
+                      <option value="12">12 months</option>
+                      <option value="18">18 months</option>
+                      <option value="24">24 months</option>
+                      <option value="36">36 months</option>
+                      <option value="48">48 months</option>
+                      <option value="60">60 months</option>
+                    </select>
+                    <small class="nc-hint" id="hintTerms"></small>
+                  </div>
+                  <div class="nc-field">
+                    <label>Start Date <span class="req">*</span></label>
+                    <input type="date" id="ncStartDate">
+                    <small class="nc-hint" id="hintDate"></small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="nc-actions">
+                <button class="btn-cancel" id="ncCancelBtn">Reset</button>
+                <button class="btn-submit" id="ncSubmitBtn" disabled><span class="nc-btn-label">Create Contract</span></button>
+              </div>
+            </div>
+
+            <!-- SUMMARY COLUMN -->
+            <aside class="nc-summary">
+              <div class="nc-summary-head">
+                <div class="nc-card-icon"><i data-lucide="calculator"></i></div>
+                <div>
+                  <h3>Payment Summary</h3>
+                  <p>Live estimate based on your inputs</p>
+                </div>
+              </div>
+              <div class="nc-summary-body">
+                <div class="nc-summary-row"><span>Total Contract Price</span><strong id="sumPrice">—</strong></div>
+                <div class="nc-summary-row"><span>Downpayment</span><strong id="sumDP">—</strong></div>
+                <div class="nc-summary-row"><span>Downpayment %</span><strong id="sumDPPct">—</strong></div>
+                <div class="nc-summary-rule"></div>
+                <div class="nc-summary-row"><span>Financing Amount</span><strong id="sumFinancing">—</strong></div>
+                <div class="nc-summary-row"><span>Terms</span><strong id="sumTerms">—</strong></div>
+                <div class="nc-summary-row primary"><span>Est. Monthly</span><strong id="sumMonthly">—</strong></div>
+                <p class="nc-summary-note">Principal-only estimate, excluding interest and fees.</p>
+              </div>
+            </aside>
+
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- PAYMENT POSTING MODAL -->
+  <div class="modal-overlay" id="paymentModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3>Post Collection / Remittance</h3>
+          <p id="paymentModalSub">Installment Entry</p>
+        </div>
+        <button class="modal-close" id="closePaymentModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Client</label>
+            <input type="text" id="pmClient" readonly>
+          </div>
+          <div class="form-group">
+            <label>Amount Due</label>
+            <input type="text" id="pmAmount" readonly>
+          </div>
+          <div class="form-group">
+            <label>Payment Method *</label>
+            <select id="pmMethod">
+              <option value="">Select channel</option>
+              <option value="Bank Wire / Online Deposit">Bank Wire / Online Deposit</option>
+              <option value="Over-the-Counter Cashier">Over-the-Counter Cashier</option>
+              <option value="Post-Dated Check (PDC)">Post-Dated Check (PDC)</option>
+              <option value="GCash / Maya">GCash / Maya</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Date Collected *</label>
+            <input type="date" id="pmDate">
+          </div>
+          <div class="form-group full">
+            <label>OR / Reference Number *</label>
+            <input type="text" id="pmOR" placeholder="e.g., OR-2026-00741">
+          </div>
+          <div class="form-group full">
+            <label>Remarks</label>
+            <input type="text" id="pmRemarks" placeholder="Optional notes">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="cancelPayment">Cancel</button>
+        <button class="btn-submit" id="submitPayment">Post to Ledger</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRINT SOA MODAL -->
+  <div class="modal-overlay" id="soaModal">
+    <div class="soa-modal">
+      <div class="soa-toolbar">
+        <button class="btn-close-soa" id="closeSoaModal">Close</button>
+        <button class="btn-do-print" id="doPrintSoa">Print SOA</button>
+      </div>
+      <div class="soa-document" id="soaDocument"></div>
+    </div>
+  </div>
+
+
+  <!-- ============================================
+       JAVASCRIPT
+  ============================================= -->
+  <script src="../js/portal-store.js"></script>
+  <script>
+  'use strict';
+
+  document.addEventListener('DOMContentLoaded', () => {
+
+    /* ==========================================
+       SESSION GUARD
+    ========================================== */
+    let stored = localStorage.getItem('IHC_USER');
+    if (!stored) {
+      // No session found. In production (served via your login flow) this
+      // should redirect to the login page. For direct/standalone testing,
+      // seed a demo clerk session instead so the dashboard stays usable.
+      const demoUser = { role: 'clerk', name: 'Demo Clerk', avatar: 'DC', officerId: 'DEMO-001' };
+      localStorage.setItem('IHC_USER', JSON.stringify(demoUser));
+      stored = JSON.stringify(demoUser);
+    }
+
+    let currentUser;
+    try {
+      currentUser = JSON.parse(stored);
+      if (!currentUser || !currentUser.role) throw new Error();
+    } catch {
+      localStorage.removeItem('IHC_USER');
+      window.location.href = '../log in.html';
+      return;
+    }
+
+    if (currentUser.role !== 'clerk') {
+      window.location.href = 'admin-dashboard.html';
+      return;
+    }
+
+    /* ==========================================
+       API BASE & DATA LOADING (from backend)
+    ========================================== */
+    const API_BASE = 'http://localhost/ihc-system';
+    const NODE_API_BASE = 'http://localhost:3000';
+    const notificationStorageKey = 'IHC_NOTIFICATION_STATUS_' + (currentUser.officerId || currentUser.id || 'default');
+    const TODAY = new Date();
+    let myContracts = [];
+    let loadingError = null;
+
+    const readNotificationStatuses = () => {
+      try {
+        const storedStatuses = JSON.parse(localStorage.getItem(notificationStorageKey));
+        return storedStatuses && typeof storedStatuses === 'object' ? storedStatuses : {};
+      } catch {
+        return {};
+      }
+    };
+
+    const saveNotificationStatus = (contractId, status) => {
+      const statuses = readNotificationStatuses();
+      statuses[String(contractId)] = status;
+      localStorage.setItem(notificationStorageKey, JSON.stringify(statuses));
+    };
+
+    const notificationStatuses = readNotificationStatuses();
+
+    /* ==========================================
+       POPULATE UI WITH USER DATA
+    ========================================== */
+    const avatarGradClass = 'clerk-grad';
+    const roleLabel = 'Clerk';
+    const dashTitle = 'Billing Dashboard';
+
+    document.getElementById('sidebarSubtitle').textContent = dashTitle;
+    document.getElementById('sidebarAvatar').textContent = currentUser.avatar || currentUser.name.split(' ').map(n => n[0]).join('');
+    document.getElementById('sidebarAvatar').classList.add(avatarGradClass);
+    document.getElementById('sidebarName').textContent = currentUser.name;
+    document.getElementById('sidebarRole').innerHTML = `<span class="sidebar-role-badge ${currentUser.role}">${roleLabel}</span>`;
+
+    document.getElementById('headerTitle').textContent = dashTitle;
+    document.getElementById('headerSub').textContent = `${roleLabel} View \u2022 Assigned Accounts`;
+    document.getElementById('headerAvatar').textContent = currentUser.avatar || currentUser.name.split(' ').map(n => n[0]).join('');
+    document.getElementById('headerAvatar').classList.add(avatarGradClass);
+    document.getElementById('headerName').textContent = currentUser.name;
+    document.getElementById('headerRole').innerHTML = `<span class="role-badge-header ${currentUser.role}">${roleLabel}</span>`;
+
+    /* ==========================================
+       HELPERS
+    ========================================== */
+    const formatPHP = (n) => '\u20B1' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const daysDiff = (d1, d2) => Math.ceil((d1 - d2) / (1000 * 60 * 60 * 24));
+
+    const getStatusLabel = (row) => {
+      if (row.status === 'paid') return 'Paid';
+      if (row.status === 'overdue') return 'Overdue by ' + daysDiff(TODAY, row.dueDate) + ' Days';
+      if (row.status === 'due-soon') return 'Due in ' + daysDiff(row.dueDate, TODAY) + ' Days';
+      return 'Current';
+    };
+
+    const getNotifLabel = (n) => {
+      if (n === 'sent') return 'SMS & Email Sent';
+      if (n === 'pending') return 'Pending';
+      return 'Failed';
+    };
+
+    const formatAcknowledgedAt = (value) => {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? 'Time recorded' : date.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    };
+
+    const getAcknowledgmentMarkup = (row) => {
+      const notificationStatus = row.notification || row.status;
+      if (row.acknowledged) {
+        return `<span class="row-status ok" title="Client acknowledged the email reminder"><span class="dot"></span>Acknowledged</span>
+          <small style="display:block;color:var(--text-muted);margin-top:4px;">${formatAcknowledgedAt(row.acknowledgedAt)}</small>`;
+      }
+      if (notificationStatus === 'sent') {
+        return '<span class="row-status warn" title="The email was sent, but the client has not acknowledged it yet."><span class="dot"></span>Awaiting client</span>';
+      }
+      return '<span style="font-size:11px;color:var(--text-muted);">No email sent</span>';
+    };
+
+    /* ==========================================
+       KPIs
+    ========================================== */
+    const renderKPIs = () => {
+      const totalAssigned = myContracts.length;
+      const totalCollected = myContracts.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
+      const acknowledged = myContracts.filter(c => c.acknowledged).length;
+      document.getElementById('kpiAssigned').textContent = totalAssigned;
+      document.getElementById('kpiMyCollected').textContent = formatPHP(totalCollected);
+      document.getElementById('kpiAcknowledged').textContent = acknowledged;
+      document.getElementById('kpiAcknowledgedSub').textContent = totalAssigned
+        ? `${acknowledged} of ${totalAssigned} assigned clients acknowledged`
+        : 'Awaiting client responses';
+    };
+
+    /* ==========================================
+       TABLE RENDER
+    ========================================== */
+    const tableBody = document.getElementById('tableBody');
+    const searchInput = document.getElementById('tableSearch');
+    const filterTabs = document.querySelectorAll('.filter-tab');
+    let activeFilter = 'all';
+
+    const renderTable = (data) => {
+      if (!data.length) {
+        tableBody.innerHTML = `
+          <tr><td colspan="9">
+            <div class="empty-state">
+              <i data-lucide="search-x" style="width:40px;height:40px;"></i>
+              <strong>No matching records</strong>
+              <small>Try adjusting your search or filter</small>
+            </div>
+          </td></tr>`;
+        lucide.createIcons();
+        return;
+      }
+
+      tableBody.innerHTML = data.map((row, i) => {
+        const statusLabel = getStatusLabel(row);
+        const notifLabel = getNotifLabel(row.notification);
+        const globalIdx = myContracts.indexOf(row);
+
+        return `
+          <tr>
+            <td><div class="client-cell"><strong>${row.client}</strong><small>${row.property}</small></div></td>
+            <td><span class="contract-id">${row.id}</span></td>
+            <td style="font-size:12px;">${row.paymentType}</td>
+            <td><span class="amount-due">${formatPHP(row.amount)}</span></td>
+            <td style="white-space:nowrap;font-size:12px;">${formatDate(row.dueDate)}</td>
+            <td><span class="status-badge ${row.status}"><span class="dot"></span>${statusLabel}</span></td>
+            <td><span class="notif-badge ${row.notification}">${notifLabel}</span></td>
+            <td>${getAcknowledgmentMarkup(row)}</td>
+            <td>
+              <div class="action-btns">
+                <button class="btn-action btn-print" onclick="printSOA(${globalIdx})">Print SOA</button>
+                <button class="btn-action btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${globalIdx})">Send Notif</button>
+                <button class="btn-action btn-post ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="openPaymentModal(${globalIdx})">Post Payment</button>
+              </div>
+            </td>
+          </tr>`;
+      }).join('');
+      lucide.createIcons();
+    };
+
+    const updateCounts = () => {
+      const s = searchInput.value.toLowerCase().trim();
+      const f = (status) => myContracts.filter(c => {
+        const ms = !s || c.client.toLowerCase().includes(s) || c.id.toLowerCase().includes(s);
+        return ms && (status === 'all' || c.status === status);
+      });
+      document.getElementById('countAll').textContent = f('all').length;
+      document.getElementById('countDueSoon').textContent = f('due-soon').length;
+      document.getElementById('countOverdue').textContent = f('overdue').length;
+      document.getElementById('countPaid').textContent = f('paid').length;
+    };
+
+    const applyFilters = () => {
+      const s = searchInput.value.toLowerCase().trim();
+      const filtered = myContracts.filter(c => {
+        const ms = !s || c.client.toLowerCase().includes(s) || c.id.toLowerCase().includes(s);
+        const mf = activeFilter === 'all' || c.status === activeFilter;
+        return ms && mf;
+      });
+      renderTable(filtered);
+      updateCounts();
+    };
+
+    searchInput.addEventListener('input', applyFilters);
+
+    filterTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        filterTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeFilter = tab.dataset.filter;
+        applyFilters();
+      });
+    });
+
+    /* ==========================================
+       DATA LOADING FROM BACKEND
+    ========================================== */
+    const statusFromDate = (dueDate, isPending) => {
+      if (!isPending) return 'paid';
+      const due = new Date(dueDate);
+      const diff = daysDiff(due, TODAY);
+      if (diff < 0) return 'overdue';
+      if (diff <= 3) return 'due-soon';
+      return 'current';
+    };
+
+    const mapClientToRow = (c) => {
+      const pending = c.nextDueDate && c.nextStatus === 'Pending Payment';
+      const paymentType = c.nextInstallmentNo != null
+        ? 'Monthly Amortization #' + c.nextInstallmentNo
+        : 'Downpayment';
+      return {
+        id: c.accountCode,
+        client: c.name,
+        property: c.propertyAddress || c.accountCode,
+        totalPrice: c.totalPrice,
+        terms: c.terms,
+        paymentType: paymentType,
+        amount: pending ? Number(c.nextAmount) : c.outstanding,
+        dueDate: pending ? new Date(c.nextDueDate) : TODAY,
+        status: statusFromDate(c.nextDueDate, pending),
+        notification: notificationStatuses[String(c.contractId)] || 'pending',
+        email: c.email,
+        phone: c.phone,
+        contractId: c.contractId,
+        accountCode: c.accountCode,
+        acknowledged: false,
+        acknowledgedAt: null
+      };
+    };
+
+    const loadAcknowledgementStatuses = async () => {
+      await Promise.all(myContracts.map(async (contract) => {
+        try {
+          const response = await fetch(NODE_API_BASE + '/api/contracts/' + encodeURIComponent(contract.contractId) + '/acknowledgment-status');
+          if (!response.ok) return;
+          const data = await response.json();
+          contract.acknowledged = data.acknowledged === true;
+          contract.acknowledgedAt = data.acknowledgedAt || null;
+        } catch {
+          // The dashboard remains usable when the Node service is offline.
+        }
+      }));
+    };
+
+    const refreshAcknowledgementStatuses = async () => {
+      const button = document.getElementById('refreshAcknowledgmentsBtn');
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i data-lucide="loader-circle" style="width:14px;height:14px;"></i> Refreshing...';
+        lucide.createIcons();
+      }
+      await loadAcknowledgementStatuses();
+      renderKPIs();
+      applyFilters();
+      renderNotifLog();
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh acknowledgments';
+        lucide.createIcons();
+      }
+      showToast('Acknowledgment statuses updated.', 'success');
+    };
+
+    const loadDashboard = async () => {
+      const officerId = currentUser.officerId;
+      if (!officerId) {
+        showToast('Your account has no officer record assigned.', 'info');
+        return;
+      }
+      try {
+        const res = await fetch(API_BASE + '/php/api_dashboard.php?officerId=' + officerId);
+        const data = await res.json();
+        if (!data.success) {
+          showToast(data.message || 'Failed to load assigned clients.', 'info');
+          return;
+        }
+        myContracts = (data.clients || []).map(mapClientToRow);
+        await loadAcknowledgementStatuses();
+      } catch (err) {
+        loadingError = 'Server unreachable. Showing live data is unavailable.';
+        showToast('Can\u2019t reach the server. Assigned clients could not be loaded.', 'info');
+      }
+      renderKPIs();
+      applyFilters();
+      renderPostingQueue();
+      renderNotifLog();
+    };
+
+    loadDashboard();
+
+    /* ==========================================
+       REMINDER TOAST
+    ========================================== */
+    // Sends the RAW values — emailService.js's formatCurrency()/formatDate()
+    // already handle display formatting server-side. Sending pre-formatted
+    // strings here (e.g. "\u20B112,500.00") would make Number(amount) come out
+    // NaN on the backend, which is why reminders were breaking.
+    const buildSoaPayload = (row) => ({
+      scenario: row.status === 'overdue' ? 'overdue' : 'due_soon',
+      client: row.client,
+      contractId: row.id,
+      property: row.property,
+      paymentType: row.paymentType,
+      amount: row.amount,                                   // raw number
+      dueDate: row.dueDate.toISOString().slice(0, 10),      // raw ISO date (YYYY-MM-DD)
+      recipientEmail: row.email || ''
+    });
+
+    window.sendReminder = async (idx) => {
+      const row = myContracts[idx];
+      const btn = document.querySelector(`[onclick="sendReminder(${idx})"]`);
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+      try {
+        const res = await fetch(NODE_API_BASE + '/api/contracts/' + encodeURIComponent(row.contractId) + '/send-reminder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildSoaPayload(row))
+        });
+        const data = await res.json();
+        if (data.success) {
+          row.notification = 'sent';
+          saveNotificationStatus(row.contractId, 'sent');
+          // Refresh every view that depends on notification state so the
+          // change shows up immediately, not just after switching tabs.
+          applyFilters();
+          renderPostingQueue();
+          renderNotifLog();
+          showToast(data.message, 'success');
+        } else {
+          showToast(data.message || 'Failed to send reminder', 'info');
+        }
+      } catch (err) {
+        showToast('Server unreachable. Reminder not sent.', 'info');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Send Notif'; }
+      }
+    };
+
+    function showToast(message, type) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      const icon = type === 'success' ? 'check-circle' : 'info';
+      toast.innerHTML = `<i data-lucide="${icon}" style="width:18px;height:18px;"></i> ${message}`;
+      container.appendChild(toast);
+      lucide.createIcons();
+      setTimeout(() => { if (toast.parentNode) toast.remove(); }, 3500);
+    }
+
+    /* ==========================================
+       PAYMENT POSTING MODAL
+    ========================================== */
+    const paymentModal = document.getElementById('paymentModal');
+    let currentPaymentIdx = null;
+
+    window.openPaymentModal = (idx) => {
+      const row = myContracts[idx];
+      currentPaymentIdx = idx;
+      document.getElementById('paymentModalSub').textContent = row.id + ' \u2014 ' + row.paymentType;
+      document.getElementById('pmClient').value = row.client;
+      document.getElementById('pmAmount').value = formatPHP(row.amount);
+      document.getElementById('pmMethod').value = '';
+      document.getElementById('pmDate').value = '';
+      document.getElementById('pmOR').value = '';
+      document.getElementById('pmRemarks').value = '';
+      paymentModal.classList.add('visible');
+    };
+
+    document.getElementById('closePaymentModal').addEventListener('click', () => paymentModal.classList.remove('visible'));
+    document.getElementById('cancelPayment').addEventListener('click', () => paymentModal.classList.remove('visible'));
+    paymentModal.addEventListener('click', (e) => { if (e.target === paymentModal) paymentModal.classList.remove('visible'); });
+
+    document.getElementById('submitPayment').addEventListener('click', async () => {
+      const method = document.getElementById('pmMethod').value;
+      const date = document.getElementById('pmDate').value;
+      const orNum = document.getElementById('pmOR').value.trim();
+      const remarks = document.getElementById('pmRemarks').value.trim();
+
+      if (!method || !date || !orNum) {
+        showToast('Please fill in all required fields', 'info');
+        return;
+      }
+
+      const row = myContracts[currentPaymentIdx];
+      const submitBtn = document.getElementById('submitPayment');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Posting…';
+
+      try {
+        const res = await fetch(API_BASE + '/php/post-payment.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contractId: row.id,
+            method: method,
+            dateCollected: date,
+            orNumber: orNum,
+            remarks: remarks,
+            amount: row.amount,
+            postedBy: currentUser.officerId
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'The payment could not be posted.');
+        }
+
+        paymentModal.classList.remove('visible');
+        showToast(data.message || `Payment posted for ${row.client} \u2014 OR #${orNum}`, 'success');
+
+        // Re-pull from the backend so billing dashboard, payment posting
+        // queue, and the notification log all reflect the real, saved state
+        // instead of a locally-guessed one.
+        await loadDashboard();
+
+        // Front-end portal: reflect the posted payment in the buyer's ledger
+        // and push a notification so they see the transaction was recorded.
+        // (Swap for a server-side write when wiring the real backend.)
+        if (window.portalStore && row.contractId != null) {
+          portalStore.postPortalPayment(row.contractId, {
+            amount: row.amount,
+            orNumber: orNum,
+            method: method,
+            date: date
+          });
+        }
+      } catch (err) {
+        console.error('Post payment error:', err);
+        showToast(err.message || 'Could not connect to the server. Payment was not saved.', 'info');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Post to Ledger';
+      }
+    });
+
+    /* ==========================================
+       PRINT SOA MODAL
+    ========================================== */
+    const soaModal = document.getElementById('soaModal');
+    const soaDocument = document.getElementById('soaDocument');
+
+    window.printSOA = (idx) => {
+      const row = myContracts[idx];
+      const statusLabel = getStatusLabel(row);
+
+      soaDocument.innerHTML = `
+        <div class="soa-doc-header">
+          <div class="soa-brand">
+            <img src="../img/ihc logo.png" alt="IHC" style="width:48px;height:48px;margin-bottom:8px;">
+            <strong>Imperial Homes Corporation</strong>
+            <small>Imperial Homes Corporation \u2022 Billing & Accounts Receivable</small>
+          </div>
+          <div class="soa-doc-title">
+            <h3>Statement of Account</h3>
+            <p>SOA-${row.id} \u2022 Generated ${formatDate(TODAY)}</p>
+          </div>
+        </div>
+        <div class="soa-info-grid">
+          <div class="soa-info-group"><label>Client Name</label><span>${row.client}</span></div>
+          <div class="soa-info-group"><label>Contract / IHC Ref</label><span>${row.id}</span></div>
+          <div class="soa-info-group"><label>Property</label><span>${row.property}</span></div>
+          <div class="soa-info-group"><label>Payment Type</label><span>${row.paymentType}</span></div>
+        </div>
+        <table class="soa-table">
+          <thead><tr><th>Payment Type</th><th>Due Date</th><th>Amount Due</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>${row.paymentType}</td><td>${formatDate(row.dueDate)}</td><td style="font-weight:700;">${formatPHP(row.amount)}</td><td>${statusLabel}</td></tr>
+            <tr class="total-row"><td colspan="2" style="text-align:right;">TOTAL DUE</td><td>${formatPHP(row.amount)}</td><td></td></tr>
+          </tbody>
+        </table>
+        <div class="soa-footer-note">This is a system-generated Statement of Account from Imperial Homes Corporation.<br>For concerns, contact Imperial Homes Corporation Billing Department.</div>`;
+
+      soaModal.classList.add('visible');
+    };
+
+    document.getElementById('closeSoaModal').addEventListener('click', () => soaModal.classList.remove('visible'));
+    document.getElementById('doPrintSoa').addEventListener('click', () => window.print());
+    soaModal.addEventListener('click', (e) => { if (e.target === soaModal) soaModal.classList.remove('visible'); });
+
+    /* ==========================================
+       SIDEBAR TOGGLE
+    ========================================== */
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const hamburger = document.getElementById('hamburgerBtn');
+
+    hamburger.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('visible');
+    });
+
+    overlay.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('visible');
+    });
+
+    /* ==========================================
+       PAYMENT POSTING QUEUE VIEW
+    ========================================== */
+    function renderPostingQueue() {
+      const body = document.getElementById('postingBody');
+      const queue = myContracts.filter(c => c.status !== 'paid');
+      if (!queue.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">No pending payments \u2014 all accounts are settled.</td></tr>';
+        return;
+      }
+      body.innerHTML = queue.map(c => {
+        const globalIdx = myContracts.indexOf(c);
+        const overdue = c.status === 'overdue' ? daysDiff(TODAY, c.dueDate) : 0;
+        const daysLabel = overdue > 0 ? `<span class="row-status danger"><span class="dot"></span>${overdue} days overdue</span>`
+          : `<span class="row-status warn"><span class="dot"></span>Due in ${daysDiff(c.dueDate, TODAY)} days</span>`;
+        return `
+          <tr>
+            <td class="client-cell"><strong>${c.client}</strong><small>${c.property}</small></td>
+            <td><span class="contract-id">${c.id}</span></td>
+            <td style="font-size:12px;">${c.paymentType}</td>
+            <td class="amount-due">${formatPHP(c.amount)}</td>
+            <td style="white-space:nowrap; font-size:12px;">${formatDate(c.dueDate)}</td>
+            <td>${daysLabel}</td>
+            <td><button class="btn-action btn-post" onclick="openPaymentModal(${globalIdx})">Post Payment</button></td>
+          </tr>`;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    /* ==========================================
+       NOTIFICATIONS LOG VIEW
+    ========================================== */
+    function renderNotifLog() {
+      const body = document.getElementById('notifLogBody');
+      const currentUserContracts = myContracts;
+      const data = currentUserContracts.map((c, i) => ({
+        time: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1 + (i % Math.max(9, TODAY.getDate() - 1)), 9 + (i % 8), (i * 13) % 60),
+        client: c.client,
+        id: c.id,
+        channel: c.notification === 'failed' ? 'SMS Only' : 'SMS & Email',
+        recipient: c.email || (c.client.split(' ')[0] + '@gmail.com'),
+        subject: 'Payment Reminder \u2014 ' + c.paymentType,
+        status: c.notification
+        ,acknowledged: c.acknowledged
+        ,acknowledgedAt: c.acknowledgedAt
+      })).sort((a, b) => b.time - a.time);
+
+      const stClass = { 'sent': 'ok', 'pending': 'warn', 'failed': 'danger' };
+      const stMap = { 'sent': 'Sent', 'pending': 'Pending', 'failed': 'Failed' };
+
+      body.innerHTML = data.map(n => `
+        <tr>
+          <td style="white-space:nowrap; font-size:11px;">${n.time.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+          <td class="client-cell"><strong>${n.client}</strong></td>
+          <td><span class="contract-id">${n.id}</span></td>
+          <td class="clerk-cell">${n.channel}</td>
+          <td class="clerk-cell">${n.recipient}</td>
+          <td class="clerk-cell">${n.subject}</td>
+          <td><span class="row-status ${stClass[n.status]}"><span class="dot"></span>${stMap[n.status]}</span></td>
+          <td>${getAcknowledgmentMarkup(n)}</td>
+        </tr>`).join('');
+      lucide.createIcons();
+    }
+
+    /* ==========================================
+       VIEW SWITCHING — Sidebar navigation
+    ========================================== */
+    const viewTitles = {
+      clients:       ['Billing Dashboard', 'Assigned Accounts \u2022 Payment Monitoring'],
+      payments:      ['Payment Posting', 'Unpaid Dues Queue for Your Assigned Accounts'],
+      notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
+      'new-contract': ['New Contract', 'Enroll a new buyer and create their payment schedule']
+    };
+    const pageStorageKey = 'IHC_CLERK_CURRENT_PAGE_' + (currentUser.officerId || currentUser.id || 'default');
+
+    function showView(name) {
+      if (!Object.prototype.hasOwnProperty.call(viewTitles, name)) name = 'clients';
+      localStorage.setItem(pageStorageKey, name);
+
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      const target = document.querySelector('.view[data-view="' + name + '"]');
+      if (target) target.classList.add('active');
+
+      document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+      const link = document.querySelector('.sidebar-link[data-page="' + name + '"]');
+      if (link) link.classList.add('active');
+
+      const t = viewTitles[name];
+      const titleEl = document.querySelector('.header-title h1');
+      const subEl = document.querySelector('.header-title p');
+      if (t) {
+        if (titleEl) titleEl.textContent = t[0];
+        if (subEl) subEl.textContent = t[1];
+      } else {
+        if (titleEl) titleEl.textContent = 'Billing Dashboard';
+        if (subEl) subEl.textContent = `${roleLabel} View \u2022 Assigned Accounts`;
+      }
+
+      if (name === 'payments') renderPostingQueue();
+      if (name === 'notifications') renderNotifLog();
+
+      sidebar.classList.remove('open');
+      overlay.classList.remove('visible');
+    }
+
+    document.querySelectorAll('.sidebar-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        showView(link.dataset.page || 'clients');
+      });
+    });
+
+    document.getElementById('refreshAcknowledgmentsBtn').addEventListener('click', refreshAcknowledgementStatuses);
+
+    const savedPage = localStorage.getItem(pageStorageKey);
+    showView(savedPage || 'clients');
+
+    /* ==========================================
+       NEW CONTRACT — VALIDATION, SUMMARY & SUBMIT
+    ========================================== */
+    const ncEmail = document.getElementById('ncClientEmail');
+    const ncEmailStatus = document.getElementById('ncEmailStatus');
+    const ncSubmitBtn = document.getElementById('ncSubmitBtn');
+    const ncFields = {
+      name: document.getElementById('ncClientName'),
+      email: ncEmail,
+      phone: document.getElementById('ncClientPhone'),
+      password: document.getElementById('ncClientPassword'),
+      address: document.getElementById('ncPropertyAddress'),
+      price: document.getElementById('ncTotalPrice'),
+      downpayment: document.getElementById('ncDownpayment'),
+      terms: document.getElementById('ncTerms'),
+      date: document.getElementById('ncStartDate')
+    };
+
+    let emailValid = false;
+    let emailChecking = false;
+
+    const fmtPeso = (n) => '\u20B1' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const parseAmount = (str) => {
+      const cleaned = String(str || '').replace(/[^\d.]/g, '');
+      if (!cleaned) return NaN;
+      return Number(cleaned);
+    };
+
+    function setFieldState(input, hintId, ok, okMsg, errMsg) {
+      const hint = document.getElementById(hintId);
+      if (!hint) return;
+      input.classList.toggle('valid', !!ok);
+      input.classList.toggle('invalid', !ok && !!errMsg);
+      if (ok) { hint.className = 'nc-hint ok'; hint.textContent = '\u2713 ' + okMsg; }
+      else if (errMsg) { hint.className = 'nc-hint err'; hint.textContent = errMsg; }
+      else { hint.className = 'nc-hint'; hint.textContent = ''; }
+    }
+
+    function formatAmountField(el) {
+      const raw = el.value.replace(/[^\d.]/g, '');
+      if (!raw) { el.value = ''; return; }
+      const parts = raw.split('.');
+      const intPart = parts[0].replace(/^0+(?=\d)/, '');
+      const decPart = parts.length > 1 ? '.' + parts[1].slice(0, 2) : '';
+      el.value = intPart ? intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + decPart : (decPart || '');
+    }
+
+    function formatAmountBlur() {
+      [ncFields.price, ncFields.downpayment].forEach(el => {
+        const n = parseAmount(el.value);
+        el.value = isNaN(n) ? '' : Number(n.toFixed(2)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      });
+    }
+
+    function updateSummary() {
+      const price = parseAmount(ncFields.price.value);
+      const dp = parseAmount(ncFields.downpayment.value);
+      const terms = parseInt(ncFields.terms.value, 10);
+      const financing = (!isNaN(price) && !isNaN(dp)) ? Math.max(0, price - dp) : NaN;
+
+      document.getElementById('sumPrice').textContent = !isNaN(price) && price > 0 ? fmtPeso(price) : '—';
+      document.getElementById('sumDP').textContent = !isNaN(dp) && dp > 0 ? fmtPeso(dp) : '—';
+      document.getElementById('sumDPPct').textContent = (!isNaN(price) && price > 0 && !isNaN(dp) && dp > 0) ? ((dp / price) * 100).toFixed(1) + '%' : '—';
+      document.getElementById('sumFinancing').textContent = !isNaN(financing) && financing > 0 ? fmtPeso(financing) : '—';
+      document.getElementById('sumTerms').textContent = (!isNaN(terms) && terms > 0) ? terms + ' mos' : '—';
+      document.getElementById('sumMonthly').textContent = (!isNaN(financing) && financing > 0 && !isNaN(terms) && terms > 0) ? fmtPeso(financing / terms) : '—';
+    }
+
+    function refreshSubmit(baseOk) {
+      ncSubmitBtn.disabled = !baseOk || emailChecking;
+    }
+
+    function validateForm() {
+      const name = ncFields.name.value.trim();
+      const phone = ncFields.phone.value.trim().replace(/[\s-]/g, '');
+      const address = ncFields.address.value.trim();
+      const price = parseAmount(ncFields.price.value);
+      const dp = parseAmount(ncFields.downpayment.value);
+      const terms = ncFields.terms.value.trim();
+      const date = ncFields.date.value;
+
+      setFieldState(ncFields.name, 'hintName', !!name, 'Complete', name ? '' : 'Client name is required.');
+
+      const phoneOk = /^(\+639\d{9}|09\d{9}|0\d{9})$/.test(phone);
+      setFieldState(ncFields.phone, 'hintPhone', phoneOk, 'Valid number', !phone ? 'Cellphone number is required.' : (phoneOk ? '' : 'Enter a valid PH mobile (e.g., 0917 123 4567).'));
+
+      setFieldState(ncFields.address, 'hintAddress', !!address, 'Complete', address ? '' : 'Property address is required.');
+
+      const priceOk = !isNaN(price) && price > 0;
+      setFieldState(ncFields.price, 'hintPrice', priceOk, 'Valid amount', !ncFields.price.value.trim() ? 'Total contract price is required.' : (priceOk ? '' : 'Enter an amount greater than zero.'));
+
+      const dpOk = !isNaN(dp) && dp >= 0 && (isNaN(price) || dp <= price);
+      setFieldState(ncFields.downpayment, 'hintDownpayment', dpOk, 'Valid amount', !ncFields.downpayment.value.trim() ? 'Downpayment is required.' : (dpOk ? '' : 'Downpayment cannot exceed the total price.'));
+
+      const termsOk = /^\d+$/.test(terms) && Number(terms) >= 1;
+      setFieldState(ncFields.terms, 'hintTerms', termsOk, 'Valid terms', !terms ? 'Please select the installment term.' : (termsOk ? '' : 'Enter a positive whole number of months.'));
+
+      const dateOk = !!date && new Date(date).toString() !== 'Invalid Date';
+      setFieldState(ncFields.date, 'hintDate', dateOk, 'Valid date', date ? (dateOk ? '' : 'Enter a valid start date.') : 'Start date is required.');
+
+      const passwordVal = ncFields.password.value.trim();
+      const passwordOk = passwordVal.length >= 6;
+      setFieldState(ncFields.password, 'hintPassword', passwordOk, 'Portal password ready', !passwordVal ? 'Client Portal Password is required so the buyer can sign in.' : (passwordOk ? '' : 'Use at least 6 characters.'));
+
+      const emailVal = ncFields.email.value.trim();
+      const emailBaseOk = !!emailVal && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);
+      if (!emailVal) setFieldState(ncFields.email, 'ncEmailStatus', false, '', 'Email is required so we can send reminders and SOA.');
+      else if (!emailBaseOk) setFieldState(ncFields.email, 'ncEmailStatus', false, '', 'Enter a valid email address.');
+      else if (emailValid) setFieldState(ncFields.email, 'ncEmailStatus', true, 'Working email — can receive SOA reminders', '');
+      else setFieldState(ncFields.email, 'ncEmailStatus', false, '', emailChecking ? 'Checking email domain…' : 'Email not verified yet — click away from the field to check it.');
+
+      const baseOk = !!name && phoneOk && !!address && priceOk && dpOk && termsOk && dateOk && passwordOk && emailBaseOk && emailValid;
+      refreshSubmit(baseOk);
+      return baseOk;
+    }
+
+    // Live validation + summary wiring
+    [ncFields.price, ncFields.downpayment].forEach(el => {
+      el.addEventListener('input', () => { formatAmountField(el); updateSummary(); validateForm(); });
+      el.addEventListener('blur', () => { formatAmountBlur(); updateSummary(); validateForm(); });
+    });
+    ncFields.terms.addEventListener('input', () => { updateSummary(); validateForm(); });
+    ncFields.date.addEventListener('input', validateForm);
+    ['name', 'phone', 'password', 'address'].forEach(k => ncFields[k].addEventListener('blur', validateForm));
+
+    ncEmail.addEventListener('input', () => {
+      emailValid = false;
+      ncEmail.classList.remove('valid');
+      validateForm();
+    });
+
+    ncEmail.addEventListener('blur', async () => {
+      const value = ncEmail.value.trim();
+      if (!value) {
+        emailValid = false;
+        emailChecking = false;
+        setFieldState(ncEmail, 'ncEmailStatus', false, '', 'Email is required so we can send reminders and SOA.');
+        validateForm();
+        return;
+      }
+
+      emailChecking = true;
+      setFieldState(ncEmail, 'ncEmailStatus', false, '', 'Checking email domain…');
+      validateForm();
+
+      // Accept any @gmail.com address immediately, no server check needed.
+      if (/^[^\s@]+@gmail\.com$/i.test(value)) {
+        emailValid = true;
+        emailChecking = false;
+        setFieldState(ncEmail, 'ncEmailStatus', true, 'Working email — can receive SOA reminders', '');
+        validateForm();
+        return;
+      }
+
+      try {
+        const res = await fetch(API_BASE + '/php/validate-email.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: value })
+        });
+        const data = await res.json();
+        emailValid = !!data.valid;
+        if (data.valid) setFieldState(ncEmail, 'ncEmailStatus', true, 'Working email — can receive SOA reminders', '');
+        else setFieldState(ncEmail, 'ncEmailStatus', false, '', '\u2717 Not a working email — ' + (data.reason || 'domain cannot receive mail'));
+      } catch (err) {
+        emailValid = false;
+        setFieldState(ncEmail, 'ncEmailStatus', false, '', '\u2717 Could not verify email domain.');
+      } finally {
+        emailChecking = false;
+        validateForm();
+      }
+    });
+
+    document.getElementById('ncCancelBtn').addEventListener('click', resetNewContractForm);
+    function resetNewContractForm() {
+      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncPropertyAddress', 'ncTotalPrice', 'ncDownpayment', 'ncTerms', 'ncStartDate'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      ['hintName', 'ncEmailStatus', 'hintPhone', 'hintPassword', 'hintAddress', 'hintPrice', 'hintDownpayment', 'hintTerms', 'hintDate'].forEach(id => {
+        const h = document.getElementById(id);
+        if (h) { h.className = 'nc-hint'; h.textContent = id === 'ncEmailStatus' ? 'A working email is required so we can send payment reminders and SOA.' : (id === 'hintPassword' ? 'At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.' : ''); }
+      });
+      Object.keys(ncFields).forEach(k => ncFields[k].classList.remove('valid', 'invalid'));
+      emailValid = false;
+      emailChecking = false;
+      updateSummary();
+      ncSubmitBtn.disabled = true;
+    }
+
+    document.getElementById('ncSubmitBtn').addEventListener('click', async () => {
+      if (!validateForm()) {
+        showToast('Please complete all required fields correctly.', 'info');
+        return;
+      }
+
+      const officerId = currentUser.officerId || '';
+      const clientName = ncFields.name.value.trim();
+      const email = ncFields.email.value.trim();
+      const phone = ncFields.phone.value.trim().replace(/[\s-]/g, '');
+      const portalPassword = ncFields.password.value.trim();
+      const propertyAddress = ncFields.address.value.trim();
+      const totalPrice = parseAmount(ncFields.price.value);
+      const downpayment = parseAmount(ncFields.downpayment.value);
+      const terms = ncFields.terms.value.trim();
+      const startDate = ncFields.date.value;
+
+      const btn = document.getElementById('ncSubmitBtn');
+      const label = btn.querySelector('.nc-btn-label');
+      btn.disabled = true;
+      if (label) label.textContent = 'Saving\u2026';
+
+      try {
+        const res = await fetch(API_BASE + '/backend/db.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            officerId: officerId,
+            client: { fullName: clientName, email: email, phone: phone, portalPassword: portalPassword },
+            contract: {
+              propertyAddress: propertyAddress,
+              totalPrice: totalPrice,
+              downpayment: downpayment,
+              terms: terms,
+              startDate: startDate
+            }
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || data.error || 'The contract could not be saved.');
+        }
+
+        // Front-end portal: register the buyer account + seed their ledger so
+        // they can sign in with the email/password above. (Swap for a server
+        // call when wiring the real backend.)
+        if (window.portalStore && data.id) {
+          portalStore.registerClient({
+            contractId: Number(data.id),
+            name: clientName,
+            email: email,
+            phone: phone,
+            password: portalPassword,
+            propertyAddress: propertyAddress,
+            totalPrice: totalPrice,
+            downpayment: downpayment,
+            terms: Number(terms),
+            startDate: startDate,
+            officerId: officerId || null,
+            officerName: currentUser.name || null,
+            officerEmail: currentUser.email || null
+          });
+          showToast('Buyer portal account created \u2014 credentials: ' + email + ' / ' + portalPassword, 'success');
+        }
+
+        showToast(data.message || 'Contract saved successfully to the database.', 'success');
+        resetNewContractForm();
+        await loadDashboard();
+        showView('clients');
+      } catch (err) {
+        console.error('Create contract error:', err);
+        showToast(err.message || 'Could not connect to the PHP/MySQL server. No local copy was created.', 'info');
+      } finally {
+        btn.disabled = false;
+        if (label) label.textContent = 'Create Contract';
+      }
+    });
+
+    /* ==========================================
+       LOGOUT
+    ========================================== */
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('IHC_USER');
+      window.location.href = '../log in.html';
+    });
+
+    /* ==========================================
+       LUCIDE ICONS
+    ========================================== */
+    lucide.createIcons();
+  });
+  </script>
+</body>
+</html>
