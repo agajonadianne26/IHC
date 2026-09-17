@@ -123,23 +123,65 @@
     return target.getFullYear() + '-' + String(target.getMonth() + 1).padStart(2, '0') + '-' + String(target.getDate()).padStart(2, '0');
   }
 
-  /* Principal-only monthly amortization schedule */
+  /* Monthly amortization payment using the reducing-balance method */
+  function amortize(principal, annualRatePct, months) {
+    const r = (Number(annualRatePct) || 0) / 100 / 12;
+    if (r === 0) return principal / months;
+    const factor = Math.pow(1 + r, months);
+    return principal * r * factor / (factor - 1);
+  }
+
+  /* Two-phase schedule: a deposit phase covering the monthly downpayment
+     (0% interest, optional) followed by the house amortization with the
+     chosen bank's annual interest applied to the financing amount. */
   function buildSchedules(client) {
-    const financing = Number(client.totalPrice) - Number(client.downpayment);
-    const terms = Number(client.terms) || 1;
-    const monthly = Math.round((financing / terms) * 100) / 100;
+    const totalPrice = Number(client.totalPrice) || 0;
+    const downpayment = Number(client.downpayment) || 0;
+    const financing = Math.max(0, totalPrice - downpayment);
+    const terms = Number(client.terms) || 0;
+    const dpMode = client.dpMode === 'monthly' ? 'monthly' : 'lump';
+    const dpTerms = Math.max(0, Number(client.dpTerms) || 0);
+    const annualRate = Number(client.annualRate != null ? client.annualRate : client.annualInterestRate) || 0;
+
     const schedules = [];
-    for (let i = 1; i <= terms; i++) {
-      schedules.push({
-        no: i,
-        dueDate: addMonths(client.startDate, i),
-        amount: monthly,
-        paid: false,
-        payDate: null,
-        orNumber: null,
-        method: null
-      });
+    let no = 1;
+
+    // Phase 1: monthly downpayment / deposit (spread over the deposit term, 0% interest)
+    if (dpMode === 'monthly' && downpayment > 0 && dpTerms > 0) {
+      const depositMonthly = Math.round((downpayment / dpTerms) * 100) / 100;
+      for (let i = 1; i <= dpTerms; i++) {
+        const amount = i === dpTerms ? Math.round((downpayment - depositMonthly * (dpTerms - 1)) * 100) / 100 : depositMonthly;
+        schedules.push({
+          no: no++,
+          phase: 'deposit',
+          dueDate: addMonths(client.startDate, i),
+          amount: amount,
+          paid: false,
+          payDate: null,
+          orNumber: null,
+          method: null
+        });
+      }
     }
+
+    // Phase 2: house amortization with interest, begins right after the deposit phase
+    if (financing > 0 && terms > 0) {
+      const monthly = Math.round(amortize(financing, annualRate, terms) * 100) / 100;
+      const startIdx = schedules.length;
+      for (let i = 1; i <= terms; i++) {
+        schedules.push({
+          no: no++,
+          phase: 'amortization',
+          dueDate: addMonths(client.startDate, startIdx + i),
+          amount: monthly,
+          paid: false,
+          payDate: null,
+          orNumber: null,
+          method: null
+        });
+      }
+    }
+
     return schedules;
   }
 
@@ -221,6 +263,7 @@
     findClientByLogin,
     fmtPeso,
     addMonths,
+    amortize,
     buildSchedules
   };
 })(window);

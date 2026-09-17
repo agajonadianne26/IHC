@@ -290,6 +290,9 @@
     .notif-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
     .notif-time { font-size: 10px; color: var(--text-muted); }
     .channel-chip { padding: 2px 8px; border-radius: 4px; background: #f1f5f9; color: var(--text-secondary); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+    .phase-chip { padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+    .phase-chip.deposit { background: #fef3c7; color: #92400e; }
+    .phase-chip.amortization { background: #dbeafe; color: #1e40af; }
 
     .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
     .empty-state i { margin-bottom: 10px; opacity: 0.4; }
@@ -439,11 +442,13 @@
       return { label: 'Pending', cls: 'warn' };
     }
 
-    const financing = Number(client.totalPrice) - Number(client.downpayment);
-    const monthlyAmort = Math.round((financing / Math.max(1, Number(client.terms))) * 100) / 100;
+    const financing = Math.max(0, Number(client.totalPrice) - Number(client.downpayment));
+    const annualRate = Number(client.annualRate != null ? client.annualRate : client.annualInterestRate) || 0;
+    const amortPmt = portalStore.amortize(financing, annualRate, Math.max(1, Number(client.terms)));
+    const monthlyAmort = Math.round(amortPmt * 100) / 100;
     const paidRows = portal.schedules.filter(s => s.paid);
     const totalPaid = paidRows.reduce((sum, s) => sum + Number(s.amount), 0);
-    const remainingBalance = Math.max(0, financing - totalPaid);
+    const remainingBalance = portal.schedules.filter(s => !s.paid).reduce((sum, s) => sum + Number(s.amount), 0);
     const nextDue = portal.schedules.find(s => !s.paid);
     const downPct = Number(client.totalPrice) > 0 ? ((Number(client.downpayment) / Number(client.totalPrice)) * 100).toFixed(1) + '%' : '\u2014';
 
@@ -502,6 +507,7 @@
       return `
         <tr>
           <td><strong>${s.no}</strong></td>
+          <td>${s.phase ? `<span class="phase-chip ${s.phase}">${s.phase === 'deposit' ? 'Deposit' : 'Amortization'}</span>` : '<span class="muted">\u2014</span>'}</td>
           <td>${fmtDate(s.dueDate)}</td>
           <td><strong>${fmtPHP(s.amount)}</strong></td>
           <td><span class="row-status ${st.cls}"><span class="dot"></span>${st.label}</span></td>
@@ -700,7 +706,7 @@
             <div class="kpi-card">
               <div class="kpi-header"><span class="kpi-label">Monthly Due</span><div class="kpi-icon rose"><i data-lucide="calendar-clock" style="width:18px;height:18px;"></i></div></div>
               <div class="kpi-value rose" id="ledgerMonthly">—</div>
-              <div class="kpi-sub">Principal-only estimate</div>
+              <div class="kpi-sub">Monthly amortization incl. bank interest</div>
             </div>
           </div>
 
@@ -719,6 +725,7 @@
                 <thead>
                   <tr>
                     <th>Installment</th>
+                    <th>Type</th>
                     <th>Due Date</th>
                     <th>Amount</th>
                     <th>Status</th>

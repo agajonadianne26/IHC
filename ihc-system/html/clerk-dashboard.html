@@ -962,6 +962,64 @@
 
     .input-affix input { width: 100%; padding-left: 28px; }
 
+    /* DOWNPAYMENT MODE SEGMENTED CONTROL */
+    .nc-seg {
+      display: flex;
+      gap: 3px;
+      width: 100%;
+      padding: 3px;
+      background: #eef2f7;
+      border: 1px solid #e2e8f0;
+      border-radius: var(--radius-sm);
+    }
+
+    .nc-seg input[type="radio"] { display: none; }
+
+    .nc-seg label {
+      flex: 1;
+      margin: 0;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      color: var(--text-secondary);
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: color var(--transition), background var(--transition), box-shadow var(--transition);
+    }
+
+    .nc-seg label i { width: 15px; height: 15px; }
+    .nc-seg label:hover { color: var(--text-primary); }
+
+    .nc-seg input[type="radio"]:checked + label {
+      background: #fff;
+      color: var(--accent-emerald);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    }
+
+    .nc-seg input[type="radio"]:focus-visible + label {
+      outline: 2px solid var(--accent-blue);
+      outline-offset: 1px;
+    }
+
+    /* INTEREST RATE AFFIX */
+    .nc-rate-affix input { width: 100%; padding-right: 46px; }
+    .nc-rate-affix .suffix {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      pointer-events: none;
+    }
+
     .nc-hint {
       min-height: 14px;
       margin-top: 6px;
@@ -1592,6 +1650,48 @@
                     <div class="input-affix"><span>₱</span><input type="text" id="ncDownpayment" inputmode="decimal" placeholder="0.00"></div>
                     <small class="nc-hint" id="hintDownpayment"></small>
                   </div>
+                  <div class="nc-field full">
+                    <label>Downpayment Mode <span class="req">*</span></label>
+                    <div class="nc-seg" role="radiogroup">
+                      <input type="radio" name="ncDpMode" id="ncDpModeLump" value="lump">
+                      <label for="ncDpModeLump"><i data-lucide="banknote"></i> Lump Sum</label>
+                      <input type="radio" name="ncDpMode" id="ncDpModeMonthly" value="monthly">
+                      <label for="ncDpModeMonthly"><i data-lucide="calendar-clock"></i> Monthly</label>
+                    </div>
+                    <small class="nc-hint" id="hintDpMode">Lump Sum is paid upfront. Monthly spreads the downpayment over a deposit term.</small>
+                  </div>
+                  <div class="nc-field full nc-conditional" id="ncDepositTermsField" style="display:none">
+                    <label>Deposit Terms (months) <span class="req">*</span></label>
+                    <select id="ncDpTerms">
+                      <option value="">Select deposit term</option>
+                      <option value="3">3 months</option>
+                      <option value="6">6 months</option>
+                      <option value="12">12 months</option>
+                      <option value="18">18 months</option>
+                      <option value="24">24 months</option>
+                    </select>
+                    <small class="nc-hint" id="hintDpTerms">The downpayment is divided equally over these months at 0% interest.</small>
+                  </div>
+                  <div class="nc-field full">
+                    <label>Financing Bank</label>
+                    <select id="ncBank">
+                      <option value="In-House" data-rate="0.00">In-House (0% interest)</option>
+                      <option value="Pag-IBIG" data-rate="5.50">Pag-IBIG Fund — 5.50% p.a.</option>
+                      <option value="BDO" data-rate="6.50">BDO — 6.50% p.a.</option>
+                      <option value="BPI" data-rate="6.50">BPI — 6.50% p.a.</option>
+                      <option value="Metrobank" data-rate="6.50">Metrobank — 6.50% p.a.</option>
+                      <option value="Security Bank" data-rate="6.75">Security Bank — 6.75% p.a.</option>
+                      <option value="RCBC" data-rate="6.75">RCBC — 6.75% p.a.</option>
+                      <option value="UnionBank" data-rate="7.00">UnionBank — 7.00% p.a.</option>
+                      <option value="PNB" data-rate="7.00">PNB — 7.00% p.a.</option>
+                    </select>
+                    <small class="nc-hint" id="hintBank">The bank's annual interest rate is applied to the house amortization.</small>
+                  </div>
+                  <div class="nc-field full">
+                    <label>Annual Interest Rate (%)</label>
+                    <div class="input-affix nc-rate-affix"><input type="text" id="ncInterestRate" inputmode="decimal" placeholder="0.00" value="0.00"><span class="suffix">% p.a.</span></div>
+                    <small class="nc-hint" id="hintInterest">Auto-filled when a bank is selected. Editable before saving.</small>
+                  </div>
                   <div class="nc-field">
                     <label>Installment Terms (months) <span class="req">*</span></label>
                     <select id="ncTerms">
@@ -1633,11 +1733,17 @@
                 <div class="nc-summary-row"><span>Total Contract Price</span><strong id="sumPrice">—</strong></div>
                 <div class="nc-summary-row"><span>Downpayment</span><strong id="sumDP">—</strong></div>
                 <div class="nc-summary-row"><span>Downpayment %</span><strong id="sumDPPct">—</strong></div>
+                <div class="nc-summary-row"><span>DP Mode</span><strong id="sumDpMode">—</strong></div>
+                <div class="nc-summary-row" id="sumDepositRow" style="display:none"><span>Monthly Deposit</span><strong id="sumDeposit">—</strong></div>
                 <div class="nc-summary-rule"></div>
                 <div class="nc-summary-row"><span>Financing Amount</span><strong id="sumFinancing">—</strong></div>
                 <div class="nc-summary-row"><span>Terms</span><strong id="sumTerms">—</strong></div>
-                <div class="nc-summary-row primary"><span>Est. Monthly</span><strong id="sumMonthly">—</strong></div>
-                <p class="nc-summary-note">Principal-only estimate, excluding interest and fees.</p>
+                <div class="nc-summary-row"><span>Bank</span><strong id="sumBank">—</strong></div>
+                <div class="nc-summary-row"><span>Interest Rate</span><strong id="sumRate">—</strong></div>
+                <div class="nc-summary-row primary"><span>Est. Monthly Amortization</span><strong id="sumMonthly">—</strong></div>
+                <div class="nc-summary-row"><span>Total Interest</span><strong id="sumInterest">—</strong></div>
+                <div class="nc-summary-row"><span>Total Payable</span><strong id="sumTotalPay">—</strong></div>
+                <p class="nc-summary-note">Monthly amortization uses the reducing-balance method. Bank interest applies only to the house financing, after the downpayment is completed.</p>
               </div>
             </aside>
 
@@ -2370,8 +2476,39 @@
       address: document.getElementById('ncPropertyAddress'),
       price: document.getElementById('ncTotalPrice'),
       downpayment: document.getElementById('ncDownpayment'),
+      dpTerms: document.getElementById('ncDpTerms'),
+      bank: document.getElementById('ncBank'),
+      interest: document.getElementById('ncInterestRate'),
       terms: document.getElementById('ncTerms'),
       date: document.getElementById('ncStartDate')
+    };
+
+    const dpModeRadios = document.querySelectorAll('input[name="ncDpMode"]');
+    const BANK_RATES = {
+      'In-House': 0,
+      'Pag-IBIG': 5.50,
+      'BDO': 6.50,
+      'BPI': 6.50,
+      'Metrobank': 6.50,
+      'Security Bank': 6.75,
+      'RCBC': 6.75,
+      'UnionBank': 7.00,
+      'PNB': 7.00
+    };
+    const getDpMode = () => {
+      const checked = document.querySelector('input[name="ncDpMode"]:checked');
+      return checked ? checked.value : '';
+    };
+    const getAnnualRate = () => {
+      const rate = parseAmount(ncFields.interest.value);
+      return isNaN(rate) ? NaN : rate;
+    };
+    const computeMonthlyAmort = (principal, annualRatePct, months) => {
+      if (!isFinite(principal) || principal <= 0 || !isFinite(months) || months <= 0) return NaN;
+      const r = (Number(annualRatePct) || 0) / 100 / 12;
+      if (r === 0) return principal / months;
+      const factor = Math.pow(1 + r, months);
+      return principal * r * factor / (factor - 1);
     };
 
     let emailValid = false;
@@ -2415,13 +2552,30 @@
       const dp = parseAmount(ncFields.downpayment.value);
       const terms = parseInt(ncFields.terms.value, 10);
       const financing = (!isNaN(price) && !isNaN(dp)) ? Math.max(0, price - dp) : NaN;
+      const dpMode = getDpMode();
+      const dpTerms = parseInt(ncFields.dpTerms.value, 10);
+      const bank = ncFields.bank.value.trim();
+      const annualRate = getAnnualRate();
+      const monthlyDeposit = (dpMode === 'monthly' && !isNaN(dp) && dp > 0 && dpTerms > 0) ? (dp / dpTerms) : NaN;
+      const monthlyAmort = computeMonthlyAmort(financing, annualRate, terms);
+      const totalInterest = !isNaN(monthlyAmort) && !isNaN(financing) ? (monthlyAmort * terms) - financing : NaN;
+      const totalPayable = (!isNaN(dp) && dp > 0 ? dp : 0) + (!isNaN(monthlyAmort) ? monthlyAmort * terms : NaN);
 
       document.getElementById('sumPrice').textContent = !isNaN(price) && price > 0 ? fmtPeso(price) : '—';
       document.getElementById('sumDP').textContent = !isNaN(dp) && dp > 0 ? fmtPeso(dp) : '—';
       document.getElementById('sumDPPct').textContent = (!isNaN(price) && price > 0 && !isNaN(dp) && dp > 0) ? ((dp / price) * 100).toFixed(1) + '%' : '—';
+      document.getElementById('sumDpMode').textContent = dpMode === 'monthly' ? 'Monthly' : (dpMode === 'lump' ? 'Lump Sum' : '—');
       document.getElementById('sumFinancing').textContent = !isNaN(financing) && financing > 0 ? fmtPeso(financing) : '—';
       document.getElementById('sumTerms').textContent = (!isNaN(terms) && terms > 0) ? terms + ' mos' : '—';
-      document.getElementById('sumMonthly').textContent = (!isNaN(financing) && financing > 0 && !isNaN(terms) && terms > 0) ? fmtPeso(financing / terms) : '—';
+      document.getElementById('sumBank').textContent = bank ? bank : '—';
+      document.getElementById('sumRate').textContent = !isNaN(annualRate) ? annualRate.toFixed(2) + '% p.a.' : '—';
+      document.getElementById('sumMonthly').textContent = !isNaN(monthlyAmort) ? fmtPeso(monthlyAmort) : '—';
+      document.getElementById('sumInterest').textContent = !isNaN(totalInterest) ? fmtPeso(totalInterest) : '—';
+      document.getElementById('sumTotalPay').textContent = !isNaN(totalPayable) ? fmtPeso(totalPayable) : '—';
+
+      const depositRow = document.getElementById('sumDepositRow');
+      if (depositRow) depositRow.style.display = dpMode === 'monthly' ? '' : 'none';
+      document.getElementById('sumDeposit').textContent = !isNaN(monthlyDeposit) ? fmtPeso(monthlyDeposit) : '—';
     }
 
     function refreshSubmit(baseOk) {
@@ -2450,6 +2604,21 @@
       const dpOk = !isNaN(dp) && dp >= 0 && (isNaN(price) || dp <= price);
       setFieldState(ncFields.downpayment, 'hintDownpayment', dpOk, 'Valid amount', !ncFields.downpayment.value.trim() ? 'Downpayment is required.' : (dpOk ? '' : 'Downpayment cannot exceed the total price.'));
 
+      const dpMode = getDpMode();
+      const dpModeOk = dpMode === 'lump' || dpMode === 'monthly';
+      setFieldState(dpModeRadios[0], 'hintDpMode', dpModeOk, 'Mode selected', !dpMode ? 'Choose how the downpayment will be paid.' : '');
+
+      const dpTermsRaw = ncFields.dpTerms.value.trim();
+      const dpTermsOk = dpMode !== 'monthly' || (/^\d+$/.test(dpTermsRaw) && Number(dpTermsRaw) >= 1 && Number(dpTermsRaw) <= 60);
+      setFieldState(ncFields.dpTerms, 'hintDpTerms', dpTermsOk, 'Valid deposit term', dpMode === 'monthly' ? (dpTermsRaw ? 'Enter a valid deposit term (months).' : 'Select the deposit term in months.') : '');
+
+      const bankOk = !!ncFields.bank.value.trim();
+      setFieldState(ncFields.bank, 'hintBank', bankOk, 'Bank set', 'Select the financing bank.');
+
+      const annualRate = getAnnualRate();
+      const rateOk = !isNaN(annualRate) && annualRate >= 0 && annualRate <= 100;
+      setFieldState(ncFields.interest, 'hintInterest', rateOk, 'Rate set', !isNaN(annualRate) ? 'Enter a rate between 0% and 100%.' : 'Enter the annual interest rate.');
+
       const termsOk = /^\d+$/.test(terms) && Number(terms) >= 1;
       setFieldState(ncFields.terms, 'hintTerms', termsOk, 'Valid terms', !terms ? 'Please select the installment term.' : (termsOk ? '' : 'Enter a positive whole number of months.'));
 
@@ -2467,7 +2636,7 @@
       else if (emailValid) setFieldState(ncFields.email, 'ncEmailStatus', true, 'Working email — can receive SOA reminders', '');
       else setFieldState(ncFields.email, 'ncEmailStatus', false, '', emailChecking ? 'Checking email domain…' : 'Email not verified yet — click away from the field to check it.');
 
-      const baseOk = !!name && phoneOk && !!address && priceOk && dpOk && termsOk && dateOk && passwordOk && emailBaseOk && emailValid;
+      const baseOk = !!name && phoneOk && !!address && priceOk && dpOk && dpModeOk && dpTermsOk && bankOk && rateOk && termsOk && dateOk && passwordOk && emailBaseOk && emailValid;
       refreshSubmit(baseOk);
       return baseOk;
     }
@@ -2480,6 +2649,31 @@
     ncFields.terms.addEventListener('input', () => { updateSummary(); validateForm(); });
     ncFields.date.addEventListener('input', validateForm);
     ['name', 'phone', 'password', 'address'].forEach(k => ncFields[k].addEventListener('blur', validateForm));
+
+    dpModeRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        document.getElementById('ncDepositTermsField').style.display = getDpMode() === 'monthly' ? '' : 'none';
+        updateSummary();
+        validateForm();
+      });
+    });
+    ncFields.dpTerms.addEventListener('input', () => { updateSummary(); validateForm(); });
+    ncFields.bank.addEventListener('change', () => {
+      if (BANK_RATES[ncFields.bank.value] !== undefined) {
+        ncFields.interest.value = Number(BANK_RATES[ncFields.bank.value]).toFixed(2);
+      }
+      updateSummary();
+      validateForm();
+    });
+    ncFields.interest.addEventListener('input', () => {
+      const raw = ncFields.interest.value.replace(/[^\d.]/g, '');
+      const parts = raw.split('.');
+      if (parts.length > 1) parts[1] = parts[1].slice(0, 2);
+      const cleaned = parts.join('.');
+      if (cleaned !== ncFields.interest.value) ncFields.interest.value = cleaned;
+      updateSummary();
+      validateForm();
+    });
 
     ncEmail.addEventListener('input', () => {
       emailValid = false;
@@ -2531,13 +2725,17 @@
 
     document.getElementById('ncCancelBtn').addEventListener('click', resetNewContractForm);
     function resetNewContractForm() {
-      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncPropertyAddress', 'ncTotalPrice', 'ncDownpayment', 'ncTerms', 'ncStartDate'].forEach(id => {
+      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncPropertyAddress', 'ncTotalPrice', 'ncDownpayment', 'ncDpTerms', 'ncTerms', 'ncStartDate'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
-      ['hintName', 'ncEmailStatus', 'hintPhone', 'hintPassword', 'hintAddress', 'hintPrice', 'hintDownpayment', 'hintTerms', 'hintDate'].forEach(id => {
+      ncFields.bank.value = 'In-House';
+      ncFields.interest.value = '0.00';
+      document.getElementById('ncDepositTermsField').style.display = 'none';
+      dpModeRadios.forEach(r => { r.checked = false; r.classList.remove('valid', 'invalid'); });
+      ['hintName', 'ncEmailStatus', 'hintPhone', 'hintPassword', 'hintAddress', 'hintPrice', 'hintDownpayment', 'hintDpMode', 'hintDpTerms', 'hintBank', 'hintInterest', 'hintTerms', 'hintDate'].forEach(id => {
         const h = document.getElementById(id);
-        if (h) { h.className = 'nc-hint'; h.textContent = id === 'ncEmailStatus' ? 'A working email is required so we can send payment reminders and SOA.' : (id === 'hintPassword' ? 'At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.' : ''); }
+        if (h) { h.className = 'nc-hint'; h.textContent = id === 'ncEmailStatus' ? 'A working email is required so we can send payment reminders and SOA.' : (id === 'hintPassword' ? 'At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.' : (id === 'hintDpMode' ? 'Lump Sum is paid upfront. Monthly spreads the downpayment over a deposit term.' : (id === 'hintDpTerms' ? 'The downpayment is divided equally over these months at 0% interest.' : (id === 'hintBank' ? "The bank's annual interest rate is applied to the house amortization." : (id === 'hintInterest' ? 'Auto-filled when a bank is selected. Editable before saving.' : ''))))); }
       });
       Object.keys(ncFields).forEach(k => ncFields[k].classList.remove('valid', 'invalid'));
       emailValid = false;
@@ -2562,6 +2760,10 @@
       const downpayment = parseAmount(ncFields.downpayment.value);
       const terms = ncFields.terms.value.trim();
       const startDate = ncFields.date.value;
+      const dpMode = getDpMode();
+      const dpTerms = dpMode === 'monthly' ? (ncFields.dpTerms.value.trim() || null) : null;
+      const bank = ncFields.bank.value.trim();
+      const annualRate = getAnnualRate();
 
       const btn = document.getElementById('ncSubmitBtn');
       const label = btn.querySelector('.nc-btn-label');
@@ -2605,6 +2807,10 @@
             downpayment: downpayment,
             terms: Number(terms),
             startDate: startDate,
+            dpMode: dpMode,
+            dpTerms: dpTerms ? Number(dpTerms) : null,
+            bank: bank,
+            annualRate: isNaN(annualRate) ? 0 : annualRate,
             officerId: officerId || null,
             officerName: currentUser.name || null,
             officerEmail: currentUser.email || null
