@@ -2483,6 +2483,20 @@
       date: document.getElementById('ncStartDate')
     };
 
+    function formatPhoneField() {
+      const digits = ncFields.phone.value.replace(/\D/g, '').slice(0, 11);
+      const parts = [];
+      if (digits.length > 4) {
+        parts.push(digits.slice(0, 4));
+        if (digits.length > 7) parts.push(digits.slice(4, 7), digits.slice(7));
+        else parts.push(digits.slice(4));
+      } else {
+        parts.push(digits);
+      }
+      ncFields.phone.value = parts.join(' ');
+    }
+    ncFields.phone.addEventListener('input', () => { formatPhoneField(); validateForm(); });
+
     const dpModeRadios = document.querySelectorAll('input[name="ncDpMode"]');
     const BANK_RATES = {
       'In-House': 0,
@@ -2593,7 +2607,7 @@
 
       setFieldState(ncFields.name, 'hintName', !!name, 'Complete', name ? '' : 'Client name is required.');
 
-      const phoneOk = /^(\+639\d{9}|09\d{9}|0\d{9})$/.test(phone);
+      const phoneOk = /^09\d{9}$/.test(phone);
       setFieldState(ncFields.phone, 'hintPhone', phoneOk, 'Valid number', !phone ? 'Cellphone number is required.' : (phoneOk ? '' : 'Enter a valid PH mobile (e.g., 0917 123 4567).'));
 
       setFieldState(ncFields.address, 'hintAddress', !!address, 'Complete', address ? '' : 'Property address is required.');

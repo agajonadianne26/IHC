@@ -40,6 +40,9 @@ try {
     if ($clientName==='' || $email==='' || $phone==='' || $propertyAddress==='' || $totalPrice===null || $totalPrice==='' || $downpayment===null || $downpayment==='' || $terms===null || $terms==='' || $startDate==='') {
         throw new RuntimeException('All New Contract fields are required.');
     }
+    if (!ctype_digit($phone) || strlen($phone) !== 11) {
+        throw new RuntimeException('Cellphone number must be exactly 11 digits.');
+    }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Please enter a valid email address.');
     if (!is_numeric($totalPrice) || (float)$totalPrice < 0) throw new RuntimeException('Invalid total contract price.');
     if (!is_numeric($downpayment) || (float)$downpayment < 0) throw new RuntimeException('Invalid downpayment.');
