@@ -15,6 +15,7 @@ No build, no tests, no lint, no CI. Plain XAMPP (Apache + PHP + MySQL) + a Node 
 - `html/` + `js/` + `css/` = role dashboards (admin / clerk / client). Login in `js/log in.js` checks hardcoded `MOCK_USERS`, then `js/portal-store.js` (localStorage demo store, `IHC_USER` / `IHC_CLIENTS` / `IHC_PORTAL_*` keys). There is no server-side auth — don't "fix" login by adding backend auth without asking.
 - `php/api_dashboard.php` (GET `?officerId=`) is the live clerk-dashboard endpoint. `php/api_dashboard1.php` and `php/api_insert.php` are dead legacy — nothing references them, and `api_dashboard1.php` requires a nonexistent `../db.php`. Leave them alone.
 - `backend/db.php` is NOT a shared DB include — it is the POST-only New-Contract handler (405s on GET). Dashboard/payment PHP files connect with their own inline PDO; don't consolidate them into `require db.php`.
+- Client ↔ clerk link is server-side only (never cross-browser localStorage): `php/api_client.php` (`lookup` by email for login, `ledger` for contract+payments+notifications). Client dashboard merges this over its localStorage projection on load — idempotent via `syncedPaymentIds` / `srvLogId`, offline falls back to local. Client auth is mock-grade (email ownership); replace pre-production.
 
 ## PHP ↔ Node contract (don't break)
 

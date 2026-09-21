@@ -335,7 +335,7 @@
 </head>
 <body>
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     /* ==========================================
        SESSION GUARD
     ========================================== */
@@ -359,8 +359,148 @@
        DATA — client record + portal ledger
     ========================================== */
     portalStore.seedDemoClients();
-    const client = portalStore.getClientRecord(session.contractId);
-    const portal = client ? portalStore.ensurePortal(client) : null;
+    let client = portalStore.getClientRecord(session.contractId);
+    let portal = client ? portalStore.ensurePortal(client) : null;
+
+    /* ==========================================
+       LIVE SYNC — clerk-side database
+       Clerk writes (new contracts, posted payments, emailed
+       reminders/receipts) live in MySQL; this pulls them into
+       the local portal store so the client sees the same truth.
+       Local data remains the offline fallback: if the server is
+       unreachable, the dashboard renders exactly as before.
+    ========================================== */
+    const LIVE_API = '../php/api_client.php';
+
+    async function fetchLiveLedger() {
+      try {
+        const url = LIVE_API + '?action=ledger&contractId=' + encodeURIComponent(session.contractId) +
+          '&email=' + encodeURIComponent(session.email || '');
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data && data.success ? data : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // First login for a clerk-created contract: no local record exists yet,
+    // so build one from the server row (schedules are generated locally).
+    function registerServerClient(contract) {
+      const record = {
+        contractId: Number(contract.contractId),
+        name: contract.name,
+        email: contract.email,
+        phone: contract.phone || '',
+        password: '',
+        propertyAddress: contract.propertyAddress || '',
+        totalPrice: Number(contract.totalPrice) || 0,
+        downpayment: Number(contract.downpayment) || 0,
+        terms: Number(contract.terms) || 0,
+        startDate: contract.startDate,
+        officerId: contract.officerId != null && contract.officerId !== '' ? contract.officerId : null,
+        officerName: contract.officerName || null,
+        officerEmail: ''
+      };
+      portalStore.registerClient(record);
+      return portalStore.getClientRecord(record.contractId);
+    }
+
+    function refreshClientFromServer(contract) {
+      const serverTerms = {
+        totalPrice: Number(contract.totalPrice) || 0,
+        downpayment: Number(contract.downpayment) || 0,
+        terms: Number(contract.terms) || 0,
+        startDate: contract.startDate
+      };
+      const termsChanged = ['totalPrice', 'downpayment', 'terms', 'startDate']
+        .some(k => String(client[k]) !== String(serverTerms[k]));
+      Object.assign(client, {
+        name: contract.name,
+        email: contract.email,
+        phone: contract.phone || '',
+        propertyAddress: contract.propertyAddress || '',
+        officerId: contract.officerId,
+        officerName: contract.officerName || null
+      }, serverTerms);
+      portalStore.persistClients(portalStore.readClients().map(c =>
+        Number(c.contractId) === Number(client.contractId) ? client : c));
+      // Rebuild the local schedule projection when the terms changed before
+      // anything was ever marked paid — otherwise keep payment history.
+      if (termsChanged && portal && !portal.schedules.some(s => s.paid)) {
+        portal = portalStore.savePortal(client.contractId, {
+          contractId: Number(client.contractId),
+          schedules: portalStore.buildSchedules(client),
+          notifications: portal.notifications || []
+        });
+      }
+    }
+
+    // Same allocation convention as the clerk's same-browser demo path
+    // (portalStore.postPortalPayment): exact-amount match first, else the
+    // earliest unpaid schedule. syncedPaymentIds makes re-syncs idempotent.
+    function applyServerPayments(payments) {
+      portal.syncedPaymentIds = portal.syncedPaymentIds || [];
+      const knownOr = new Set();
+      portal.schedules.forEach(s => { if (s.orNumber) knownOr.add(String(s.orNumber)); });
+      const ordered = (payments || []).slice()
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id - b.id);
+      for (const payment of ordered) {
+        if (portal.syncedPaymentIds.includes(payment.id)) continue;
+        portal.syncedPaymentIds.push(payment.id);
+        // Already reflected via the same-browser path — no duplicate notice.
+        if (payment.orNumber && knownOr.has(String(payment.orNumber))) continue;
+        const schedule = portal.schedules.find(s => !s.paid && Math.abs(Number(s.amount) - Number(payment.amount)) < 0.01)
+          || portal.schedules.find(s => !s.paid);
+        if (schedule) {
+          schedule.paid = true;
+          schedule.payDate = payment.date || new Date().toISOString().slice(0, 10);
+          schedule.orNumber = payment.orNumber || null;
+          schedule.method = payment.method || null;
+          if (payment.orNumber) knownOr.add(String(payment.orNumber));
+        }
+        portal.notifications.unshift({
+          kind: 'payment',
+          title: 'Payment recorded in your ledger',
+          message: 'Your ' + P.fmtPeso(payment.amount) + ' payment has been posted' +
+            (payment.orNumber ? ' with OR/Ref #' + payment.orNumber : '') +
+            (payment.date ? ' on ' + payment.date : '') + '.',
+          channel: 'Billing',
+          time: payment.date ? payment.date + 'T00:00:00' : new Date().toISOString()
+        });
+      }
+      portalStore.savePortal(client.contractId, portal);
+    }
+
+    function mergeServerNotifications(notifications) {
+      const seen = new Set(portal.notifications.map(n => n.srvLogId).filter(v => v != null));
+      let added = false;
+      for (const n of (notifications || [])) {
+        if (seen.has(n.logId)) continue;
+        seen.add(n.logId);
+        portal.notifications.unshift({
+          kind: n.kind,
+          title: n.title,
+          message: n.message,
+          channel: n.channel || 'Email',
+          time: n.time ? String(n.time).replace(' ', 'T') : new Date().toISOString(),
+          srvLogId: n.logId
+        });
+        added = true;
+      }
+      if (portal.notifications.length > 60) portal.notifications.length = 60;
+      if (added) portalStore.savePortal(client.contractId, portal);
+    }
+
+    const live = await fetchLiveLedger();
+    if (live && live.contract) {
+      if (!client) client = registerServerClient(live.contract);
+      else refreshClientFromServer(live.contract);
+      portal = portalStore.ensurePortal(client);
+      applyServerPayments(live.payments);
+      mergeServerNotifications(live.notifications);
+    }
 
     const fmtPHP = (n) => P.fmtPeso(n);
     const fmtDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

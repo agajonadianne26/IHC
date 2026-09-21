@@ -99,6 +99,38 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // 3) Clerk-created contracts live only in MySQL, so look them up by
+      // email. Mock-grade auth (email ownership only), consistent with the
+      // demo accounts above — real password auth must replace this
+      // pre-production. The client dashboard syncs the full ledger after.
+      try {
+        const lookupRes = await fetch('php/api_client.php?action=lookup&email=' + encodeURIComponent(email));
+        if (lookupRes.ok) {
+          const lookup = await lookupRes.json();
+          const matches = lookup.success && Array.isArray(lookup.contracts) ? lookup.contracts : [];
+          if (matches.length === 1) {
+            const clientRole = (window.portalStore && portalStore.CLIENT_ROLE) || 'client';
+            const initials = matches[0].name.split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase();
+            localStorage.setItem('IHC_USER', JSON.stringify({
+              role: clientRole,
+              name: matches[0].name,
+              email: matches[0].email,
+              contractId: Number(matches[0].contractId),
+              avatar: initials
+            }));
+            errorMessage.classList.add('hidden');
+            redirectByRole(clientRole);
+            return;
+          }
+          if (matches.length > 1) {
+            showError('Multiple contracts found for this email. Please contact billing for your account code.');
+            return;
+          }
+        }
+      } catch (lookupErr) {
+        // Server unreachable — fall through to the invalid-credentials error.
+      }
+
       showError('Invalid email or password. Please try again.');
     } finally {
       if (submitBtn) {
