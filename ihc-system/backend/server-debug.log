@@ -1,0 +1,8 @@
+◇ injected env (14) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+--- Reminder service starting ---
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+[OK] HTTP server listening on http://localhost:3000
+[OK] MySQL connection succeeded.
+[OK] SMTP connection verified — this account can send mail.
+--- Startup checks complete ---

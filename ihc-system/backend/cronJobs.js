@@ -36,7 +36,7 @@ async function runDailyReminders() {
         AND NOT EXISTS (
           SELECT 1
           FROM notifications_logs nl
-          WHERE nl.contract_id = CAST(c.id AS CHAR)
+          WHERE nl.contract_id IN (CAST(c.id AS CHAR) COLLATE utf8mb4_general_ci, CONCAT('IHC-', c.id) COLLATE utf8mb4_general_ci, CONCAT('CON-', c.id) COLLATE utf8mb4_general_ci)
            AND nl.channel = 'email'
            AND nl.reminder_type = 'due_soon'
            AND nl.status = 'sent'
@@ -76,7 +76,7 @@ async function runDailyReminders() {
         AND NOT EXISTS (
           SELECT 1
           FROM notifications_logs nl
-          WHERE nl.contract_id = CAST(c.id AS CHAR)
+          WHERE nl.contract_id IN (CAST(c.id AS CHAR) COLLATE utf8mb4_general_ci, CONCAT('IHC-', c.id) COLLATE utf8mb4_general_ci, CONCAT('CON-', c.id) COLLATE utf8mb4_general_ci)
            AND nl.channel = 'email'
            AND nl.reminder_type = 'overdue'
            AND nl.status = 'sent'

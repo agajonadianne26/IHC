@@ -1462,14 +1462,6 @@
             <div class="kpi-sub">Cleared payments processed by you</div>
           </div>
 
-          <div class="kpi-card blue">
-            <div class="kpi-header">
-              <span class="kpi-label">Email acknowledgments</span>
-              <div class="kpi-icon blue"><i data-lucide="badge-check" style="width:20px;height:20px;"></i></div>
-            </div>
-            <div class="kpi-value blue" id="kpiAcknowledged">0</div>
-            <div class="kpi-sub" id="kpiAcknowledgedSub">Awaiting client responses</div>
-          </div>
         </section>
 
         <!-- TABLE -->
@@ -1504,7 +1496,6 @@
                   <th>Due Date</th>
                   <th>Status</th>
                   <th>Notification</th>
-                  <th>Email acknowledgment</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1552,10 +1543,6 @@
               <h2>Notifications Log</h2>
               <p>Reminder dispatches for your assigned accounts.</p>
             </div>
-            <button class="btn-primary" id="refreshAcknowledgmentsBtn" type="button">
-              <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i>
-              Refresh acknowledgments
-            </button>
           </div>
           <div class="table-scroll">
             <table class="data-table">
@@ -1568,7 +1555,6 @@
                   <th>Recipient</th>
                   <th>Subject / Message</th>
                   <th>Status</th>
-                  <th>Client Acknowledgment</th>
                 </tr>
               </thead>
               <tbody id="notifLogBody"></tbody>
@@ -1808,6 +1794,25 @@
     </div>
   </div>
 
+  <!-- ACKNOWLEDGMENT POP-UP: transient confirm only, never persistent -->
+  <div class="modal-overlay" id="ackModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3>Payment Reminder Seen</h3>
+          <p id="ackModalSub">Client acknowledgment</p>
+        </div>
+        <button class="modal-close" id="closeAckModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;" id="ackModalText"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-submit" id="confirmAckModal">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <!-- PRINT SOA MODAL -->
   <div class="modal-overlay" id="soaModal">
     <div class="soa-modal">
@@ -1925,37 +1930,13 @@
       return 'Failed';
     };
 
-    const formatAcknowledgedAt = (value) => {
-      const date = new Date(value);
-      return Number.isNaN(date.getTime()) ? 'Time recorded' : date.toLocaleString('en-US', {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-      });
-    };
-
-    const getAcknowledgmentMarkup = (row) => {
-      const notificationStatus = row.notification || row.status;
-      if (row.acknowledged) {
-        return `<span class="row-status ok" title="Client acknowledged the email reminder"><span class="dot"></span>Acknowledged</span>
-          <small style="display:block;color:var(--text-muted);margin-top:4px;">${formatAcknowledgedAt(row.acknowledgedAt)}</small>`;
-      }
-      if (notificationStatus === 'sent') {
-        return '<span class="row-status warn" title="The email was sent, but the client has not acknowledged it yet."><span class="dot"></span>Awaiting client</span>';
-      }
-      return '<span style="font-size:11px;color:var(--text-muted);">No email sent</span>';
-    };
-
     /* ==========================================
        KPIs
     ========================================== */
     const renderKPIs = () => {
       const totalAssigned = myContracts.length;
-      const acknowledged = myContracts.filter(c => c.acknowledged).length;
       document.getElementById('kpiAssigned').textContent = totalAssigned;
       document.getElementById('kpiMyCollected').textContent = formatPHP(myTotalCollections);
-      document.getElementById('kpiAcknowledged').textContent = acknowledged;
-      document.getElementById('kpiAcknowledgedSub').textContent = totalAssigned
-        ? `${acknowledged} of ${totalAssigned} assigned clients acknowledged`
-        : 'Awaiting client responses';
     };
 
     /* ==========================================
@@ -1969,7 +1950,7 @@
     const renderTable = (data) => {
       if (!data.length) {
         tableBody.innerHTML = `
-          <tr><td colspan="9">
+          <tr><td colspan="8">
             <div class="empty-state">
               <i data-lucide="search-x" style="width:40px;height:40px;"></i>
               <strong>No matching records</strong>
@@ -1994,7 +1975,6 @@
             <td style="white-space:nowrap;font-size:12px;">${formatDate(row.dueDate)}</td>
             <td><span class="status-badge ${row.status}"><span class="dot"></span>${statusLabel}</span></td>
             <td><span class="notif-badge ${row.notification}">${notifLabel}</span></td>
-            <td>${getAcknowledgmentMarkup(row)}</td>
             <td>
               <div class="action-btns">
                 <button class="btn-action btn-print" onclick="printSOA(${globalIdx})">Print SOA</button>
@@ -2072,44 +2052,81 @@
         email: c.email,
         phone: c.phone,
         contractId: c.contractId,
-        accountCode: c.accountCode,
-        acknowledged: false,
-        acknowledgedAt: null
+        accountCode: c.accountCode
       };
     };
 
-    const loadAcknowledgementStatuses = async () => {
-      await Promise.all(myContracts.map(async (contract) => {
-        try {
-          const response = await fetch(NODE_API_BASE + '/api/contracts/' + encodeURIComponent(contract.contractId) + '/acknowledgment-status');
-          if (!response.ok) return;
-          const data = await response.json();
-          contract.acknowledged = data.acknowledged === true;
-          contract.acknowledgedAt = data.acknowledgedAt || null;
-        } catch {
-          // The dashboard remains usable when the Node service is offline.
-        }
-      }));
-    };
+    /* ==========================================
+       ACKNOWLEDGMENT POP-UP (transient only)
+       Acknowledgments are NOT shown persistently on the
+       dashboard — no column, no KPI, no badges. This poller
+       surfaces each new client acknowledgment exactly once
+       as a confirm modal. Audit history stays in
+       notifications_logs (channel 'ack_email').
+    ========================================== */
+    const ACK_POLL_MS = 5 * 60 * 1000;
+    const ackQueue = [];
+    let ackModalOpen = false;
 
-    const refreshAcknowledgementStatuses = async () => {
-      const button = document.getElementById('refreshAcknowledgmentsBtn');
-      if (button) {
-        button.disabled = true;
-        button.innerHTML = '<i data-lucide="loader-circle" style="width:14px;height:14px;"></i> Refreshing...';
-        lucide.createIcons();
+    const ackSeenStorageKey = () => 'IHC_ACK_SEEN_' + currentUser.officerId;
+
+    // DB datetimes are naive server-local wall time, so the poll cursor
+    // must also be local wall time — never toISOString() (UTC), which
+    // would re-surface hours of already-seen acknowledgments.
+    function toLocalDateTimeString(date) {
+      const pad = (n) => String(n).padStart(2, '0');
+      return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+        ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
+    }
+
+    function showNextAckModal() {
+      if (ackModalOpen || !ackQueue.length) return;
+      const ack = ackQueue.shift();
+      ackModalOpen = true;
+      document.getElementById('ackModalSub').textContent = ack.accountCode + ' — ' + ack.clientName;
+      const seenAt = ack.acknowledgedAt ? new Date(ack.acknowledgedAt) : null;
+      const when = seenAt && !Number.isNaN(seenAt.getTime())
+        ? seenAt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '';
+      document.getElementById('ackModalText').innerHTML =
+        '<strong>' + ack.clientName + '</strong> has seen the payment reminder' +
+        (ack.amountDue != null ? ' of <strong>' + formatPHP(ack.amountDue) + '</strong>' : '') +
+        (when ? ' <span style="white-space:nowrap;">(' + when + ')</span>' : '') + '.';
+      document.getElementById('ackModal').classList.add('visible');
+    }
+
+    function dismissAckModal() {
+      document.getElementById('ackModal').classList.remove('visible');
+      ackModalOpen = false;
+      showNextAckModal();
+    }
+
+    async function pollAcknowledgments() {
+      // Capture the cursor before fetching so nothing is skipped; storing
+      // it only on success means an offline stretch simply re-polls.
+      const nowCursor = toLocalDateTimeString(new Date());
+      try {
+        const lastSeen = localStorage.getItem(ackSeenStorageKey()) || toLocalDateTimeString(new Date(Date.now() - 24 * 60 * 60 * 1000));
+        const res = await fetch(NODE_API_BASE + '/api/acknowledgments/recent?officerId=' + encodeURIComponent(currentUser.officerId) + '&since=' + encodeURIComponent(lastSeen));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && Array.isArray(data.acknowledgments) && data.acknowledgments.length) {
+          ackQueue.push(...data.acknowledgments);
+          showNextAckModal();
+        }
+        localStorage.setItem(ackSeenStorageKey(), nowCursor);
+      } catch {
+        // The dashboard remains usable when the Node service is offline.
       }
-      await loadAcknowledgementStatuses();
-      renderKPIs();
-      applyFilters();
-      renderNotifLog();
-      if (button) {
-        button.disabled = false;
-        button.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh acknowledgments';
-        lucide.createIcons();
-      }
-      showToast('Acknowledgment statuses updated.', 'success');
-    };
+    }
+
+    function startAcknowledgmentPoller() {
+      document.getElementById('closeAckModal').addEventListener('click', dismissAckModal);
+      document.getElementById('confirmAckModal').addEventListener('click', dismissAckModal);
+      document.getElementById('ackModal').addEventListener('click', (e) => { if (e.target.id === 'ackModal') dismissAckModal(); });
+      void pollAcknowledgments();
+      setInterval(pollAcknowledgments, ACK_POLL_MS);
+    }
 
     const loadDashboard = async () => {
       const officerId = currentUser.officerId;
@@ -2126,7 +2143,6 @@
         }
         myContracts = (data.clients || []).map(mapClientToRow);
         myTotalCollections = Number(data.totalCollections) || 0;
-        await loadAcknowledgementStatuses();
       } catch (err) {
         loadingError = 'Server unreachable. Showing live data is unavailable.';
         showToast('Can\u2019t reach the server. Assigned clients could not be loaded.', 'info');
@@ -2138,6 +2154,7 @@
     };
 
     loadDashboard();
+    startAcknowledgmentPoller();
 
     /* ==========================================
        REMINDER TOAST
@@ -2388,8 +2405,6 @@
         recipient: c.email || (c.client.split(' ')[0] + '@gmail.com'),
         subject: 'Payment Reminder \u2014 ' + c.paymentType,
         status: c.notification
-        ,acknowledged: c.acknowledged
-        ,acknowledgedAt: c.acknowledgedAt
       })).sort((a, b) => b.time - a.time);
 
       const stClass = { 'sent': 'ok', 'pending': 'warn', 'failed': 'danger' };
@@ -2404,7 +2419,6 @@
           <td class="clerk-cell">${n.recipient}</td>
           <td class="clerk-cell">${n.subject}</td>
           <td><span class="row-status ${stClass[n.status]}"><span class="dot"></span>${stMap[n.status]}</span></td>
-          <td>${getAcknowledgmentMarkup(n)}</td>
         </tr>`).join('');
       lucide.createIcons();
     }
@@ -2457,8 +2471,6 @@
       });
     });
 
-    document.getElementById('refreshAcknowledgmentsBtn').addEventListener('click', refreshAcknowledgementStatuses);
-
     const savedPage = localStorage.getItem(pageStorageKey);
     showView(savedPage || 'clients');
 
@@ -2482,6 +2494,20 @@
       terms: document.getElementById('ncTerms'),
       date: document.getElementById('ncStartDate')
     };
+
+    function formatPhoneField() {
+      const digits = ncFields.phone.value.replace(/\D/g, '').slice(0, 11);
+      const parts = [];
+      if (digits.length > 4) {
+        parts.push(digits.slice(0, 4));
+        if (digits.length > 7) parts.push(digits.slice(4, 7), digits.slice(7));
+        else parts.push(digits.slice(4));
+      } else {
+        parts.push(digits);
+      }
+      ncFields.phone.value = parts.join(' ');
+    }
+    ncFields.phone.addEventListener('input', () => { formatPhoneField(); validateForm(); });
 
     const dpModeRadios = document.querySelectorAll('input[name="ncDpMode"]');
     const BANK_RATES = {
@@ -2593,7 +2619,7 @@
 
       setFieldState(ncFields.name, 'hintName', !!name, 'Complete', name ? '' : 'Client name is required.');
 
-      const phoneOk = /^(\+639\d{9}|09\d{9}|0\d{9})$/.test(phone);
+      const phoneOk = /^09\d{9}$/.test(phone);
       setFieldState(ncFields.phone, 'hintPhone', phoneOk, 'Valid number', !phone ? 'Cellphone number is required.' : (phoneOk ? '' : 'Enter a valid PH mobile (e.g., 0917 123 4567).'));
 
       setFieldState(ncFields.address, 'hintAddress', !!address, 'Complete', address ? '' : 'Property address is required.');
