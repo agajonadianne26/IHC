@@ -741,6 +741,7 @@
       padding: 20px;
       opacity: 0;
       visibility: hidden;
+      overflow-y: auto;
       transition: opacity 0.25s, visibility 0.25s;
     }
 
@@ -750,9 +751,10 @@
       background: #fff;
       width: 100%;
       max-width: 520px;
+      max-height: calc(100vh - 40px);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-lg);
-      overflow: hidden;
+      overflow-y: auto;
       transform: scale(0.95);
       transition: transform 0.25s;
     }
