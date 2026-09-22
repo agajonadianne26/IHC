@@ -1400,6 +1400,39 @@
     }
     .proof-chip i { width: 12px; height: 12px; }
 
+    .proof-wrap { display: inline-flex; align-items: center; gap: 6px; }
+
+    .proof-remove {
+      width: 20px;
+      height: 20px;
+      border: none;
+      border-radius: 50%;
+      background: #f1f5f9;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all var(--transition);
+    }
+    .proof-remove:hover { background: var(--accent-rose-bg); color: var(--accent-rose); }
+    .proof-remove i { width: 11px; height: 11px; }
+
+    .hf-proof-remove {
+      border: none;
+      background: var(--accent-rose-bg);
+      color: var(--accent-rose);
+      font-size: 10px;
+      font-weight: 700;
+      font-family: inherit;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+    .hf-proof-remove:hover { background: #ffe4e6; }
+
     /* File input & hints */
     .file-input {
       width: 100%;
@@ -2933,10 +2966,10 @@
 
     const getProofMarkup = (fee) => {
       if (!fee.proof || !fee.proof.dataUrl) return '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
-      if (fee.proof.isImage) {
-        return `<img class="proof-thumb" src="${fee.proof.dataUrl}" alt="proof" title="View proof" onclick="viewHoldingFeeProof(${fee.id})">`;
-      }
-      return `<span class="proof-chip" onclick="viewHoldingFeeProof(${fee.id})" title="View proof"><i data-lucide="file-text"></i>${String(fee.proof.name || 'file').replace(/\.[^.]+$/, '').slice(0, 12)}</span>`;
+      const prev = fee.proof.isImage
+        ? `<img class="proof-thumb" src="${fee.proof.dataUrl}" alt="proof" title="View proof" onclick="viewHoldingFeeProof(${fee.id})">`
+        : `<span class="proof-chip" onclick="viewHoldingFeeProof(${fee.id})" title="View proof"><i data-lucide="file-text"></i>${String(fee.proof.name || 'file').replace(/\.[^.]+$/, '').slice(0, 12)}</span>`;
+      return `<span class="proof-wrap">${prev}<button class="proof-remove" type="button" title="Remove proof" onclick="removeHoldingFeeProof(${fee.id})"><i data-lucide="x"></i></button></span>`;
     };
 
     const getRefundInfo = (fee) => {
@@ -3052,8 +3085,16 @@
       const el = document.getElementById('hfProofHint');
       if (!el) return;
       el.className = 'file-hint' + (cls ? ' ' + cls : '');
-      el.textContent = msg;
+      el.innerHTML = cls === 'ok'
+        ? msg + ' <button type="button" class="hf-proof-remove" onclick="clearHfProof()">Remove</button>'
+        : msg;
     }
+
+    window.clearHfProof = () => {
+      if (hfProofInput) hfProofInput.value = '';
+      hfProofData = null;
+      setHfProofHint('Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.', '');
+    };
 
     function populateHfClientSelect() {
       const seen = new Set();
@@ -3263,6 +3304,16 @@
       persistHoldingFees(holdingFees);
       renderHoldingFees();
       showToast('Holding fee marked as paid.', 'success');
+    };
+
+    window.removeHoldingFeeProof = (id) => {
+      const fee = holdingFees.find(f => f.id === id);
+      if (!fee || !fee.proof) return;
+      if (!confirm('Remove the uploaded proof/receipt for this holding fee?')) return;
+      fee.proof = null;
+      persistHoldingFees(holdingFees);
+      renderHoldingFees();
+      showToast('Proof / receipt removed.', 'info');
     };
 
     window.cancelHoldingFee = (id) => {
