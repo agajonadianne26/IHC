@@ -51,21 +51,73 @@ try {
     $date = DateTime::createFromFormat('!Y-m-d', $startDate);
     if (!$date || $date->format('Y-m-d') !== $startDate) throw new RuntimeException('Invalid start date.');
 
+    $portalPassword = (string)($client['portalPassword'] ?? '');
+    if ($portalPassword === '') throw new RuntimeException('Client Portal Password is required so the buyer can sign in.');
+    if (strlen($portalPassword) < 6) throw new RuntimeException('Portal password must be at least 6 characters.');
+
     // Add fields required by the New Contract form if an older contracts table lacks them.
     $columns = [];
     foreach ($pdo->query('SHOW COLUMNS FROM contracts') as $column) $columns[strtolower($column['Field'])] = true;
     if (!isset($columns['property_address'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN property_address VARCHAR(500) NULL');
     if (!isset($columns['officer_id'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN officer_id VARCHAR(100) NULL');
 
-    $sql = 'INSERT INTO contracts (client_name,email,cellphone_number,property_address,total_contract_price,downpayment,installment_terms,start_date,officer_id) VALUES (:client_name,:email,:cellphone_number,:property_address,:total_contract_price,:downpayment,:installment_terms,:start_date,:officer_id)';
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ':client_name'=>$clientName, ':email'=>$email, ':cellphone_number'=>$phone, ':property_address'=>$propertyAddress,
-        ':total_contract_price'=>(float)$totalPrice, ':downpayment'=>(float)$downpayment, ':installment_terms'=>(int)$terms,
-        ':start_date'=>$startDate, ':officer_id'=>$officerId !== '' ? $officerId : null
-    ]);
+    // Client portal login accounts (one row per email, so a repeat buyer's
+    // credentials are updated instead of duplicated). Passwords are stored as
+    // bcrypt hashes and verified by php/api_client.php at login. DDL must stay
+    // outside the transaction below — MySQL commits implicitly on DDL.
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS client_accounts (
+            id INT NOT NULL AUTO_INCREMENT,
+            email VARCHAR(255) NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            full_name VARCHAR(255) NOT NULL,
+            cellphone_number VARCHAR(50) NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_client_accounts_email (email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
+    );
 
-    $contractId = (int)$pdo->lastInsertId();
+    // Contract and login account are written together: either both save or neither.
+    $pdo->beginTransaction();
+    try {
+        $sql = 'INSERT INTO contracts (client_name,email,cellphone_number,property_address,total_contract_price,downpayment,installment_terms,start_date,officer_id) VALUES (:client_name,:email,:cellphone_number,:property_address,:total_contract_price,:downpayment,:installment_terms,:start_date,:officer_id)';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':client_name'=>$clientName, ':email'=>$email, ':cellphone_number'=>$phone, ':property_address'=>$propertyAddress,
+            ':total_contract_price'=>(float)$totalPrice, ':downpayment'=>(float)$downpayment, ':installment_terms'=>(int)$terms,
+            ':start_date'=>$startDate, ':officer_id'=>$officerId !== '' ? $officerId : null
+        ]);
+
+        $contractId = (int)$pdo->lastInsertId();
+
+        // Create the buyer's portal account, or update the existing one when
+        // this email has signed up before (new password/name/phone win).
+        $acctStmt = $pdo->prepare(
+            'INSERT INTO client_accounts (email, password_hash, full_name, cellphone_number)
+             VALUES (:email, :password_hash, :full_name, :cellphone_number)
+             ON DUPLICATE KEY UPDATE
+                password_hash = VALUES(password_hash),
+                full_name = VALUES(full_name),
+                cellphone_number = VALUES(cellphone_number)'
+        );
+        $acctStmt->execute([
+            ':email'=>$email,
+            ':password_hash'=>password_hash($portalPassword, PASSWORD_DEFAULT),
+            ':full_name'=>$clientName,
+            ':cellphone_number'=>$phone
+        ]);
+        // MySQL row count for INSERT ... ON DUPLICATE KEY UPDATE:
+        // 1 = account created, 2 = existing account updated, 0 = updated but unchanged.
+        $acctRows = $acctStmt->rowCount();
+        $accountAction = $acctRows === 1 ? 'created' : ($acctRows === 0 ? 'unchanged' : 'updated');
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
 
     // Send the three-day reminder immediately when a clerk creates a contract
     // whose first payment is due in exactly three calendar days. This closes
@@ -99,6 +151,7 @@ try {
         'success'=>true,
         'message'=>'Contract created and saved to the IHC database.',
         'id'=>$contractId,
+        'accountAction'=>$accountAction,
         'reminderQueued'=>$reminderQueued
     ]);
 } catch (Throwable $e) {

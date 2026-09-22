@@ -7,12 +7,13 @@ declare(strict_types=1);
 // never reached the client. This endpoint lets the client dashboard sync from
 // the same MySQL tables the clerk dashboards write.
 //
-//   ?action=lookup&email=...            -> contract(s) owned by that email (login)
+//   ?action=lookup&email=..&password=.. -> verify portal account, return contract(s)
 //   ?action=ledger&contractId=..&email= -> contract + payments + notifications
 //
-// Auth is intentionally mock-grade (email ownership only), matching the rest of
-// this system (hardcoded JS users, no server sessions). Do not treat this as
-// real access control — replace with password/session auth before production.
+// Auth: lookup verifies the bcrypt password stored in client_accounts (rows
+// are created/updated by the New Contract form in backend/db.php). ledger
+// stays email-ownership based — the session was established at login. Both
+// remain mock-grade: replace with real server sessions before production.
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
@@ -68,6 +69,26 @@ try {
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new RuntimeException('A valid email address is required.');
         }
+
+        // Verify the portal password against client_accounts (bcrypt). The
+        // account row is created/updated by the New Contract form; contracts
+        // enrolled before that feature have no row yet.
+        $password = (string)($_GET['password'] ?? '');
+        if ($password === '') throw new RuntimeException('Password is required.');
+
+        $account = null;
+        if ($pdo->query("SHOW TABLES LIKE 'client_accounts'")->fetch()) {
+            $acctStmt = $pdo->prepare('SELECT password_hash FROM client_accounts WHERE LOWER(email) = LOWER(?) LIMIT 1');
+            $acctStmt->execute([$email]);
+            $account = $acctStmt->fetch();
+        }
+        if (!$account) {
+            throw new RuntimeException('No portal account is set up for this email yet. Please contact your IHC clerk to create one.');
+        }
+        if (!password_verify($password, (string)$account['password_hash'])) {
+            throw new RuntimeException('Invalid email or password.');
+        }
+
         $stmt = $pdo->prepare(
             'SELECT c.id, c.client_name, c.email FROM contracts c WHERE LOWER(c.email) = LOWER(?) ORDER BY c.id'
         );

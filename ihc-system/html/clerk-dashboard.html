@@ -703,6 +703,13 @@
     }
     .btn-post:hover { background: #059669; }
 
+    .btn-portal {
+      background: #f5f3ff;
+      border-color: #8b5cf6;
+      color: #7c3aed;
+    }
+    .btn-portal:hover { background: #8b5cf6; color: #fff; }
+
     .btn-disabled {
       opacity: 0.4;
       cursor: not-allowed;
@@ -1794,6 +1801,40 @@
     </div>
   </div>
 
+  <!-- CLIENT PORTAL ACCOUNT: create/update login credentials for an existing client -->
+  <div class="modal-overlay" id="portalModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3>Set Client Portal Password</h3>
+          <p id="portalModalSub">Portal account</p>
+        </div>
+        <button class="modal-close" id="closePortalModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Client</label>
+            <input type="text" id="paClient" readonly>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="text" id="paEmail" readonly>
+          </div>
+          <div class="form-group full">
+            <label>Portal Password <span class="req">*</span></label>
+            <input type="text" id="paPassword" placeholder="At least 6 characters" autocomplete="off">
+            <small class="nc-hint">At least 6 characters. One account covers every contract under this email — hand the password to the buyer so they can sign in to their Ledger.</small>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="cancelPortal">Cancel</button>
+        <button class="btn-submit" id="submitPortal">Save Portal Account</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ACKNOWLEDGMENT POP-UP: transient confirm only, never persistent -->
   <div class="modal-overlay" id="ackModal">
     <div class="modal-card">
@@ -1839,12 +1880,11 @@
     ========================================== */
     let stored = localStorage.getItem('IHC_USER');
     if (!stored) {
-      // No session found. In production (served via your login flow) this
-      // should redirect to the login page. For direct/standalone testing,
-      // seed a demo clerk session instead so the dashboard stays usable.
-      const demoUser = { role: 'clerk', name: 'Demo Clerk', avatar: 'DC', officerId: 'DEMO-001' };
-      localStorage.setItem('IHC_USER', JSON.stringify(demoUser));
-      stored = JSON.stringify(demoUser);
+      // No session: authentication is real now (php/api_auth.php against
+      // MySQL) — send the visitor to the login page instead of seeding a
+      // demo session that bypassed it.
+      window.location.href = '../log in.html';
+      return;
     }
 
     let currentUser;
@@ -2298,6 +2338,67 @@
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Post to Ledger';
+      }
+    });
+
+    /* ==========================================
+       PORTAL ACCOUNT MODAL
+       Provisions client_accounts rows for contracts enrolled before the
+       New Contract form created accounts automatically — or re-issues
+       a password. Same endpoint rules as backend/db.php.
+    ========================================== */
+    const portalModal = document.getElementById('portalModal');
+    let currentPortalIdx = null;
+
+    window.openPortalModal = (idx) => {
+      const row = myContracts[idx];
+      currentPortalIdx = idx;
+      document.getElementById('portalModalSub').textContent = row.client + ' \u2014 covers all contracts under this email';
+      document.getElementById('paClient').value = row.client;
+      document.getElementById('paEmail').value = row.email || '';
+      document.getElementById('paPassword').value = '';
+      portalModal.classList.add('visible');
+    };
+
+    document.getElementById('closePortalModal').addEventListener('click', () => portalModal.classList.remove('visible'));
+    document.getElementById('cancelPortal').addEventListener('click', () => portalModal.classList.remove('visible'));
+    portalModal.addEventListener('click', (e) => { if (e.target === portalModal) portalModal.classList.remove('visible'); });
+
+    document.getElementById('submitPortal').addEventListener('click', async () => {
+      const row = myContracts[currentPortalIdx];
+      const email = ((row && row.email) || '').trim();
+      const password = document.getElementById('paPassword').value.trim();
+
+      if (!email) {
+        showToast('This contract has no email address on file.', 'info');
+        return;
+      }
+      if (password.length < 6) {
+        showToast('Portal password must be at least 6 characters.', 'info');
+        return;
+      }
+
+      const btn = document.getElementById('submitPortal');
+      btn.disabled = true;
+      btn.textContent = 'Saving\u2026';
+      try {
+        const res = await fetch(API_BASE + '/php/api_portal_account.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email: email, password: password })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || 'The portal account could not be saved.');
+        }
+        portalModal.classList.remove('visible');
+        showToast(data.message, 'success');
+      } catch (err) {
+        console.error('Portal account error:', err);
+        showToast(err.message || 'Could not reach the PHP/MySQL server. The portal account was not saved.', 'info');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Portal Account';
       }
     });
 
@@ -2818,16 +2919,19 @@
           throw new Error(data.message || data.error || 'The contract could not be saved.');
         }
 
-        // Front-end portal: register the buyer account + seed their ledger so
-        // they can sign in with the email/password above. (Swap for a server
-        // call when wiring the real backend.)
+        // Keep a browser-local projection of the contract for the clerk-side
+        // offline ledger/payment mirror, but WITHOUT the password: credentials
+        // now live only in the MySQL client_accounts table (written above) and
+        // are verified server-side at login by php/api_client.php. Because the
+        // local copy has an empty password, findClientByLogin can never match
+        // a clerk-created account — login always falls through to the DB check.
         if (window.portalStore && data.id) {
           portalStore.registerClient({
             contractId: Number(data.id),
             name: clientName,
             email: email,
             phone: phone,
-            password: portalPassword,
+            password: '',
             propertyAddress: propertyAddress,
             totalPrice: totalPrice,
             downpayment: downpayment,
@@ -2841,7 +2945,12 @@
             officerName: currentUser.name || null,
             officerEmail: currentUser.email || null
           });
-          showToast('Buyer portal account created \u2014 credentials: ' + email + ' / ' + portalPassword, 'success');
+          const accountCreated = data.accountAction !== 'updated';
+          showToast(
+            (accountCreated ? 'Buyer portal account created' : 'Existing portal account updated') +
+            ' \u2014 credentials: ' + email + ' / ' + portalPassword,
+            'success'
+          );
         }
 
         showToast(data.message || 'Contract saved successfully to the database.', 'success');

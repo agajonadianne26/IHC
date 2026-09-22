@@ -4,10 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IHC Portal - Login</title>
-    
+
+    <!-- The app must run from the XAMPP origin: PHP endpoints are served by
+         Apache (http://localhost/ihc-system) and the login session lives in
+         localStorage, which is per-origin. When this page is opened through
+         VS Code Live Server (127.0.0.1:5500) or file://, relative API calls
+         such as php/api_client.php hit the WRONG server and client login
+         fails with a misleading "Invalid email or password" error. Jump to
+         the canonical URL first, preserving any query string/hash. -->
+    <script>
+        if (window.location.origin !== 'http://localhost') {
+            window.location.replace('http://localhost/ihc-system/log%20in.html' + window.location.search + window.location.hash);
+        }
+    </script>
+
     <link rel="stylesheet" href="css/log in.css">
-    <script src="js/portal-store.js" defer></script>
-    <script src="js/log in.js" defer></script>
+    <!-- ?v=4 cache-bust: login now authenticates all roles through
+         php/api_auth.php (MySQL) — make sure browsers fetch the current
+         scripts instead of a cached copy. -->
+    <script src="js/portal-store.js?v=4" defer></script>
+    <script src="js/log in.js?v=4" defer></script>
 
     <!-- Google Fonts for typography -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 21, 2026 at 04:57 AM
+-- Generation Time: Sep 22, 2026 at 06:38 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -34,13 +34,6 @@ CREATE TABLE `clients` (
   `email` varchar(255) DEFAULT NULL,
   `phone` varchar(50) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `clients`
---
-
-INSERT INTO `clients` (`id`, `officer_id`, `full_name`, `email`, `phone`) VALUES
-(11, 2, 'marzia hernandez', 'agajonadianne@gmail.com', '09096890140');
 
 -- --------------------------------------------------------
 
