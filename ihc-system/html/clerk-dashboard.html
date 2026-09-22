@@ -2224,8 +2224,8 @@
     <div class="modal-card hf-wide">
       <div class="modal-header">
         <div>
-          <h3>Record Holding Fee</h3>
-          <p>Link the fee to a client and property/unit, then record the payment details.</p>
+          <h3 id="hfModalTitle">Record Holding Fee</h3>
+          <p id="hfModalSub">Link the fee to a client and property/unit, then record the payment details.</p>
         </div>
         <button class="modal-close" id="closeHfModal">&times;</button>
       </div>
@@ -2266,8 +2266,9 @@
             <input type="date" id="hfDate">
           </div>
           <div class="form-group">
-            <label>OR / Reference Number <span style="color:var(--accent-rose);">*</span></label>
+            <label>OR / Reference Number <span id="hfOrReq" style="color:var(--accent-rose);">*</span></label>
             <input type="text" id="hfOR" placeholder="e.g., OR-2026-00912">
+            <small class="file-hint" id="hfOrHint">Required once the fee is paid.</small>
           </div>
           <div class="form-group">
             <label>Payment Status</label>
@@ -2293,7 +2294,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" id="cancelHfModal">Cancel</button>
-        <button class="btn-submit" id="submitHoldingFee">Save Holding Fee</button>
+        <button class="btn-submit" id="submitHoldingFee"><span id="hfSubmitLabel">Save Holding Fee</span></button>
       </div>
     </div>
   </div>
@@ -3008,6 +3009,7 @@
           : '';
         return `<div class="action-btns">
           ${markPaid}
+          <button class="btn-action btn-print" ${at(`editHoldingFee(${fee.id})`)}>Edit</button>
           <button class="btn-action btn-remind" ${at(`cancelHoldingFee(${fee.id})`)} style="background:#e2e8f0;border-color:#e2e8f0;color:#475569;" title="${meta.key === 'expired' ? 'Reservation window lapsed \u2014 fee is forfeited' : 'Cancel reservation \u2014 fee is non-refundable'}">Cancel</button>
         </div>`;
       }
@@ -3101,6 +3103,7 @@
     const hfProofInput = document.getElementById('hfProof');
     const hfClientSelect = document.getElementById('hfClientSelect');
     let hfProofData = null;
+    let hfEditId = null;
 
     function setHfProofHint(msg, cls) {
       const el = document.getElementById('hfProofHint');
@@ -3157,7 +3160,28 @@
       }
     }
 
+    function updateHfOrRequirement() {
+      const status = document.getElementById('hfStatus');
+      const req = document.getElementById('hfOrReq');
+      const hint = document.getElementById('hfOrHint');
+      const isPaid = status && status.value === 'paid';
+      if (req) req.style.display = isPaid ? '' : 'none';
+      if (hint) {
+        hint.textContent = isPaid
+          ? 'Required \u2014 the official receipt or reference number.'
+          : 'Optional while pending \u2014 required once the fee is paid.';
+        hint.className = 'file-hint' + (isPaid ? ' err' : '');
+      }
+    }
+
     function resetHfModal() {
+      hfEditId = null;
+      const titleEl = document.getElementById('hfModalTitle');
+      if (titleEl) titleEl.textContent = 'Record Holding Fee';
+      const subEl = document.getElementById('hfModalSub');
+      if (subEl) subEl.textContent = 'Link the fee to a client and property/unit, then record the payment details.';
+      const labelEl = document.getElementById('hfSubmitLabel');
+      if (labelEl) labelEl.textContent = 'Save Holding Fee';
       ['hfClientSelect', 'hfClientName', 'hfPropertyAddress', 'hfAmount', 'hfMethod', 'hfOR', 'hfRemarks'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -3174,11 +3198,66 @@
       hfProofData = null;
       setHfProofHint('Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.', '');
       updateHfValidity();
+      updateHfOrRequirement();
+    }
+
+    function populateHfForm(fee) {
+      populateHfClientSelect();
+      hfClientSelect.value = fee.contractId != null ? String(fee.contractId) : '__new__';
+      const isNew = hfClientSelect.value === '__new__';
+      document.querySelectorAll('.hf-new-fields').forEach(el => { el.style.display = isNew ? '' : 'none'; });
+      const summary = document.getElementById('hfClientSummary');
+      const nameEl = document.getElementById('hfClientName');
+      const propEl = document.getElementById('hfPropertyAddress');
+      if (!isNew) {
+        const c = myContracts.find(x => String(x.contractId) === String(fee.contractId));
+        if (c) {
+          nameEl.value = c.client;
+          propEl.value = c.property || '';
+          summary.textContent = c.client + ' \u2014 ' + (c.property || c.accountCode);
+          summary.classList.add('visible');
+        }
+      } else {
+        nameEl.value = fee.clientName || '';
+        propEl.value = fee.propertyAddress || '';
+        summary.classList.remove('visible');
+        summary.textContent = '';
+      }
+      document.getElementById('hfAmount').value = Number(fee.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('hfMethod').value = fee.paymentMethod || '';
+      document.getElementById('hfDate').value = fee.paymentDate || '';
+      document.getElementById('hfOR').value = fee.orNumber || '';
+      document.getElementById('hfStatus').value = fee.status === 'pending' ? 'pending' : 'paid';
+      document.getElementById('hfRemarks').value = fee.remarks || '';
+      if (hfProofInput) hfProofInput.value = '';
+      hfProofData = fee.proof || null;
+      if (fee.proof) {
+        setHfProofHint('Existing proof: ' + fee.proof.name + ' \u2014 attach a new file to replace it.', 'ok');
+      } else {
+        setHfProofHint('Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.', '');
+      }
+      updateHfValidity();
+      updateHfOrRequirement();
     }
 
     window.openHfModal = () => {
       resetHfModal();
       populateHfClientSelect();
+      hfModal.classList.add('visible');
+    };
+
+    window.editHoldingFee = (id) => {
+      const fee = holdingFees.find(f => f.id === id);
+      if (!fee) return;
+      resetHfModal();
+      hfEditId = id;
+      const titleEl = document.getElementById('hfModalTitle');
+      if (titleEl) titleEl.textContent = 'Edit Holding Fee';
+      const subEl = document.getElementById('hfModalSub');
+      if (subEl) subEl.textContent = 'Update the fee details and payment record for this client.';
+      const labelEl = document.getElementById('hfSubmitLabel');
+      if (labelEl) labelEl.textContent = 'Save Changes';
+      populateHfForm(fee);
       hfModal.classList.add('visible');
     };
 
@@ -3189,6 +3268,8 @@
 
     const hfDateInput = document.getElementById('hfDate');
     if (hfDateInput) hfDateInput.addEventListener('change', updateHfValidity);
+    const hfStatusInput = document.getElementById('hfStatus');
+    if (hfStatusInput) hfStatusInput.addEventListener('change', updateHfOrRequirement);
 
     hfClientSelect.addEventListener('change', () => {
       const val = hfClientSelect.value;
@@ -3266,34 +3347,45 @@
       if (isNaN(amount) || amount <= 0) { showToast('Enter a valid holding fee amount.', 'info'); return; }
       if (!method) { showToast('Select the payment method.', 'info'); return; }
       if (!date) { showToast('Select the payment date.', 'info'); return; }
-      if (!orNum) { showToast('OR / reference number is required.', 'info'); return; }
+      if (status === 'paid' && !orNum) { showToast('OR / reference number is required for paid fees.', 'info'); return; }
 
-      const fee = {
-        id: Date.now(),
-        contractId: matched ? matched.contractId : null,
-        clientName: clientName,
-        propertyAddress: property,
-        amount: amount,
-        paymentMethod: method,
-        paymentDate: date,
-        orNumber: orNum,
-        status: status,
-        proof: hfProofData,
-        remarks: remarks,
-        createdAt: new Date().toISOString()
-      };
-      holdingFees.push(fee);
+      const editing = hfEditId != null;
+      let fee = editing ? holdingFees.find(f => f.id === hfEditId) : null;
+      if (editing && !fee) { showToast('Holding fee record not found.', 'info'); return; }
+      if (!editing) fee = { id: Date.now(), contractId: matched ? matched.contractId : null, createdAt: new Date().toISOString() };
+      const wasPaid = editing && fee.status === 'paid';
+
+      fee.contractId = matched ? matched.contractId : null;
+      fee.clientName = clientName;
+      fee.propertyAddress = property;
+      fee.amount = amount;
+      fee.paymentMethod = method;
+      fee.paymentDate = date;
+      fee.orNumber = orNum;
+      fee.status = status;
+      fee.proof = editing ? (hfProofData || fee.proof) : hfProofData;
+      fee.remarks = remarks;
+
+      if (!editing) holdingFees.push(fee);
       persistHoldingFees(holdingFees);
+      hfEditId = null;
       hfModal.classList.remove('visible');
       renderHoldingFees();
-      showToast('Holding fee recorded \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
+
+      if (status === 'paid' && !wasPaid) {
+        showToast('Holding fee marked as paid \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
+      } else if (editing) {
+        showToast('Holding fee updated \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
+      } else {
+        showToast('Holding fee recorded \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
+      }
 
       if (status === 'paid' && window.portalStore && fee.contractId) {
         const portalData = window.portalStore.readPortal(fee.contractId);
         if (portalData && Array.isArray(portalData.notifications)) {
           portalData.notifications.unshift({
             kind: 'payment',
-            title: 'Holding fee recorded in your account',
+            title: wasPaid ? 'Holding fee updated in your account' : 'Holding fee recorded in your account',
             message: 'Your ' + formatPHP(amount) + ' holding fee has been posted' + (orNum ? ' with OR/Ref #' + orNum : '') + '.',
             channel: 'Portal',
             time: new Date().toISOString()
@@ -3313,6 +3405,7 @@
       persistHoldingFees(holdingFees);
       renderHoldingFees();
       showToast('Holding fee marked as paid.', 'success');
+      if (!fee.orNumber) editHoldingFee(fee.id);
     };
 
     window.removeHoldingFeeProof = (id) => {
