@@ -1279,6 +1279,175 @@
     .sidebar-overlay.visible { display: block; }
 
     /* ==========================================
+       PAYMENTS PAGE TABS (HF → DP → MA → PDC)
+    ========================================== */
+    .page-tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .page-tab {
+      flex: 1;
+      min-width: 130px;
+      padding: 9px 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: inherit;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      white-space: nowrap;
+      transition: all var(--transition);
+    }
+
+    .page-tab:hover { background: var(--bg-main); color: var(--text-primary); }
+    .page-tab.active { background: var(--accent-emerald); color: #fff; box-shadow: var(--shadow-sm); }
+    .page-tab i { width: 15px; height: 15px; }
+
+    .p-pane { display: none; }
+    .p-pane.active { display: block; }
+
+    @media (max-width: 900px) { .page-tab { min-width: 0; flex: 1 1 45%; } }
+
+    /* ==========================================
+       HOLDING FEE KPIs
+    ========================================== */
+    .hf-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 900px) { .hf-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .hf-kpi-grid { grid-template-columns: 1fr; } }
+
+    .hf-kpi {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hf-kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .hf-kpi.green::before { background: var(--accent-emerald); }
+    .hf-kpi.blue::before { background: var(--accent-blue); }
+    .hf-kpi.amber::before { background: var(--accent-amber); }
+    .hf-kpi.rose::before { background: var(--accent-rose); }
+
+    .hf-kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-secondary); }
+    .hf-kpi-value { font-size: 20px; font-weight: 800; margin-top: 4px; letter-spacing: -0.4px; }
+    .hf-kpi-value.green { color: var(--accent-emerald); }
+    .hf-kpi-value.blue { color: var(--accent-blue); }
+    .hf-kpi-value.amber { color: var(--accent-amber); }
+    .hf-kpi-value.rose { color: var(--accent-rose); }
+    .hf-kpi-sub { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+
+    /* Extra holding-fee status badges */
+    .status-badge.pending { background: var(--accent-amber-bg); color: #92400e; }
+    .status-badge.pending .dot { background: var(--accent-amber); }
+    .status-badge.refunded { background: #eef2ff; color: #3730a3; }
+    .status-badge.refunded .dot { background: #6366f1; }
+    .status-badge.cancelled { background: #f1f5f9; color: #475569; }
+    .status-badge.cancelled .dot { background: #94a3b8; }
+
+    /* Proof indicator */
+    .proof-thumb {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      background: var(--bg-main);
+    }
+
+    .proof-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 20px;
+      background: #eff6ff;
+      color: var(--accent-blue);
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .proof-chip i { width: 12px; height: 12px; }
+
+    /* File input & hints */
+    .file-input {
+      width: 100%;
+      font-size: 11px;
+      font-family: inherit;
+      color: var(--text-secondary);
+    }
+    .file-input::file-selector-button {
+      height: 34px;
+      padding: 0 12px;
+      margin-right: 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-main);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .file-hint { margin-top: 6px; font-size: 11px; color: var(--text-muted); min-height: 14px; }
+    .file-hint.ok { color: #059669; font-weight: 600; }
+    .file-hint.err { color: #dc2626; font-weight: 600; }
+
+    .client-summary {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-main);
+      border: 1px dashed var(--border);
+      font-size: 12px;
+      color: var(--text-primary);
+      display: none;
+    }
+    .client-summary.visible { display: block; }
+
+    .modal-card.hf-wide { max-width: 620px; }
+
+    /* Proof viewer */
+    .proof-viewer-card {
+      background: #fff;
+      width: 100%;
+      max-width: 720px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: transform 0.25s;
+    }
+    .modal-overlay.visible .proof-viewer-card { transform: scale(1); }
+    .proof-viewer-body { padding: 20px 24px; text-align: center; max-height: 70vh; overflow: auto; }
+    .proof-viewer-body img { max-width: 100%; border-radius: var(--radius); }
+    .proof-viewer-body .proof-meta { margin-bottom: 14px; font-size: 12px; color: var(--text-secondary); }
+
+    /* ==========================================
        RESPONSIVE
     ========================================== */
     @media (max-width: 1024px) {
@@ -1372,7 +1541,7 @@
         </a>
         <a class="sidebar-link" href="#" data-page="payments">
           <i data-lucide="credit-card"></i>
-          <span>Payment Posting</span>
+          <span>Payments</span>
         </a>
         <a class="sidebar-link" href="#" data-page="notifications">
           <i data-lucide="bell"></i>
@@ -1516,31 +1685,172 @@
         </section><!-- /view clients -->
 
         <!-- ============================
-             VIEW: PAYMENT POSTING
+             VIEW: PAYMENTS (Holding Fees → DP → MA → PDC)
         ============================= -->
         <section class="view" data-view="payments">
-          <div class="subhead">
-            <div>
-              <h2>Payment Posting Queue</h2>
-              <p>Unpaid dues for your assigned accounts awaiting collection posting.</p>
+
+          <div class="page-tabs" id="paymentsPageTabs">
+            <button class="page-tab active" data-p-tab="holding-fees" type="button"><i data-lucide="hand-coins"></i> Holding Fees</button>
+            <button class="page-tab" data-p-tab="downpayment" type="button"><i data-lucide="banknote"></i> Down Payment</button>
+            <button class="page-tab" data-p-tab="amortization" type="button"><i data-lucide="calendar-clock"></i> Monthly Amortization</button>
+            <button class="page-tab" data-p-tab="pdc" type="button"><i data-lucide="file-check"></i> PDC / Other</button>
+          </div>
+
+          <!-- PANE: HOLDING FEES -->
+          <div class="p-pane active" data-p-pane="holding-fees">
+            <div class="subhead">
+              <div>
+                <h2>Holding Fees</h2>
+                <p>Reservation / holding fees recorded against clients or prospective buyers.</p>
+              </div>
+              <button class="btn-primary" id="recordHoldingFeeBtn" type="button">
+                <i data-lucide="plus-circle" style="width:14px;height:14px;"></i>
+                Record Holding Fee
+              </button>
+            </div>
+
+            <div class="hf-kpi-grid">
+              <div class="hf-kpi green">
+                <div class="hf-kpi-label">Total Collected</div>
+                <div class="hf-kpi-value green" id="hfKpiCollected">—</div>
+                <div class="hf-kpi-sub">Paid holding fees</div>
+              </div>
+              <div class="hf-kpi blue">
+                <div class="hf-kpi-label">Total Recorded</div>
+                <div class="hf-kpi-value blue" id="hfKpiTotal">—</div>
+                <div class="hf-kpi-sub">All holding fee entries</div>
+              </div>
+              <div class="hf-kpi amber">
+                <div class="hf-kpi-label">Pending</div>
+                <div class="hf-kpi-value amber" id="hfKpiPending">—</div>
+                <div class="hf-kpi-sub">Awaiting payment</div>
+              </div>
+              <div class="hf-kpi rose">
+                <div class="hf-kpi-label">Refunded</div>
+                <div class="hf-kpi-value rose" id="hfKpiRefunded">—</div>
+                <div class="hf-kpi-sub">Total refunded amount</div>
+              </div>
+            </div>
+
+            <section class="table-section">
+              <div class="table-header">
+                <div class="table-header-left">
+                  <h2>Holding Fee Records</h2>
+                  <p>All reservation payments linked to your accounts</p>
+                </div>
+                <div class="table-tools">
+                  <div class="table-search">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="hfSearch" placeholder="Search client or OR / reference...">
+                  </div>
+                  <div class="filter-tabs" id="hfFilterTabs">
+                    <button class="filter-tab active" data-hf-filter="all">All <span class="tab-count" id="hfCountAll">0</span></button>
+                    <button class="filter-tab" data-hf-filter="pending">Pending <span class="tab-count" id="hfCountPending">0</span></button>
+                    <button class="filter-tab" data-hf-filter="paid">Paid <span class="tab-count" id="hfCountPaid">0</span></button>
+                    <button class="filter-tab" data-hf-filter="refunded">Refunded <span class="tab-count" id="hfCountRefunded">0</span></button>
+                    <button class="filter-tab" data-hf-filter="cancelled">Cancelled <span class="tab-count" id="hfCountCancelled">0</span></button>
+                  </div>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table class="data-table" style="min-width:1120px;">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Client & Property</th>
+                      <th>Amount</th>
+                      <th>Payment Method</th>
+                      <th>OR / Reference</th>
+                      <th>Proof</th>
+                      <th>Status</th>
+                      <th>Refund Info</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="holdingFeeBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <!-- PANE: DOWN PAYMENT -->
+          <div class="p-pane" data-p-pane="downpayment">
+            <div class="subhead">
+              <div>
+                <h2>Down Payment</h2>
+                <p>Downpayment dues for your assigned accounts awaiting collection posting.</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Client & Property</th>
+                    <th>Contract ID</th>
+                    <th>Payment Type</th>
+                    <th>Amount Due</th>
+                    <th>Due Date</th>
+                    <th>Days Due</th>
+                    <th>Post Action</th>
+                  </tr>
+                </thead>
+                <tbody id="postingBodyDownpayment"></tbody>
+              </table>
             </div>
           </div>
-          <div class="table-scroll">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Client & Property</th>
-                  <th>Contract ID</th>
-                  <th>Payment Type</th>
-                  <th>Amount Due</th>
-                  <th>Due Date</th>
-                  <th>Days Due</th>
-                  <th>Post Action</th>
-                </tr>
-              </thead>
-              <tbody id="postingBody"></tbody>
-            </table>
+
+          <!-- PANE: MONTHLY AMORTIZATION -->
+          <div class="p-pane" data-p-pane="amortization">
+            <div class="subhead">
+              <div>
+                <h2>Monthly Amortization</h2>
+                <p>Monthly amortization dues for your assigned accounts awaiting collection posting.</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Client & Property</th>
+                    <th>Contract ID</th>
+                    <th>Payment Type</th>
+                    <th>Amount Due</th>
+                    <th>Due Date</th>
+                    <th>Days Due</th>
+                    <th>Post Action</th>
+                  </tr>
+                </thead>
+                <tbody id="postingBodyAmortization"></tbody>
+              </table>
+            </div>
           </div>
+
+          <!-- PANE: PDC / OTHER -->
+          <div class="p-pane" data-p-pane="pdc">
+            <div class="subhead">
+              <div>
+                <h2>PDC / Other Payments</h2>
+                <p>Post-dated checks and other payment channels are recorded through the assigned accounts queue.</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Client & Property</th>
+                    <th>Contract ID</th>
+                    <th>Payment Type</th>
+                    <th>Amount Due</th>
+                    <th>Due Date</th>
+                    <th>Days Due</th>
+                    <th>Post Action</th>
+                  </tr>
+                </thead>
+                <tbody id="postingBodyPdc"></tbody>
+              </table>
+            </div>
+          </div>
+
         </section>
 
         <!-- ============================
@@ -1816,6 +2126,137 @@
         <button class="btn-do-print" id="doPrintSoa">Print SOA</button>
       </div>
       <div class="soa-document" id="soaDocument"></div>
+    </div>
+  </div>
+
+  <!-- RECORD HOLDING FEE MODAL -->
+  <div class="modal-overlay" id="holdingFeeModal">
+    <div class="modal-card hf-wide">
+      <div class="modal-header">
+        <div>
+          <h3>Record Holding Fee</h3>
+          <p>Link the fee to a client and property/unit, then record the payment details.</p>
+        </div>
+        <button class="modal-close" id="closeHfModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Client</label>
+            <select id="hfClientSelect">
+              <option value="">Select a client&hellip;</option>
+              <option value="__new__">New buyer (no contract yet)</option>
+            </select>
+            <div class="client-summary" id="hfClientSummary"></div>
+          </div>
+          <div class="form-group full hf-new-fields" style="display:none;">
+            <label>New Buyer Name <span style="color:var(--accent-rose);">*</span></label>
+            <input type="text" id="hfClientName" placeholder="e.g., Juan Dela Cruz">
+          </div>
+          <div class="form-group full hf-new-fields" style="display:none;">
+            <label>Property / Unit <span style="color:var(--accent-rose);">*</span></label>
+            <input type="text" id="hfPropertyAddress" placeholder="e.g., Block 5 Lot 7, Sample Subdivision">
+          </div>
+          <div class="form-group">
+            <label>Amount <span style="color:var(--accent-rose);">*</span></label>
+            <input type="text" id="hfAmount" inputmode="decimal" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label>Payment Method <span style="color:var(--accent-rose);">*</span></label>
+            <select id="hfMethod">
+              <option value="">Select channel</option>
+              <option>Bank Wire / Online Deposit</option>
+              <option>Over-the-Counter Cashier</option>
+              <option>Post-Dated Check (PDC)</option>
+              <option>GCash / Maya</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Payment Date <span style="color:var(--accent-rose);">*</span></label>
+            <input type="date" id="hfDate">
+          </div>
+          <div class="form-group">
+            <label>OR / Reference Number <span style="color:var(--accent-rose);">*</span></label>
+            <input type="text" id="hfOR" placeholder="e.g., OR-2026-00912">
+          </div>
+          <div class="form-group">
+            <label>Payment Status</label>
+            <select id="hfStatus">
+              <option value="paid">Paid</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Proof / Receipt</label>
+            <input type="file" class="file-input" id="hfProof" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf">
+            <small class="file-hint" id="hfProofHint">Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.</small>
+          </div>
+          <div class="form-group full">
+            <label>Remarks</label>
+            <input type="text" id="hfRemarks" placeholder="Optional notes">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="cancelHfModal">Cancel</button>
+        <button class="btn-submit" id="submitHoldingFee">Save Holding Fee</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFUND HOLDING FEE MODAL -->
+  <div class="modal-overlay" id="hfRefundModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3>Record Refund</h3>
+          <p id="hfRefundSub">Refund this holding fee</p>
+        </div>
+        <button class="modal-close" id="closeHfRefundModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Refund Amount <span style="color:var(--accent-rose);">*</span></label>
+            <input type="text" id="hfRefundAmount" inputmode="decimal">
+          </div>
+          <div class="form-group">
+            <label>Refund Date <span style="color:var(--accent-rose);">*</span></label>
+            <input type="date" id="hfRefundDate">
+          </div>
+          <div class="form-group full">
+            <label>Refund Method</label>
+            <select id="hfRefundMethod">
+              <option value="">Select channel</option>
+              <option>Bank Wire / Online Deposit</option>
+              <option>Over-the-Counter Cashier</option>
+              <option>GCash / Maya</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Refund Remarks</label>
+            <input type="text" id="hfRefundRemarks" placeholder="Optional notes">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="cancelHfRefundModal">Cancel</button>
+        <button class="btn-submit" id="submitHfRefund" style="background:#6366f1;">Confirm Refund</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROOF VIEWER -->
+  <div class="modal-overlay" id="proofViewerModal">
+    <div class="proof-viewer-card">
+      <div class="modal-header">
+        <div>
+          <h3>Proof of Payment</h3>
+          <p id="proofViewerMeta" style="margin-top:3px;font-size:11px;color:var(--text-secondary);"></p>
+        </div>
+        <button class="modal-close" id="closeProofViewer">&times;</button>
+      </div>
+      <div class="proof-viewer-body" id="proofViewerBody"></div>
     </div>
   </div>
 
@@ -2135,6 +2576,8 @@
       applyFilters();
       renderPostingQueue();
       renderNotifLog();
+      populateHfClientSelect();
+      renderHoldingFees();
     };
 
     loadDashboard();
@@ -2329,6 +2772,410 @@
     soaModal.addEventListener('click', (e) => { if (e.target === soaModal) soaModal.classList.remove('visible'); });
 
     /* ==========================================
+       HOLDING FEES (front-end store, localStorage)
+    ========================================== */
+    const holdingFeeStorageKey = 'IHC_HOLDING_FEES_' + (currentUser.officerId || currentUser.id || 'default');
+
+    const readHoldingFees = () => {
+      try {
+        const raw = localStorage.getItem(holdingFeeStorageKey);
+        const arr = raw ? JSON.parse(raw) : null;
+        return Array.isArray(arr) ? arr : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const persistHoldingFees = (fees) => localStorage.setItem(holdingFeeStorageKey, JSON.stringify(fees));
+
+    function seedHoldingFees() {
+      if (readHoldingFees()) return;
+      persistHoldingFees([
+        { id: 1, contractId: 7, clientName: 'Marzia Hernandez', propertyAddress: 'Las Piñas', amount: 50000, paymentMethod: 'GCash / Maya', paymentDate: '2026-09-08', orNumber: 'HF-2026-00012', status: 'paid', proof: null, refundAmount: null, refundDate: null, refundMethod: null, refundRemarks: null, remarks: 'Initial holding for Block 4 Lot 12.', createdAt: '2026-09-08T09:00:00' },
+        { id: 2, contractId: null, clientName: 'Diana Santos', propertyAddress: 'Block 2 Lot 8, Greenfield Heights', amount: 25000, paymentMethod: 'Bank Wire / Online Deposit', paymentDate: '2026-09-14', orNumber: 'HF-2026-00019', status: 'pending', proof: null, refundAmount: null, refundDate: null, refundMethod: null, refundRemarks: null, remarks: 'Prospective buyer \u2014 reservation on unit 2F.', createdAt: '2026-09-14T10:30:00' },
+        { id: 3, contractId: 8, clientName: 'Jimmy Fuentes', propertyAddress: 'Laguna', amount: 50000, paymentMethod: 'Over-the-Counter Cashier', paymentDate: '2026-09-10', orNumber: 'HF-2026-00007', status: 'refunded', proof: null, refundAmount: 50000, refundDate: '2026-09-16', refundMethod: 'Bank Wire / Online Deposit', refundRemarks: 'Buyer withdrew application.', createdAt: '2026-09-10T14:00:00' }
+      ]);
+    }
+
+    seedHoldingFees();
+
+    let holdingFees = readHoldingFees() || [];
+    let hfActiveFilter = 'all';
+
+    const holdingFeeBody = document.getElementById('holdingFeeBody');
+    const hfSearchInput = document.getElementById('hfSearch');
+    const hfFilterTabs = document.querySelectorAll('#hfFilterTabs .filter-tab');
+
+    const hfStatusMeta = {
+      paid:      { label: 'Paid',      cls: 'paid' },
+      pending:   { label: 'Pending',   cls: 'pending' },
+      refunded:  { label: 'Refunded',  cls: 'refunded' },
+      cancelled: { label: 'Cancelled', cls: 'cancelled' }
+    };
+
+    const getProofMarkup = (fee) => {
+      if (!fee.proof || !fee.proof.dataUrl) return '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
+      if (fee.proof.isImage) {
+        return `<img class="proof-thumb" src="${fee.proof.dataUrl}" alt="proof" title="View proof" onclick="viewHoldingFeeProof(${fee.id})">`;
+      }
+      return `<span class="proof-chip" onclick="viewHoldingFeeProof(${fee.id})" title="View proof"><i data-lucide="file-text"></i>${String(fee.proof.name || 'file').replace(/\.[^.]+$/, '').slice(0, 12)}</span>`;
+    };
+
+    const getRefundInfo = (fee) => {
+      if (fee.status === 'refunded' && fee.refundDate) {
+        return `<small style="font-size:11px;color:#3730a3;font-weight:700;">${formatPHP(fee.refundAmount)}</small>
+                <small style="display:block;font-size:10px;color:var(--text-muted);">${formatDate(new Date(fee.refundDate))} \u00b7 ${fee.refundMethod || '\u2014'}</small>`;
+      }
+      return fee.status === 'cancelled'
+        ? '<span style="font-size:11px;color:var(--text-muted);">Cancelled</span>'
+        : '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
+    };
+
+    const hfActionsMarkup = (fee) => {
+      const at = (expr) => `onclick="${expr}"`;
+      if (fee.status === 'pending' || fee.status === 'paid') {
+        const markPaid = fee.status === 'pending'
+          ? `<button class="btn-action btn-post" ${at(`markHoldingFeePaid(${fee.id})`)}>Mark Paid</button>`
+          : '';
+        return `<div class="action-btns">
+          ${markPaid}
+          <button class="btn-action btn-print" ${at(`openHfRefundModal(${fee.id})`)}>Refund</button>
+          <button class="btn-action btn-remind" ${at(`cancelHoldingFee(${fee.id})`)} style="background:#e2e8f0;border-color:#e2e8f0;color:#475569;">Cancel</button>
+        </div>`;
+      }
+      return '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
+    };
+
+    function renderHoldingFeeKPIs() {
+      const collected = holdingFees.filter(f => f.status === 'paid').reduce((s, f) => s + Number(f.amount), 0);
+      const refunded = holdingFees.filter(f => f.status === 'refunded').reduce((s, f) => s + Number(f.refundAmount || 0), 0);
+      document.getElementById('hfKpiCollected').textContent = formatPHP(collected);
+      document.getElementById('hfKpiTotal').textContent = holdingFees.length;
+      document.getElementById('hfKpiPending').textContent = holdingFees.filter(f => f.status === 'pending').length;
+      document.getElementById('hfKpiRefunded').textContent = formatPHP(refunded);
+    }
+
+    function renderHoldingFees() {
+      renderHoldingFeeKPIs();
+      const s = hfSearchInput ? hfSearchInput.value.toLowerCase().trim() : '';
+      const rows = holdingFees.filter(f => {
+        const ms = !s || String(f.clientName).toLowerCase().includes(s) || String(f.orNumber || '').toLowerCase().includes(s) || String(f.propertyAddress || '').toLowerCase().includes(s);
+        const mf = hfActiveFilter === 'all' || f.status === hfActiveFilter;
+        return ms && mf;
+      }).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+      const counts = {};
+      holdingFees.forEach(f => { counts[f.status] = (counts[f.status] || 0) + 1; });
+
+      if (holdingFeeBody) {
+        if (!rows.length) {
+          holdingFeeBody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><i data-lucide="receipt" style="width:40px;height:40px;"></i><strong>No holding fee records</strong><small>Record your first holding fee using the button above.</small></div></td></tr>';
+        } else {
+          holdingFeeBody.innerHTML = rows.map(f => {
+            const meta = hfStatusMeta[f.status] || { label: String(f.status || 'pending'), cls: 'pending' };
+            return `<tr>
+              <td style="white-space:nowrap;font-size:12px;">${f.paymentDate ? formatDate(new Date(f.paymentDate)) : '\u2014'}</td>
+              <td><div class="client-cell"><strong>${f.clientName}</strong><small>${f.propertyAddress || '\u2014'}</small></div></td>
+              <td><span class="amount-due">${formatPHP(f.amount)}</span></td>
+              <td style="font-size:12px;">${f.paymentMethod}</td>
+              <td><span class="contract-id">${f.orNumber || '\u2014'}</span></td>
+              <td>${getProofMarkup(f)}</td>
+              <td><span class="status-badge ${meta.cls}"><span class="dot"></span>${meta.label}</span></td>
+              <td>${getRefundInfo(f)}</td>
+              <td>${hfActionsMarkup(f)}</td>
+            </tr>`;
+          }).join('');
+        }
+        lucide.createIcons();
+      }
+
+      document.getElementById('hfCountAll').textContent = holdingFees.length;
+      document.getElementById('hfCountPending').textContent = counts.pending || 0;
+      document.getElementById('hfCountPaid').textContent = counts.paid || 0;
+      document.getElementById('hfCountRefunded').textContent = counts.refunded || 0;
+      document.getElementById('hfCountCancelled').textContent = counts.cancelled || 0;
+    }
+
+    if (hfSearchInput) hfSearchInput.addEventListener('input', renderHoldingFees);
+    hfFilterTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        hfFilterTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        hfActiveFilter = tab.dataset.hfFilter;
+        renderHoldingFees();
+      });
+    });
+
+    /* -------- Payments page tab switching -------- */
+    const paymentsTabKey = 'IHC_CLERK_PAYMENTS_TAB_' + (currentUser.officerId || currentUser.id || 'default');
+    const paymentsPageTabs = document.querySelectorAll('.page-tab');
+    const paymentsPanes = document.querySelectorAll('.p-pane');
+
+    function switchPaymentsTab(name) {
+      if (['holding-fees', 'downpayment', 'amortization', 'pdc'].indexOf(name) === -1) name = 'holding-fees';
+      localStorage.setItem(paymentsTabKey, name);
+      paymentsPageTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.pTab === name));
+      paymentsPanes.forEach(pane => pane.classList.toggle('active', pane.dataset.pPane === name));
+      if (name === 'holding-fees') renderHoldingFees();
+      else renderPostingQueue();
+    }
+
+    paymentsPageTabs.forEach(btn => {
+      btn.addEventListener('click', () => switchPaymentsTab(btn.dataset.pTab));
+    });
+
+    /* -------- Record Holding Fee modal -------- */
+    const hfModal = document.getElementById('holdingFeeModal');
+    const hfProofInput = document.getElementById('hfProof');
+    const hfClientSelect = document.getElementById('hfClientSelect');
+    let hfProofData = null;
+
+    function setHfProofHint(msg, cls) {
+      const el = document.getElementById('hfProofHint');
+      if (!el) return;
+      el.className = 'file-hint' + (cls ? ' ' + cls : '');
+      el.textContent = msg;
+    }
+
+    function populateHfClientSelect() {
+      const seen = new Set();
+      const opts = ['<option value="">Select a client&hellip;</option>', '<option value="__new__">New buyer (no contract yet)</option>'];
+      myContracts.forEach(c => {
+        if (seen.has(c.contractId)) return;
+        seen.add(c.contractId);
+        opts.push(`<option value="${c.contractId}">${c.client} \u2014 ${c.property || c.accountCode}</option>`);
+      });
+      hfClientSelect.innerHTML = opts.join('');
+    }
+
+    function resetHfModal() {
+      ['hfClientSelect', 'hfClientName', 'hfPropertyAddress', 'hfAmount', 'hfMethod', 'hfOR', 'hfRemarks'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      const dateEl = document.getElementById('hfDate');
+      if (dateEl) dateEl.value = '';
+      const statusEl = document.getElementById('hfStatus');
+      if (statusEl) statusEl.value = 'paid';
+      document.querySelectorAll('.hf-new-fields').forEach(el => { el.style.display = 'none'; });
+      const summary = document.getElementById('hfClientSummary');
+      summary.classList.remove('visible');
+      summary.textContent = '';
+      if (hfProofInput) { hfProofInput.value = ''; }
+      hfProofData = null;
+      setHfProofHint('Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.', '');
+    }
+
+    window.openHfModal = () => {
+      resetHfModal();
+      populateHfClientSelect();
+      hfModal.classList.add('visible');
+    };
+
+    document.getElementById('recordHoldingFeeBtn').addEventListener('click', openHfModal);
+    document.getElementById('closeHfModal').addEventListener('click', () => hfModal.classList.remove('visible'));
+    document.getElementById('cancelHfModal').addEventListener('click', () => hfModal.classList.remove('visible'));
+    hfModal.addEventListener('click', (e) => { if (e.target === hfModal) hfModal.classList.remove('visible'); });
+
+    hfClientSelect.addEventListener('change', () => {
+      const val = hfClientSelect.value;
+      const isNew = val === '__new__';
+      document.querySelectorAll('.hf-new-fields').forEach(el => { el.style.display = isNew ? '' : 'none'; });
+      const summary = document.getElementById('hfClientSummary');
+      const nameEl = document.getElementById('hfClientName');
+      const propEl = document.getElementById('hfPropertyAddress');
+      if (val && val !== '__new__') {
+        const c = myContracts.find(x => String(x.contractId) === String(val));
+        if (c) {
+          nameEl.value = c.client;
+          propEl.value = c.property || '';
+          summary.textContent = c.client + ' \u2014 ' + (c.property || c.accountCode);
+          summary.classList.add('visible');
+        }
+      } else {
+        summary.classList.remove('visible');
+        summary.textContent = '';
+        if (isNew) { nameEl.value = ''; propEl.value = ''; }
+      }
+    });
+
+    document.getElementById('hfAmount').addEventListener('input', function () {
+      const raw = this.value.replace(/[^\d.]/g, '');
+      const parts = raw.split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      if (parts.length > 1) parts[1] = parts[1].slice(0, 2);
+      this.value = parts.join('.');
+    });
+
+    if (hfProofInput) {
+      hfProofInput.addEventListener('change', () => {
+        const file = hfProofInput.files && hfProofInput.files[0];
+        if (!file) { hfProofData = null; setHfProofHint('Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.', ''); return; }
+        const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+        const isImage = file.type.indexOf('image/') === 0;
+        if (allowed.indexOf(file.type) === -1) {
+          setHfProofHint('That file type is not supported.', 'err');
+          hfProofInput.value = '';
+          hfProofData = null;
+          return;
+        }
+        if (file.size > 600 * 1024) {
+          setHfProofHint('File is too large \u2014 keep it under 600 KB.', 'err');
+          hfProofInput.value = '';
+          hfProofData = null;
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          hfProofData = { name: file.name, dataUrl: e.target.result, isImage: isImage };
+          setHfProofHint('Attached: ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)', 'ok');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById('submitHoldingFee').addEventListener('click', () => {
+      const selectVal = hfClientSelect.value;
+      const isNew = selectVal === '__new__';
+      const matched = !isNew && selectVal ? myContracts.find(x => String(x.contractId) === String(selectVal)) : null;
+      const clientName = isNew ? document.getElementById('hfClientName').value.trim() : (matched ? matched.client : '');
+      const property = isNew ? document.getElementById('hfPropertyAddress').value.trim() : (matched ? (matched.property || '') : '');
+      const amount = parseAmount(document.getElementById('hfAmount').value);
+      const method = document.getElementById('hfMethod').value;
+      const date = document.getElementById('hfDate').value;
+      const orNum = document.getElementById('hfOR').value.trim();
+      const status = document.getElementById('hfStatus').value;
+      const remarks = document.getElementById('hfRemarks').value.trim();
+
+      if (!selectVal) { showToast('Select a client or choose "New buyer".', 'info'); return; }
+      if (!clientName) { showToast('Client name is required.', 'info'); return; }
+      if (isNew && !property) { showToast('Property / unit is required for a new buyer.', 'info'); return; }
+      if (isNaN(amount) || amount <= 0) { showToast('Enter a valid holding fee amount.', 'info'); return; }
+      if (!method) { showToast('Select the payment method.', 'info'); return; }
+      if (!date) { showToast('Select the payment date.', 'info'); return; }
+      if (!orNum) { showToast('OR / reference number is required.', 'info'); return; }
+
+      const fee = {
+        id: Date.now(),
+        contractId: matched ? matched.contractId : null,
+        clientName: clientName,
+        propertyAddress: property,
+        amount: amount,
+        paymentMethod: method,
+        paymentDate: date,
+        orNumber: orNum,
+        status: status,
+        proof: hfProofData,
+        refundAmount: null,
+        refundDate: null,
+        refundMethod: null,
+        refundRemarks: null,
+        remarks: remarks,
+        createdAt: new Date().toISOString()
+      };
+      holdingFees.push(fee);
+      persistHoldingFees(holdingFees);
+      hfModal.classList.remove('visible');
+      renderHoldingFees();
+      showToast('Holding fee recorded \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
+
+      if (status === 'paid' && window.portalStore && fee.contractId) {
+        const portalData = window.portalStore.readPortal(fee.contractId);
+        if (portalData && Array.isArray(portalData.notifications)) {
+          portalData.notifications.unshift({
+            kind: 'payment',
+            title: 'Holding fee recorded in your account',
+            message: 'Your ' + formatPHP(amount) + ' holding fee has been posted' + (orNum ? ' with OR/Ref #' + orNum : '') + '.',
+            channel: 'Portal',
+            time: new Date().toISOString()
+          });
+          window.portalStore.savePortal(fee.contractId, portalData);
+        }
+      }
+    });
+
+    /* -------- Refund modal -------- */
+    const hfRefundModal = document.getElementById('hfRefundModal');
+    let refundTargetId = null;
+
+    window.openHfRefundModal = (id) => {
+      const fee = holdingFees.find(f => f.id === id);
+      if (!fee) return;
+      refundTargetId = id;
+      document.getElementById('hfRefundSub').textContent = fee.clientName + ' \u2014 ' + formatPHP(fee.amount);
+      document.getElementById('hfRefundAmount').value = Number(fee.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('hfRefundDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('hfRefundMethod').value = '';
+      document.getElementById('hfRefundRemarks').value = '';
+      hfRefundModal.classList.add('visible');
+    };
+
+    document.getElementById('closeHfRefundModal').addEventListener('click', () => hfRefundModal.classList.remove('visible'));
+    document.getElementById('cancelHfRefundModal').addEventListener('click', () => hfRefundModal.classList.remove('visible'));
+    hfRefundModal.addEventListener('click', (e) => { if (e.target === hfRefundModal) hfRefundModal.classList.remove('visible'); });
+
+    document.getElementById('submitHfRefund').addEventListener('click', () => {
+      const fee = holdingFees.find(f => f.id === refundTargetId);
+      if (!fee) return;
+      const rAmount = parseFloat(String(document.getElementById('hfRefundAmount').value || '').replace(/[^\d.]/g, ''));
+      const rDate = document.getElementById('hfRefundDate').value;
+      const rMethod = document.getElementById('hfRefundMethod').value;
+      const rRemarks = document.getElementById('hfRefundRemarks').value.trim();
+      if (isNaN(rAmount) || rAmount <= 0) { showToast('Enter a valid refund amount.', 'info'); return; }
+      if (rAmount > Number(fee.amount)) { showToast('Refund cannot exceed the holding fee amount.', 'info'); return; }
+      if (!rDate) { showToast('Select the refund date.', 'info'); return; }
+      fee.status = 'refunded';
+      fee.refundAmount = rAmount;
+      fee.refundDate = rDate;
+      fee.refundMethod = rMethod || null;
+      fee.refundRemarks = rRemarks || null;
+      persistHoldingFees(holdingFees);
+      hfRefundModal.classList.remove('visible');
+      renderHoldingFees();
+      showToast('Refund of ' + formatPHP(rAmount) + ' recorded.', 'success');
+    });
+
+    /* -------- Mark paid / cancel ---------- */
+    window.markHoldingFeePaid = (id) => {
+      const fee = holdingFees.find(f => f.id === id);
+      if (!fee) return;
+      if (!confirm('Mark this holding fee as paid?')) return;
+      fee.status = 'paid';
+      fee.paymentDate = fee.paymentDate || new Date().toISOString().slice(0, 10);
+      persistHoldingFees(holdingFees);
+      renderHoldingFees();
+      showToast('Holding fee marked as paid.', 'success');
+    };
+
+    window.cancelHoldingFee = (id) => {
+      const fee = holdingFees.find(f => f.id === id);
+      if (!fee) return;
+      if (!confirm('Cancel this holding fee? The record will be kept with a Cancelled status.')) return;
+      fee.status = 'cancelled';
+      fee.remarks = (fee.remarks ? fee.remarks + ' \u2014 ' : '') + 'Cancelled ' + new Date().toISOString().slice(0, 10);
+      persistHoldingFees(holdingFees);
+      renderHoldingFees();
+      showToast('Holding fee cancelled.', 'info');
+    };
+
+    /* -------- Proof viewer -------- */
+    const proofViewerModal = document.getElementById('proofViewerModal');
+    window.viewHoldingFeeProof = (id) => {
+      const fee = holdingFees.find(f => f.id === id);
+      if (!fee || !fee.proof || !fee.proof.dataUrl) return;
+      document.getElementById('proofViewerMeta').textContent = fee.clientName + ' \u2022 ' + fee.orNumber;
+      const bodyEl = document.getElementById('proofViewerBody');
+      bodyEl.innerHTML = fee.proof.isImage
+        ? '<img src="' + fee.proof.dataUrl + '" alt="Proof of payment">'
+        : '<p style="font-size:13px;color:var(--text-secondary);"><strong>' + fee.proof.name + '</strong><br>PDF proofs cannot be previewed inline in this front-end build.</p>';
+      proofViewerModal.classList.add('visible');
+    };
+    document.getElementById('closeProofViewer').addEventListener('click', () => proofViewerModal.classList.remove('visible'));
+    proofViewerModal.addEventListener('click', (e) => { if (e.target === proofViewerModal) proofViewerModal.classList.remove('visible'); });
+
+    renderHoldingFees();
+
+    /* ==========================================
        SIDEBAR TOGGLE
     ========================================== */
     const sidebar = document.getElementById('sidebar');
@@ -2346,16 +3193,24 @@
     });
 
     /* ==========================================
-       PAYMENT POSTING QUEUE VIEW
+       PAYMENT POSTING QUEUE VIEW (split by flow)
     ========================================== */
     function renderPostingQueue() {
-      const body = document.getElementById('postingBody');
-      const queue = myContracts.filter(c => c.status !== 'paid');
-      if (!queue.length) {
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">No pending payments \u2014 all accounts are settled.</td></tr>';
+      const all = myContracts.filter(c => c.status !== 'paid');
+      renderQueueInto('postingBodyDownpayment', all.filter(c => c.paymentType === 'Downpayment'), 'No pending downpayments for your assigned accounts.');
+      renderQueueInto('postingBodyAmortization', all.filter(c => String(c.paymentType).indexOf('Monthly Amortization') === 0), 'No pending monthly amortizations for your assigned accounts.');
+      renderQueueInto('postingBodyPdc', all, 'No pending payments \u2014 all accounts are settled.');
+      lucide.createIcons();
+    }
+
+    function renderQueueInto(bodyId, rows, emptyMsg) {
+      const body = document.getElementById(bodyId);
+      if (!body) return;
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">' + emptyMsg + '</td></tr>';
         return;
       }
-      body.innerHTML = queue.map(c => {
+      body.innerHTML = rows.map(c => {
         const globalIdx = myContracts.indexOf(c);
         const overdue = c.status === 'overdue' ? daysDiff(TODAY, c.dueDate) : 0;
         const daysLabel = overdue > 0 ? `<span class="row-status danger"><span class="dot"></span>${overdue} days overdue</span>`
@@ -2371,7 +3226,6 @@
             <td><button class="btn-action btn-post" onclick="openPaymentModal(${globalIdx})">Post Payment</button></td>
           </tr>`;
       }).join('');
-      lucide.createIcons();
     }
 
     /* ==========================================
@@ -2414,7 +3268,7 @@
     ========================================== */
     const viewTitles = {
       clients:       ['Billing Dashboard', 'Assigned Accounts \u2022 Payment Monitoring'],
-      payments:      ['Payment Posting', 'Unpaid Dues Queue for Your Assigned Accounts'],
+      payments:      ['Payments', 'Holding Fees \u2022 Down Payment \u2022 Monthly Amortization \u2022 PDC / Other'],
       notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
       'new-contract': ['New Contract', 'Enroll a new buyer and create their payment schedule']
     };
@@ -2443,7 +3297,7 @@
         if (subEl) subEl.textContent = `${roleLabel} View \u2022 Assigned Accounts`;
       }
 
-      if (name === 'payments') renderPostingQueue();
+      if (name === 'payments') switchPaymentsTab(localStorage.getItem(paymentsTabKey) || 'holding-fees');
       if (name === 'notifications') renderNotifLog();
 
       sidebar.classList.remove('open');
