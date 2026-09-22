@@ -1369,8 +1369,8 @@
     /* Extra holding-fee status badges */
     .status-badge.pending { background: var(--accent-amber-bg); color: #92400e; }
     .status-badge.pending .dot { background: var(--accent-amber); }
-    .status-badge.refunded { background: #eef2ff; color: #3730a3; }
-    .status-badge.refunded .dot { background: #6366f1; }
+    .status-badge.expired { background: #eef2ff; color: #3730a3; }
+    .status-badge.expired .dot { background: #6366f1; }
     .status-badge.cancelled { background: #f1f5f9; color: #475569; }
     .status-badge.cancelled .dot { background: #94a3b8; }
 
@@ -1468,6 +1468,15 @@
       display: none;
     }
     .client-summary.visible { display: block; }
+
+    .res-preview {
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-main);
+      border: 1px dashed var(--border);
+      font-size: 12px;
+      color: var(--text-primary);
+    }
 
     .modal-card.hf-wide { max-width: 620px; }
 
@@ -1757,9 +1766,9 @@
                 <div class="hf-kpi-sub">Awaiting payment</div>
               </div>
               <div class="hf-kpi rose">
-                <div class="hf-kpi-label">Refunded</div>
-                <div class="hf-kpi-value rose" id="hfKpiRefunded">—</div>
-                <div class="hf-kpi-sub">Total refunded amount</div>
+                <div class="hf-kpi-label">Active Reservations</div>
+                <div class="hf-kpi-value rose" id="hfKpiActive">—</div>
+                <div class="hf-kpi-sub">Within the 30-day window</div>
               </div>
             </div>
 
@@ -1777,8 +1786,8 @@
                   <div class="filter-tabs" id="hfFilterTabs">
                     <button class="filter-tab active" data-hf-filter="all">All <span class="tab-count" id="hfCountAll">0</span></button>
                     <button class="filter-tab" data-hf-filter="pending">Pending <span class="tab-count" id="hfCountPending">0</span></button>
-                    <button class="filter-tab" data-hf-filter="paid">Paid <span class="tab-count" id="hfCountPaid">0</span></button>
-                    <button class="filter-tab" data-hf-filter="refunded">Refunded <span class="tab-count" id="hfCountRefunded">0</span></button>
+                    <button class="filter-tab" data-hf-filter="active">Active <span class="tab-count" id="hfCountActive">0</span></button>
+                    <button class="filter-tab" data-hf-filter="expired">Expired <span class="tab-count" id="hfCountExpired">0</span></button>
                     <button class="filter-tab" data-hf-filter="cancelled">Cancelled <span class="tab-count" id="hfCountCancelled">0</span></button>
                   </div>
                 </div>
@@ -1794,7 +1803,7 @@
                       <th>OR / Reference</th>
                       <th>Proof</th>
                       <th>Status</th>
-                      <th>Refund Info</th>
+                      <th>Reservation</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -2266,6 +2275,10 @@
             </select>
           </div>
           <div class="form-group full">
+            <label>Reservation Validity</label>
+            <div class="res-preview" id="hfValidityPreview">30-day reservation window from the payment date.</div>
+          </div>
+          <div class="form-group full">
             <label>Proof / Receipt</label>
             <input type="file" class="file-input" id="hfProof" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf">
             <small class="file-hint" id="hfProofHint">Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.</small>
@@ -2279,48 +2292,6 @@
       <div class="modal-footer">
         <button class="btn-cancel" id="cancelHfModal">Cancel</button>
         <button class="btn-submit" id="submitHoldingFee">Save Holding Fee</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- REFUND HOLDING FEE MODAL -->
-  <div class="modal-overlay" id="hfRefundModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div>
-          <h3>Record Refund</h3>
-          <p id="hfRefundSub">Refund this holding fee</p>
-        </div>
-        <button class="modal-close" id="closeHfRefundModal">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Refund Amount <span style="color:var(--accent-rose);">*</span></label>
-            <input type="text" id="hfRefundAmount" inputmode="decimal">
-          </div>
-          <div class="form-group">
-            <label>Refund Date <span style="color:var(--accent-rose);">*</span></label>
-            <input type="date" id="hfRefundDate">
-          </div>
-          <div class="form-group full">
-            <label>Refund Method</label>
-            <select id="hfRefundMethod">
-              <option value="">Select channel</option>
-              <option>Bank Wire / Online Deposit</option>
-              <option>Over-the-Counter Cashier</option>
-              <option>GCash / Maya</option>
-            </select>
-          </div>
-          <div class="form-group full">
-            <label>Refund Remarks</label>
-            <input type="text" id="hfRefundRemarks" placeholder="Optional notes">
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-cancel" id="cancelHfRefundModal">Cancel</button>
-        <button class="btn-submit" id="submitHfRefund" style="background:#6366f1;">Confirm Refund</button>
       </div>
     </div>
   </div>
@@ -2942,26 +2913,80 @@
     function seedHoldingFees() {
       if (readHoldingFees()) return;
       persistHoldingFees([
-        { id: 1, contractId: 7, clientName: 'Marzia Hernandez', propertyAddress: 'Las Piñas', amount: 50000, paymentMethod: 'GCash / Maya', paymentDate: '2026-09-08', orNumber: 'HF-2026-00012', status: 'paid', proof: null, refundAmount: null, refundDate: null, refundMethod: null, refundRemarks: null, remarks: 'Initial holding for Block 4 Lot 12.', createdAt: '2026-09-08T09:00:00' },
-        { id: 2, contractId: null, clientName: 'Diana Santos', propertyAddress: 'Block 2 Lot 8, Greenfield Heights', amount: 25000, paymentMethod: 'Bank Wire / Online Deposit', paymentDate: '2026-09-14', orNumber: 'HF-2026-00019', status: 'pending', proof: null, refundAmount: null, refundDate: null, refundMethod: null, refundRemarks: null, remarks: 'Prospective buyer \u2014 reservation on unit 2F.', createdAt: '2026-09-14T10:30:00' },
-        { id: 3, contractId: 8, clientName: 'Jimmy Fuentes', propertyAddress: 'Laguna', amount: 50000, paymentMethod: 'Over-the-Counter Cashier', paymentDate: '2026-09-10', orNumber: 'HF-2026-00007', status: 'refunded', proof: null, refundAmount: 50000, refundDate: '2026-09-16', refundMethod: 'Bank Wire / Online Deposit', refundRemarks: 'Buyer withdrew application.', createdAt: '2026-09-10T14:00:00' }
+        { id: 1, contractId: 7, clientName: 'Marzia Hernandez', propertyAddress: 'Las Piñas', amount: 50000, paymentMethod: 'GCash / Maya', paymentDate: '2026-09-08', orNumber: 'HF-2026-00012', status: 'paid', proof: null, remarks: 'Initial holding for Block 4 Lot 12.', createdAt: '2026-09-08T09:00:00' },
+        { id: 2, contractId: null, clientName: 'Diana Santos', propertyAddress: 'Block 2 Lot 8, Greenfield Heights', amount: 25000, paymentMethod: 'Bank Wire / Online Deposit', paymentDate: '2026-09-14', orNumber: 'HF-2026-00019', status: 'pending', proof: null, remarks: 'Prospective buyer \u2014 reservation on unit 2F.', createdAt: '2026-09-14T10:30:00' },
+        { id: 3, contractId: 8, clientName: 'Jimmy Fuentes', propertyAddress: 'Laguna', amount: 50000, paymentMethod: 'Over-the-Counter Cashier', paymentDate: '2026-08-10', orNumber: 'HF-2026-00007', status: 'paid', proof: null, remarks: 'Reservation window lapsed before unit turnover.', createdAt: '2026-08-10T14:00:00' }
       ]);
     }
 
     seedHoldingFees();
 
     let holdingFees = readHoldingFees() || [];
+    holdingFees = holdingFees.map(f => {
+      const n = Object.assign({}, f);
+      if (n.status === 'refunded') n.status = 'paid';
+      delete n.refundAmount; delete n.refundDate; delete n.refundMethod; delete n.refundRemarks;
+      return n;
+    });
+    persistHoldingFees(holdingFees);
     let hfActiveFilter = 'all';
 
     const holdingFeeBody = document.getElementById('holdingFeeBody');
     const hfSearchInput = document.getElementById('hfSearch');
     const hfFilterTabs = document.querySelectorAll('#hfFilterTabs .filter-tab');
 
-    const hfStatusMeta = {
-      paid:      { label: 'Paid',      cls: 'paid' },
-      pending:   { label: 'Pending',   cls: 'pending' },
-      refunded:  { label: 'Refunded',  cls: 'refunded' },
-      cancelled: { label: 'Cancelled', cls: 'cancelled' }
+    const RESERVATION_DAYS = 30;
+
+    const getExpiryDate = (fee) => {
+      if (!fee.paymentDate) return null;
+      const d = new Date(fee.paymentDate);
+      if (isNaN(d.getTime())) return null;
+      d.setDate(d.getDate() + RESERVATION_DAYS);
+      return d;
+    };
+
+    const daysLeft = (fee) => {
+      const exp = getExpiryDate(fee);
+      if (!exp) return null;
+      return Math.ceil((exp.getTime() - Date.now()) / 86400000);
+    };
+
+    const getHfDerived = (fee) => {
+      if (fee.status === 'cancelled') return { key: 'cancelled', label: 'Cancelled', cls: 'cancelled' };
+      if (fee.status === 'pending') return { key: 'pending', label: 'Pending', cls: 'pending' };
+      if (fee.status === 'paid') {
+        const dl = daysLeft(fee);
+        if (dl !== null && dl >= 0) return { key: 'active', label: 'Active', cls: 'paid' };
+        return { key: 'expired', label: 'Expired', cls: 'expired' };
+      }
+      return { key: 'pending', label: 'Pending', cls: 'pending' };
+    };
+
+    const getReservationInfo = (fee) => {
+      const meta = getHfDerived(fee);
+      if (fee.status === 'paid') {
+        const exp = getExpiryDate(fee);
+        const dl = daysLeft(fee);
+        const validUntil = exp ? formatDate(exp) : '\u2014';
+        if (!dl) return `<span style="font-size:11px;color:var(--text-muted);">\u2014</span>`;
+        if (dl > 0 && dl <= 7) {
+          return `<small style="font-size:11px;color:var(--accent-rose);font-weight:700;">${dl} day${dl === 1 ? '' : 's'} left</small>
+                  <small style="display:block;font-size:10px;color:var(--text-muted);">valid until ${validUntil}</small>`;
+        }
+        if (dl > 0) {
+          return `<small style="font-size:11px;color:#059669;font-weight:700;">${dl} days left</small>
+                  <small style="display:block;font-size:10px;color:var(--text-muted);">valid until ${validUntil}</small>`;
+        }
+        if (dl === 0) {
+          return `<small style="font-size:11px;color:var(--accent-rose);font-weight:700;">Last day today</small>
+                  <small style="display:block;font-size:10px;color:var(--text-muted);">valid until ${validUntil}</small>`;
+        }
+        return `<small style="font-size:11px;color:var(--text-muted);font-weight:700;">Expired ${Math.abs(dl)} day${Math.abs(dl) === 1 ? '' : 's'} ago</small>
+                <small style="display:block;font-size:10px;color:var(--text-muted);">valid until ${validUntil}</small>`;
+      }
+      return meta.key === 'cancelled'
+        ? '<span style="font-size:11px;color:var(--text-muted);">Cancelled</span>'
+        : '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
     };
 
     const getProofMarkup = (fee) => {
@@ -2972,17 +2997,8 @@
       return `<span class="proof-wrap">${prev}<button class="proof-remove" type="button" title="Remove proof" onclick="removeHoldingFeeProof(${fee.id})"><i data-lucide="x"></i></button></span>`;
     };
 
-    const getRefundInfo = (fee) => {
-      if (fee.status === 'refunded' && fee.refundDate) {
-        return `<small style="font-size:11px;color:#3730a3;font-weight:700;">${formatPHP(fee.refundAmount)}</small>
-                <small style="display:block;font-size:10px;color:var(--text-muted);">${formatDate(new Date(fee.refundDate))} \u00b7 ${fee.refundMethod || '\u2014'}</small>`;
-      }
-      return fee.status === 'cancelled'
-        ? '<span style="font-size:11px;color:var(--text-muted);">Cancelled</span>'
-        : '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
-    };
-
     const hfActionsMarkup = (fee) => {
+      const meta = getHfDerived(fee);
       const at = (expr) => `onclick="${expr}"`;
       if (fee.status === 'pending' || fee.status === 'paid') {
         const markPaid = fee.status === 'pending'
@@ -2990,8 +3006,7 @@
           : '';
         return `<div class="action-btns">
           ${markPaid}
-          <button class="btn-action btn-print" ${at(`openHfRefundModal(${fee.id})`)}>Refund</button>
-          <button class="btn-action btn-remind" ${at(`cancelHoldingFee(${fee.id})`)} style="background:#e2e8f0;border-color:#e2e8f0;color:#475569;">Cancel</button>
+          <button class="btn-action btn-remind" ${at(`cancelHoldingFee(${fee.id})`)} style="background:#e2e8f0;border-color:#e2e8f0;color:#475569;" title="${meta.key === 'expired' ? 'Reservation window lapsed \u2014 fee is forfeited' : 'Cancel reservation \u2014 fee is non-refundable'}">Cancel</button>
         </div>`;
       }
       return '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
@@ -2999,11 +3014,11 @@
 
     function renderHoldingFeeKPIs() {
       const collected = holdingFees.filter(f => f.status === 'paid').reduce((s, f) => s + Number(f.amount), 0);
-      const refunded = holdingFees.filter(f => f.status === 'refunded').reduce((s, f) => s + Number(f.refundAmount || 0), 0);
+      const active = holdingFees.filter(f => getHfDerived(f).key === 'active').length;
       document.getElementById('hfKpiCollected').textContent = formatPHP(collected);
       document.getElementById('hfKpiTotal').textContent = holdingFees.length;
       document.getElementById('hfKpiPending').textContent = holdingFees.filter(f => f.status === 'pending').length;
-      document.getElementById('hfKpiRefunded').textContent = formatPHP(refunded);
+      document.getElementById('hfKpiActive').textContent = active;
     }
 
     function renderHoldingFees() {
@@ -3011,19 +3026,23 @@
       const s = hfSearchInput ? hfSearchInput.value.toLowerCase().trim() : '';
       const rows = holdingFees.filter(f => {
         const ms = !s || String(f.clientName).toLowerCase().includes(s) || String(f.orNumber || '').toLowerCase().includes(s) || String(f.propertyAddress || '').toLowerCase().includes(s);
-        const mf = hfActiveFilter === 'all' || f.status === hfActiveFilter;
+        const dk = getHfDerived(f).key;
+        const mf = hfActiveFilter === 'all' || dk === hfActiveFilter;
         return ms && mf;
       }).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 
       const counts = {};
-      holdingFees.forEach(f => { counts[f.status] = (counts[f.status] || 0) + 1; });
+      holdingFees.forEach(f => {
+        const dk = getHfDerived(f).key;
+        counts[dk] = (counts[dk] || 0) + 1;
+      });
 
       if (holdingFeeBody) {
         if (!rows.length) {
           holdingFeeBody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><i data-lucide="receipt" style="width:40px;height:40px;"></i><strong>No holding fee records</strong><small>Record your first holding fee using the button above.</small></div></td></tr>';
         } else {
           holdingFeeBody.innerHTML = rows.map(f => {
-            const meta = hfStatusMeta[f.status] || { label: String(f.status || 'pending'), cls: 'pending' };
+            const meta = getHfDerived(f) || { label: String(f.status || 'pending'), cls: 'pending' };
             return `<tr>
               <td style="white-space:nowrap;font-size:12px;">${f.paymentDate ? formatDate(new Date(f.paymentDate)) : '\u2014'}</td>
               <td><div class="client-cell"><strong>${f.clientName}</strong><small>${f.propertyAddress || '\u2014'}</small></div></td>
@@ -3032,7 +3051,7 @@
               <td><span class="contract-id">${f.orNumber || '\u2014'}</span></td>
               <td>${getProofMarkup(f)}</td>
               <td><span class="status-badge ${meta.cls}"><span class="dot"></span>${meta.label}</span></td>
-              <td>${getRefundInfo(f)}</td>
+              <td>${getReservationInfo(f)}</td>
               <td>${hfActionsMarkup(f)}</td>
             </tr>`;
           }).join('');
@@ -3042,8 +3061,8 @@
 
       document.getElementById('hfCountAll').textContent = holdingFees.length;
       document.getElementById('hfCountPending').textContent = counts.pending || 0;
-      document.getElementById('hfCountPaid').textContent = counts.paid || 0;
-      document.getElementById('hfCountRefunded').textContent = counts.refunded || 0;
+      document.getElementById('hfCountActive').textContent = counts.active || 0;
+      document.getElementById('hfCountExpired').textContent = counts.expired || 0;
       document.getElementById('hfCountCancelled').textContent = counts.cancelled || 0;
     }
 
@@ -3107,6 +3126,35 @@
       hfClientSelect.innerHTML = opts.join('');
     }
 
+    function updateHfValidity() {
+      const el = document.getElementById('hfValidityPreview');
+      if (!el) return;
+      const dateEl = document.getElementById('hfDate');
+      if (!dateEl || !dateEl.value) {
+        el.textContent = '30-day reservation window from the payment date.';
+        el.style.color = '';
+        return;
+      }
+      const d = new Date(dateEl.value);
+      if (isNaN(d.getTime())) {
+        el.textContent = 'Enter a valid payment date.';
+        el.style.color = 'var(--accent-rose)';
+        return;
+      }
+      d.setDate(d.getDate() + RESERVATION_DAYS);
+      const diff = Math.ceil((d.getTime() - Date.now()) / 86400000);
+      if (diff > 0) {
+        el.textContent = 'Valid for reservation until ' + formatDate(d) + ' (' + diff + ' day' + (diff === 1 ? '' : 's') + ' from today).';
+        el.style.color = '#059669';
+      } else if (diff === 0) {
+        el.textContent = 'Expires today (' + formatDate(d) + ') \u2014 will lapse at the end of the day.';
+        el.style.color = 'var(--accent-rose)';
+      } else {
+        el.textContent = 'Window already lapsed ' + Math.abs(diff) + ' day' + (Math.abs(diff) === 1 ? '' : 's') + ' ago \u2014 reservation will show as Expired.';
+        el.style.color = 'var(--accent-rose)';
+      }
+    }
+
     function resetHfModal() {
       ['hfClientSelect', 'hfClientName', 'hfPropertyAddress', 'hfAmount', 'hfMethod', 'hfOR', 'hfRemarks'].forEach(id => {
         const el = document.getElementById(id);
@@ -3123,6 +3171,7 @@
       if (hfProofInput) { hfProofInput.value = ''; }
       hfProofData = null;
       setHfProofHint('Optional. JPEG / PNG / GIF / WebP / PDF, up to 600 KB.', '');
+      updateHfValidity();
     }
 
     window.openHfModal = () => {
@@ -3135,6 +3184,9 @@
     document.getElementById('closeHfModal').addEventListener('click', () => hfModal.classList.remove('visible'));
     document.getElementById('cancelHfModal').addEventListener('click', () => hfModal.classList.remove('visible'));
     hfModal.addEventListener('click', (e) => { if (e.target === hfModal) hfModal.classList.remove('visible'); });
+
+    const hfDateInput = document.getElementById('hfDate');
+    if (hfDateInput) hfDateInput.addEventListener('change', updateHfValidity);
 
     hfClientSelect.addEventListener('change', () => {
       const val = hfClientSelect.value;
@@ -3225,10 +3277,6 @@
         orNumber: orNum,
         status: status,
         proof: hfProofData,
-        refundAmount: null,
-        refundDate: null,
-        refundMethod: null,
-        refundRemarks: null,
         remarks: remarks,
         createdAt: new Date().toISOString()
       };
@@ -3251,47 +3299,6 @@
           window.portalStore.savePortal(fee.contractId, portalData);
         }
       }
-    });
-
-    /* -------- Refund modal -------- */
-    const hfRefundModal = document.getElementById('hfRefundModal');
-    let refundTargetId = null;
-
-    window.openHfRefundModal = (id) => {
-      const fee = holdingFees.find(f => f.id === id);
-      if (!fee) return;
-      refundTargetId = id;
-      document.getElementById('hfRefundSub').textContent = fee.clientName + ' \u2014 ' + formatPHP(fee.amount);
-      document.getElementById('hfRefundAmount').value = Number(fee.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      document.getElementById('hfRefundDate').value = new Date().toISOString().slice(0, 10);
-      document.getElementById('hfRefundMethod').value = '';
-      document.getElementById('hfRefundRemarks').value = '';
-      hfRefundModal.classList.add('visible');
-    };
-
-    document.getElementById('closeHfRefundModal').addEventListener('click', () => hfRefundModal.classList.remove('visible'));
-    document.getElementById('cancelHfRefundModal').addEventListener('click', () => hfRefundModal.classList.remove('visible'));
-    hfRefundModal.addEventListener('click', (e) => { if (e.target === hfRefundModal) hfRefundModal.classList.remove('visible'); });
-
-    document.getElementById('submitHfRefund').addEventListener('click', () => {
-      const fee = holdingFees.find(f => f.id === refundTargetId);
-      if (!fee) return;
-      const rAmount = parseFloat(String(document.getElementById('hfRefundAmount').value || '').replace(/[^\d.]/g, ''));
-      const rDate = document.getElementById('hfRefundDate').value;
-      const rMethod = document.getElementById('hfRefundMethod').value;
-      const rRemarks = document.getElementById('hfRefundRemarks').value.trim();
-      if (isNaN(rAmount) || rAmount <= 0) { showToast('Enter a valid refund amount.', 'info'); return; }
-      if (rAmount > Number(fee.amount)) { showToast('Refund cannot exceed the holding fee amount.', 'info'); return; }
-      if (!rDate) { showToast('Select the refund date.', 'info'); return; }
-      fee.status = 'refunded';
-      fee.refundAmount = rAmount;
-      fee.refundDate = rDate;
-      fee.refundMethod = rMethod || null;
-      fee.refundRemarks = rRemarks || null;
-      persistHoldingFees(holdingFees);
-      hfRefundModal.classList.remove('visible');
-      renderHoldingFees();
-      showToast('Refund of ' + formatPHP(rAmount) + ' recorded.', 'success');
     });
 
     /* -------- Mark paid / cancel ---------- */
@@ -3319,7 +3326,7 @@
     window.cancelHoldingFee = (id) => {
       const fee = holdingFees.find(f => f.id === id);
       if (!fee) return;
-      if (!confirm('Cancel this holding fee? The record will be kept with a Cancelled status.')) return;
+      if (!confirm('Cancel this reservation? Holding fees are non-refundable \u2014 the record will be kept with a Cancelled status.')) return;
       fee.status = 'cancelled';
       fee.remarks = (fee.remarks ? fee.remarks + ' \u2014 ' : '') + 'Cancelled ' + new Date().toISOString().slice(0, 10);
       persistHoldingFees(holdingFees);
