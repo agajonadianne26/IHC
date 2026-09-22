@@ -1,14 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   /* ==========================================
-     MOCK USERS
+     ORIGIN GUARD (safety net for the same guard in log in.html)
+     Login must happen on the XAMPP origin: the lookup API, the session
+     (localStorage) and every dashboard redirect assume http://localhost.
   ========================================== */
-  const MOCK_USERS = [
-    { id: 1, name: 'Jeremy Cantalejo', email: 'admin@ihc.com',  password: 'admin123', role: 'admin', avatar: 'JC' },
-    { id: 2, name: 'Ana Reyes',        email: 'ana@ihc.com',    password: 'clerk123', role: 'clerk', avatar: 'AR', officerId: 2 },
-    { id: 3, name: 'Mark Cruz',        email: 'mark@ihc.com',   password: 'clerk123', role: 'clerk', avatar: 'MC', officerId: 3 },
-    { id: 4, name: 'Jessica Lim',      email: 'jessica@ihc.com', password: 'clerk123', role: 'clerk', avatar: 'JL', officerId: 4 }
-  ];
+  const API_BASE = 'http://localhost/ihc-system';
+  if (window.location.origin !== 'http://localhost') {
+    window.location.replace(API_BASE + '/log%20in.html' + window.location.search + window.location.hash);
+    return;
+  }
+
+  /* ==========================================
+     AUTHENTICATION — php/api_auth.php verifies ALL roles against MySQL:
+       staff  -> ihc.officers (bcrypt password_hash, migration 004)
+       client -> ihc.client_accounts (bcrypt, migration 003)
+     The session mechanism is unchanged: everything below shares the
+     IHC_USER localStorage key on this origin.
+  ========================================== */
 
   /* ==========================================
      SESSION CHECK — skip login if already authed
@@ -69,29 +78,54 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      // 1) Admin / clerk mock users (staff portal)
-      const user = MOCK_USERS.find(
-        u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-      );
+      // 1) Verify the credentials server-side (single endpoint for admin,
+      //    clerk and client). Absolute URL + explicit failure handling: a
+      //    network/parse problem must NEVER be reported as bad credentials.
+      let authResult = null; // { ok:true, user } | { ok:false, message } | { error:'unreachable' }
+      try {
+        const res = await fetch(API_BASE + '/php/api_auth.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (data && data.success && data.user) {
+          authResult = { ok: true, user: data.user };
+        } else {
+          authResult = { ok: false, message: (data && data.message) || 'Invalid email or password. Please try again.' };
+        }
+      } catch (authErr) {
+        console.error('Login request failed:', authErr);
+        authResult = { error: 'unreachable' };
+      }
 
-      if (user) {
-        const { password: _, ...safeUser } = user;
-        localStorage.setItem('IHC_USER', JSON.stringify(safeUser));
+      if (authResult.ok) {
+        const u = authResult.user;
+        const session = {
+          role: u.role,
+          name: u.name,
+          email: u.email || email,
+          avatar: u.avatar || email.charAt(0).toUpperCase()
+        };
+        if (u.officerId != null) session.officerId = u.officerId;
+        if (u.contractId != null) session.contractId = Number(u.contractId);
+        localStorage.setItem('IHC_USER', JSON.stringify(session));
         errorMessage.classList.add('hidden');
-        redirectByRole(user.role);
+        redirectByRole(u.role);
         return;
       }
 
-      // 2) Client portal accounts (front-end store, database-backed later)
-      const client = window.portalStore && portalStore.findClientByLogin(email, password);
-
-      if (client) {
-        const initials = client.name.split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase();
+      // 2) The server did not grant access (or was unreachable): try the
+      //    localStorage demo seeds so the demo client credentials printed on
+      //    this page keep working offline / in demo mode.
+      const demoClient = window.portalStore && portalStore.findClientByLogin(email, password);
+      if (demoClient) {
+        const initials = demoClient.name.split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase();
         localStorage.setItem('IHC_USER', JSON.stringify({
           role: portalStore.CLIENT_ROLE,
-          name: client.name,
-          email: client.email,
-          contractId: Number(client.contractId),
+          name: demoClient.name,
+          email: demoClient.email,
+          contractId: Number(demoClient.contractId),
           avatar: initials
         }));
         errorMessage.classList.add('hidden');
@@ -99,7 +133,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      showError('Invalid email or password. Please try again.');
+      if (authResult.error === 'unreachable') {
+        showError('Could not reach the login server at ' + API_BASE + '. Make sure XAMPP Apache is running, then try again.');
+        return;
+      }
+      showError(authResult.message || 'Invalid email or password. Please try again.');
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;

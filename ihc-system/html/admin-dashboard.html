@@ -792,6 +792,12 @@
     }
     .status-badge.overdue .status-dot { background: var(--accent-rose); }
 
+    .status-badge.current {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .status-badge.current .status-dot { background: var(--accent-blue); }
+
     /* Notification badges */
     .notif-badge {
       display: inline-flex;
@@ -1327,7 +1333,7 @@
               <div class="kpi-icon emerald"><i data-lucide="trending-up" style="width:20px;height:20px;"></i></div>
             </div>
             <div class="kpi-value emerald" id="kpiCollected">₱0.00</div>
-            <div class="kpi-sub"><span class="kpi-trend up">↑ 12.5%</span> vs last month</div>
+            <div class="kpi-sub"><span class="kpi-trend up" id="kpiTrend">↑ 0%</span> vs last month</div>
           </div>
 
           <div class="kpi-card amber">
@@ -1594,144 +1600,19 @@
     document.getElementById('headerProfileName').textContent = currentUser.name;
 
     /* ==========================================
-       MOCK DATA — 12 Contracts
+       LIVE DATA - MySQL via php/api_admin.php
+       loadAdminData() below fills these asynchronously.
     ========================================== */
-    const TODAY = new Date('2026-09-09');
+    const API_BASE = 'http://localhost/ihc-system';
+    const TODAY = new Date();
+    TODAY.setHours(0, 0, 0, 0);
 
-    const contracts = [
-      {
-        id: 'IHC-2026-0041',
-        client: 'Juan Dela Cruz',
-        property: 'Blk 5 Lot 12, Phase 3',
-        paymentType: 'Monthly Amortization #8',
-        amount: 15500,
-        dueDate: new Date('2026-09-12'),
-        status: 'due-soon',
-        notification: 'sent',
-        clerk: 'Ana Reyes'
-      },
-      {
-        id: 'IHC-2026-0023',
-        client: 'Maria Santos',
-        property: 'Blk 2 Lot 7, Phase 1',
-        paymentType: 'Downpayment #2',
-        amount: 50000,
-        dueDate: new Date('2026-09-05'),
-        status: 'overdue',
-        notification: 'sent',
-        clerk: 'Ana Reyes'
-      },
-      {
-        id: 'IHC-2026-0067',
-        client: 'Pedro Mendoza',
-        property: 'Blk 8 Lot 3, Phase 4',
-        paymentType: 'Monthly Amortization #5',
-        amount: 15500,
-        dueDate: new Date('2026-08-28'),
-        status: 'paid',
-        notification: 'sent',
-        clerk: 'Mark Cruz'
-      },
-      {
-        id: 'IHC-2026-0089',
-        client: 'Ana Villanueva',
-        property: 'Blk 11 Lot 22, Phase 2',
-        paymentType: 'Monthly Amortization #3',
-        amount: 18200,
-        dueDate: new Date('2026-09-11'),
-        status: 'due-soon',
-        notification: 'pending',
-        clerk: 'Jessica Lim'
-      },
-      {
-        id: 'IHC-2026-0102',
-        client: 'Roberto Garcia',
-        property: 'Blk 3 Lot 19, Phase 1',
-        paymentType: 'Monthly Amortization #12',
-        amount: 15500,
-        dueDate: new Date('2026-08-12'),
-        status: 'overdue',
-        notification: 'failed',
-        clerk: 'Ana Reyes'
-      },
-      {
-        id: 'IHC-2026-0055',
-        client: 'Carmen Reyes',
-        property: 'Blk 7 Lot 5, Phase 3',
-        paymentType: 'Monthly Amortization #10',
-        amount: 16800,
-        dueDate: new Date('2026-09-01'),
-        status: 'paid',
-        notification: 'sent',
-        clerk: 'Mark Cruz'
-      },
-      {
-        id: 'IHC-2026-0034',
-        client: 'Ricardo Bautista',
-        property: 'Blk 1 Lot 14, Phase 1',
-        paymentType: 'Downpayment #1',
-        amount: 75000,
-        dueDate: new Date('2026-09-02'),
-        status: 'paid',
-        notification: 'sent',
-        clerk: 'Jessica Lim'
-      },
-      {
-        id: 'IHC-2026-0078',
-        client: 'Sofia Torres',
-        property: 'Blk 9 Lot 8, Phase 4',
-        paymentType: 'Monthly Amortization #6',
-        amount: 15500,
-        dueDate: new Date('2026-09-10'),
-        status: 'due-soon',
-        notification: 'sent',
-        clerk: 'Ana Reyes'
-      },
-      {
-        id: 'IHC-2026-0091',
-        client: 'Miguel Flores',
-        property: 'Blk 6 Lot 30, Phase 2',
-        paymentType: 'Monthly Amortization #9',
-        amount: 16800,
-        dueDate: new Date('2026-08-30'),
-        status: 'paid',
-        notification: 'sent',
-        clerk: 'Mark Cruz'
-      },
-      {
-        id: 'IHC-2026-0045',
-        client: 'Elena Ramos',
-        property: 'Blk 4 Lot 2, Phase 1',
-        paymentType: 'Monthly Amortization #4',
-        amount: 15500,
-        dueDate: new Date('2026-09-03'),
-        status: 'paid',
-        notification: 'sent',
-        clerk: 'Jessica Lim'
-      },
-      {
-        id: 'IHC-2026-0110',
-        client: 'Jose Aquino',
-        property: 'Blk 10 Lot 16, Phase 3',
-        paymentType: 'Downpayment #3',
-        amount: 40000,
-        dueDate: new Date('2026-09-13'),
-        status: 'due-soon',
-        notification: 'pending',
-        clerk: 'Ana Reyes'
-      },
-      {
-        id: 'IHC-2026-0073',
-        client: 'Teresa Lim',
-        property: 'Blk 12 Lot 9, Phase 4',
-        paymentType: 'Monthly Amortization #7',
-        amount: 18200,
-        dueDate: new Date('2026-08-20'),
-        status: 'overdue',
-        notification: 'sent',
-        clerk: 'Mark Cruz'
-      }
-    ];
+    let contracts = [];            // Payment Monitoring ledger rows
+    let registerContracts = [];    // Contracts Register rows
+    let notificationsData = [];    // Notifications Log rows
+    let adminKpis = null;          // KPI cards from the server
+    let cashFlowChartInstance = null;
+    let agingChartInstance = null;
 
     /* ==========================================
        HELPERS
@@ -1763,24 +1644,37 @@
     };
 
     /* ==========================================
-       KPI CARDS
+       KPI CARDS — filled from server-computed kpis
     ========================================== */
-    const totalExpected = contracts.reduce((s, c) => s + c.amount, 0);
-    const totalCollected = contracts.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
-    const efficiency = totalExpected > 0 ? ((totalCollected / totalExpected) * 100).toFixed(1) : 0;
-    const dueSoonCount = contracts.filter(c => c.status === 'due-soon').length;
+    function updateKPIs() {
+      if (!adminKpis) return;
+      document.getElementById('kpiExpected').textContent = formatPHP(adminKpis.expected);
+      document.getElementById('kpiCollected').textContent = formatPHP(adminKpis.collectedMonth);
+      document.getElementById('kpiEfficiency').textContent = adminKpis.efficiency + '%';
+      document.getElementById('kpiDueSoon').textContent = adminKpis.dueSoon;
 
-    document.getElementById('kpiExpected').textContent = formatPHP(totalExpected);
-    document.getElementById('kpiCollected').textContent = formatPHP(totalCollected);
-    document.getElementById('kpiEfficiency').textContent = efficiency + '%';
-    document.getElementById('kpiDueSoon').textContent = dueSoonCount;
+      const trendEl = document.getElementById('kpiTrend');
+      if (trendEl) {
+        const cur = Number(adminKpis.collectedMonth) || 0;
+        const prev = Number(adminKpis.collectedPrevMonth) || 0;
+        trendEl.classList.remove('up', 'down');
+        if (prev > 0) {
+          const pct = Math.round(((cur - prev) / prev) * 1000) / 10;
+          trendEl.textContent = (pct >= 0 ? '\u2191 ' : '\u2193 ') + Math.abs(pct) + '%';
+          trendEl.classList.add(pct >= 0 ? 'up' : 'down');
+        } else {
+          trendEl.textContent = cur > 0 ? '\u2191 New this month' : 'no change';
+          trendEl.classList.add('up');
+        }
+      }
+    }
 
     /* ==========================================
        CHARTS
     ========================================== */
     // Cash Flow Chart
     const cashFlowCtx = document.getElementById('cashFlowChart').getContext('2d');
-    new Chart(cashFlowCtx, {
+    cashFlowChartInstance = new Chart(cashFlowCtx, {
       type: 'bar',
       data: {
         labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'],
@@ -1841,22 +1735,16 @@
       }
     });
 
-    // Aging Chart
+    // Aging Chart — buckets applied by applyAging() once live rows arrive
     const agingCtx = document.getElementById('agingChart').getContext('2d');
-    const agingData = {
-      current: contracts.filter(c => c.status === 'paid' || (c.status === 'due-soon' && daysDiff(c.dueDate, TODAY) <= 0)).length,
-      '1to30': contracts.filter(c => c.status === 'due-soon' || (c.status === 'overdue' && daysDiff(TODAY, c.dueDate) <= 30)).length,
-      '31to60': contracts.filter(c => c.status === 'overdue' && daysDiff(TODAY, c.dueDate) > 12 && daysDiff(TODAY, c.dueDate) <= 60).length,
-      '90plus': contracts.filter(c => c.status === 'overdue' && daysDiff(TODAY, c.dueDate) > 60).length
-    };
 
-    new Chart(agingCtx, {
+    agingChartInstance = new Chart(agingCtx, {
       type: 'bar',
       data: {
         labels: ['Current', '1–30 Days', '31–60 Days', '61–90 Days', '90+ Days'],
         datasets: [{
           label: 'Accounts',
-          data: [5, 4, 2, 1, 0],
+          data: [0, 0, 0, 0, 0],
           backgroundColor: [
             'rgba(16,185,129,0.8)',
             'rgba(251,191,36,0.8)',
@@ -2013,9 +1901,10 @@
       });
     });
 
-    // Initial render
+    // Initial render (empty until loadAdminData fills contracts), then load
     renderTable(contracts);
     updateCounts();
+    loadAdminData();
 
     /* ==========================================
        REMINDER TOAST
@@ -2043,6 +1932,7 @@
         if (data.success) {
           row.notification = 'sent';
           showToast(data.message, 'success');
+          applyFilters(); // refresh the notification badge in the table
         } else {
           showToast(data.message || 'Failed to send reminder', 'info');
         }
@@ -2189,19 +2079,26 @@
     ========================================== */
     function renderContracts() {
       const body = document.getElementById('contractsBody');
-      const statusMap = { 'paid': 'ok', 'due-soon': 'warn', 'overdue': 'danger' };
-      body.innerHTML = contracts.map(c => {
+      const statusMap = { 'paid': 'ok', 'due-soon': 'warn', 'overdue': 'danger', 'current': 'ok' };
+      if (!registerContracts.length) {
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">No contracts found in the database.</td></tr>';
+        return;
+      }
+      body.innerHTML = registerContracts.map(c => {
         const st = c.status;
-        const stLabel = st === 'paid' ? 'Current / Settled' : (st === 'overdue' ? 'Overdue' : 'Due Soon');
+        const stLabel = st === 'paid' ? 'Current / Settled'
+          : st === 'overdue' ? 'Overdue'
+          : st === 'due-soon' ? 'Due Soon'
+          : 'Active / On Track';
         return `
           <tr>
             <td><span class="contract-id">${c.id}</span></td>
             <td class="client-cell"><strong>${c.client}</strong></td>
             <td class="clerk-cell">${c.property}</td>
-            <td class="amount-due">${formatPHP(c.amount)}</td>
-            <td class="clerk-cell" style="color:var(--accent-emerald); font-weight:600;">${formatPHP(Math.round(c.amount * 0.2))}</td>
-            <td style="color:var(--accent-blue); font-weight:600;">${formatPHP(Math.round(c.amount * 0.8))}</td>
-            <td class="clerk-cell">12 Months</td>
+            <td class="amount-due">${formatPHP(c.tcp)}</td>
+            <td class="clerk-cell" style="color:var(--accent-emerald); font-weight:600;">${formatPHP(c.downpayment)}</td>
+            <td style="color:var(--accent-blue); font-weight:600;">${formatPHP(c.outstanding)}</td>
+            <td class="clerk-cell">${c.terms} Months</td>
             <td><span class="row-status ${statusMap[st] || 'ok'}"><span class="dot"></span>${stLabel}</span></td>
           </tr>`;
       }).join('');
@@ -2224,34 +2121,42 @@
       renderSchedule(sel.value);
     }
 
-    function renderSchedule(contractId) {
-      const row = contracts.find(c => c.id === contractId);
+    async function renderSchedule(contractId) {
       const body = document.getElementById('scheduleBody');
-      if (!row) {
+      if (!contractId) {
         body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">Select a contract to view its schedule.</td></tr>';
         return;
       }
-      const base = Math.round((row.amount) / 8 * 100) / 100;
-      const statusMap = { 'paid': 'ok', 'due-soon': 'warn', 'overdue': 'danger' };
-      const notifMap = { 'sent': 'SMS & Email Sent', 'pending': 'Pending', 'failed': 'Failed' };
-      const rows = [];
-      for (let i = 1; i <= 8; i++) {
-        const due = new Date(row.dueDate.getFullYear(), row.dueDate.getMonth() - (8 - i), row.dueDate.getDate());
-        const isLast = i === 8;
-        const amt = isLast ? Math.round((row.amount - base * 7) * 100) / 100 : base;
-        const paid = i < 8;
-        const st = paid ? 'paid' : row.status;
-        const notif = paid ? 'sent' : (row.notification === 'failed' ? 'failed' : (st === 'paid' ? 'sent' : 'pending'));
-        rows.push(`<tr>
-          <td class="clerk-cell"><strong>Installment #${i}</strong></td>
-          <td style="white-space:nowrap; font-size:12px; font-weight:600;">${formatDate(due)}</td>
-          <td class="amount-due">${formatPHP(amt)}</td>
-          <td><span class="row-status ${statusMap[st] || 'ok'}"><span class="dot"></span>${st === 'paid' ? 'Cleared & Posted' : (st === 'overdue' ? 'Overdue' : 'Due Soon')}</span></td>
-          <td><span class="notif-badge ${notif}">${notifMap[notif]}</span></td>
-        </tr>`);
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">Loading schedule&hellip;</td></tr>';
+      try {
+        const res = await fetch(API_BASE + '/php/api_admin.php?action=schedule&contractId=' + encodeURIComponent(contractId));
+        const data = await res.json();
+        if (!data || !data.success) throw new Error((data && data.message) || 'Load failed');
+
+        const statusMap = { 'paid': 'ok', 'due-soon': 'warn', 'overdue': 'danger', 'current': 'ok' };
+        const notifMap = { 'sent': 'SMS & Email Sent', 'pending': 'Pending', 'failed': 'Failed' };
+        const statusLabel = (st) => st === 'paid' ? 'Cleared & Posted'
+          : st === 'overdue' ? 'Overdue'
+          : st === 'due-soon' ? 'Due Soon'
+          : 'Scheduled';
+
+        const rows = (data.schedule || []).map(s => {
+          const due = parseLocalDate(s.dueDate);
+          const notif = s.status === 'paid' ? 'sent' : (data.notification || 'pending');
+          return `<tr>
+            <td class="clerk-cell"><strong>Installment #${s.no}</strong><br><small style="color:var(--text-muted);">${s.type}</small></td>
+            <td style="white-space:nowrap; font-size:12px; font-weight:600;">${formatDate(due)}</td>
+            <td class="amount-due">${formatPHP(s.amount)}</td>
+            <td><span class="row-status ${statusMap[s.status] || 'ok'}"><span class="dot"></span>${statusLabel(s.status)}</span></td>
+            <td><span class="notif-badge ${notif}">${notifMap[notif] || notifMap['pending']}</span></td>
+          </tr>`;
+        });
+        body.innerHTML = rows.join('') || '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">No installments found for this contract.</td></tr>';
+        lucide.createIcons();
+      } catch (err) {
+        console.error('Schedule load failed:', err);
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted);">Could not load the schedule. Check that XAMPP MySQL is running.</td></tr>';
       }
-      body.innerHTML = rows.join('');
-      lucide.createIcons();
     }
 
     document.getElementById('scheduleSelect').addEventListener('change', (e) => {
@@ -2263,28 +2168,22 @@
     ========================================== */
     function renderNotifications() {
       const body = document.getElementById('notificationsBody');
-      const notifData = contracts.map((c, i) => ({
-        time: new Date(2026, 8, 1 + (i % 9), 9 + (i % 8), (i * 13) % 60),
-        client: c.client,
-        id: c.id,
-        channel: c.notification === 'failed' ? 'SMS Only' : 'SMS & Email',
-        recipient: c.client.split(' ')[0] + '@ihc.com',
-        subject: 'Payment Reminder \u2014 ' + c.paymentType,
-        status: c.notification
-      })).sort((a, b) => b.time - a.time);
-
       const stClass = { 'sent': 'ok', 'pending': 'warn', 'failed': 'danger' };
       const stMap = { 'sent': 'Sent', 'pending': 'Pending', 'failed': 'Failed' };
 
-      body.innerHTML = notifData.map(n => `
+      if (!notificationsData.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No notifications logged yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = notificationsData.map(n => `
         <tr>
-          <td style="white-space:nowrap; font-size:11px;">${n.time.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</td>
+          <td style="white-space:nowrap; font-size:11px;">${n.time}</td>
           <td class="client-cell"><strong>${n.client}</strong></td>
-          <td><span class="contract-id">${n.id}</span></td>
+          <td><span class="contract-id">${n.contractId}</span></td>
           <td class="clerk-cell">${n.channel}</td>
           <td class="clerk-cell">${n.recipient}</td>
           <td class="clerk-cell">${n.subject}</td>
-          <td><span class="row-status ${stClass[n.status]}"><span class="dot"></span>${stMap[n.status]}</span></td>
+          <td><span class="row-status ${stClass[n.status] || 'warn'}"><span class="dot"></span>${stMap[n.status] || 'Pending'}</span></td>
         </tr>`).join('');
       lucide.createIcons();
     }
@@ -2322,6 +2221,67 @@
       localStorage.removeItem('IHC_USER');
       window.location.href = '../log in.html';
     });
+
+    /* ==========================================
+       LIVE DATA LOADING (MySQL via php/api_admin.php)
+    ========================================== */
+    function parseLocalDate(s) {
+      const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date();
+    }
+
+    function applyCashFlow(cf) {
+      if (!cashFlowChartInstance || !cf || !Array.isArray(cf.labels)) return;
+      cashFlowChartInstance.data.labels = cf.labels;
+      if (cashFlowChartInstance.data.datasets[1]) {
+        cashFlowChartInstance.data.datasets[1].data = Array.isArray(cf.actual) ? cf.actual : [];
+      }
+      cashFlowChartInstance.update();
+    }
+
+    function applyAging() {
+      if (!agingChartInstance) return;
+      const buckets = [0, 0, 0, 0, 0];
+      contracts.forEach(c => {
+        if (c.status !== 'overdue') { buckets[0]++; return; } // current / due-soon / paid
+        const overdueDays = daysDiff(TODAY, c.dueDate);
+        if (overdueDays <= 30) buckets[1]++;
+        else if (overdueDays <= 60) buckets[2]++;
+        else if (overdueDays <= 90) buckets[3]++;
+        else buckets[4]++;
+      });
+      agingChartInstance.data.datasets[0].data = buckets;
+      agingChartInstance.update();
+    }
+
+    async function loadAdminData() {
+      try {
+        const res = await fetch(API_BASE + '/php/api_admin.php?action=overview');
+        const data = await res.json();
+        if (!data || !data.success) throw new Error((data && data.message) || 'Load failed');
+
+        contracts = (data.rows || []).map(r => Object.assign({}, r, { dueDate: parseLocalDate(r.dueDate) }));
+        registerContracts = data.contracts || [];
+        notificationsData = data.notifications || [];
+        adminKpis = data.kpis || null;
+
+        updateKPIs();
+        applyCashFlow(data.cashFlow);
+        applyAging();
+        applyFilters(); // re-renders the ledger table + filter tab counts
+        renderContracts();
+        // If the admin is already sitting on another view, refresh it too
+        const activeView = document.querySelector('.view.active');
+        const viewName = activeView ? activeView.getAttribute('data-view') : '';
+        if (viewName === 'schedules') renderScheduleSelect();
+        else if (viewName === 'notifications') renderNotifications();
+      } catch (err) {
+        console.error('Failed to load admin data:', err);
+        showToast('Could not load live data from the database. Check that XAMPP MySQL is running.', 'info');
+        applyFilters();
+        renderContracts();
+      }
+    }
 
     /* ==========================================
        LUCIDE ICONS INIT

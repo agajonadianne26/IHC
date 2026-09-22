@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 10, 2026 at 08:59 AM
+-- Generation Time: Sep 22, 2026 at 06:38 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -20,6 +20,29 @@ SET time_zone = "+00:00";
 --
 -- Database: `ihc`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `client_accounts`
+--
+
+CREATE TABLE `client_accounts` (
+  `id` int(11) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `full_name` varchar(255) NOT NULL,
+  `cellphone_number` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `client_accounts`
+--
+
+INSERT INTO `client_accounts` (`id`, `email`, `password_hash`, `full_name`, `cellphone_number`, `created_at`, `updated_at`) VALUES
+(6, 'agajonadianne@gmail.com', '$2y$10$biMS0rfQJ91FT3P.CWdg3.iyOlMBBgyiS6cHnZ8tFVqgdrtIO.Rny', 'Marzia Paloma', '09096890140', '2026-09-22 03:11:29', '2026-09-22 03:11:29');
 
 -- --------------------------------------------------------
 
@@ -46,8 +69,12 @@ CREATE TABLE `contracts` (
 --
 
 INSERT INTO `contracts` (`id`, `client_name`, `email`, `cellphone_number`, `total_contract_price`, `downpayment`, `installment_terms`, `start_date`, `created_at`, `property_address`, `officer_id`) VALUES
-(7, 'marzia hernandez', 'agajonadianne@gmail.com', '0909690140', 2500000.00, 1000000.00, 60, '2026-09-17', '2026-09-10 06:18:59', 'las pinas', '2'),
-(8, 'jimmy fuentes', 'jeremypaulcantalejo28@gmail.com', '0909337463746', 3500000.00, 2000000.00, 60, '2026-09-24', '2026-09-10 06:52:29', 'laguna', '2');
+(8, 'jimmy fuentes', 'jeremypaulcantalejo28@gmail.com', '0909337463746', 3500000.00, 2000000.00, 60, '2026-09-24', '2026-09-10 06:52:29', 'laguna', '2'),
+(9, 'lara pascual', 'yanniedianne26@gmail.com', '09865432761', 4500000.00, 2000000.00, 65, '2026-10-01', '2026-09-10 07:38:19', 'muntinlupa', '2'),
+(10, 'cynthia santos', 'cynthias@gmail.com', '09231178921', 2400000.00, 1000000.00, 50, '2026-09-30', '2026-09-10 08:21:04', 'alabang', '2'),
+(13, 'Trina Madrigal', 'yanniedianne26@gmail.com', '09096890140', 3500000.00, 2000000.00, 48, '2026-09-19', '2026-09-16 09:05:49', 'block 5 lot 20 Madrigal Alabang Muntinlupa City', '2'),
+(14, 'paul soriano', 'jeremypaulcantalejo28@gmail.com', '0933675436', 4000000.00, 3500000.00, 48, '2026-09-20', '2026-09-17 01:24:13', 'block 6 lot 15 Alabang muntinlupa city', '2'),
+(19, 'Marzia Paloma', 'agajonadianne@gmail.com', '09096890140', 3000000.00, 1500000.00, 60, '2026-09-26', '2026-09-22 03:11:29', 'block 5 lot 20 Madrigal Ayala Alabang Muntinlupa City', '2');
 
 -- --------------------------------------------------------
 
@@ -60,11 +87,23 @@ CREATE TABLE `notifications_logs` (
   `contract_id` varchar(50) NOT NULL,
   `client_email` varchar(255) NOT NULL,
   `channel` varchar(50) NOT NULL DEFAULT 'email',
+  `reminder_type` varchar(30) DEFAULT NULL,
+  `due_date` date DEFAULT NULL,
   `subject` varchar(255) NOT NULL,
   `status` enum('sent','failed','pending','') NOT NULL DEFAULT 'pending',
   `sent_at` datetime NOT NULL DEFAULT current_timestamp(),
   `error_message` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `notifications_logs`
+--
+
+INSERT INTO `notifications_logs` (`id`, `contract_id`, `client_email`, `channel`, `reminder_type`, `due_date`, `subject`, `status`, `sent_at`, `error_message`) VALUES
+(1, '7', 'agajonadianne@gmail.com', 'ack_email', NULL, NULL, 'Client acknowledged payment reminder for IHC-7', 'sent', '2026-09-16 09:38:28', NULL),
+(2, 'CON-13', 'yanniedianne26@gmail.com', 'email', 'payment_receipt', '2026-09-17', 'Payment Receipt: ₱2,000,000.00 received for CON-13', 'sent', '2026-09-16 18:43:05', NULL),
+(3, 'IHC-14', 'jeremypaulcantalejo28@gmail.com', 'email', 'due_soon', '2026-09-20', 'Reminder: Payment of ₱3,500,000.00 for IHC-14 due in 3 day(s)', 'sent', '2026-09-17 09:24:21', NULL),
+(4, 'CON-14', 'jeremypaulcantalejo28@gmail.com', 'email', 'payment_receipt', '2026-09-19', 'Payment Receipt: ₱3,500,000.00 received for CON-14', 'sent', '2026-09-17 09:24:49', NULL);
 
 -- --------------------------------------------------------
 
@@ -75,16 +114,20 @@ CREATE TABLE `notifications_logs` (
 CREATE TABLE `officers` (
   `id` int(11) NOT NULL,
   `full_name` varchar(100) NOT NULL,
-  `role` varchar(50) NOT NULL DEFAULT 'clerk'
+  `role` varchar(50) NOT NULL DEFAULT 'clerk',
+  `email` varchar(255) DEFAULT NULL,
+  `password_hash` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `officers`
 --
 
-INSERT INTO `officers` (`id`, `full_name`, `role`) VALUES
-(1, 'Ana Reyes', 'clerk'),
-(2, 'mark clark', 'clerk');
+INSERT INTO `officers` (`id`, `full_name`, `role`, `email`, `password_hash`) VALUES
+(1, 'Jeremy Cantalejo', 'admin', 'admin@ihc.com', '$2y$10$BL9dLew5Rpc5hX/HKk3l7O4/6iqVbAlm3J7ubMOYR4JwgjwIOfSBi'),
+(2, 'Ana Reyes', 'clerk', 'ana@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe'),
+(3, 'Mark Cruz', 'clerk', 'mark@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe'),
+(4, 'Jessica Lim', 'clerk', 'jessica@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe');
 
 -- --------------------------------------------------------
 
@@ -105,8 +148,39 @@ CREATE TABLE `payments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
+-- Dumping data for table `payments`
+--
+
+INSERT INTO `payments` (`id`, `contract_id`, `amount`, `payment_method`, `date_collected`, `or_number`, `remarks`, `posted_by`, `created_at`) VALUES
+(3, 'CON-9', 2000000.00, 'GCash / Maya', '2026-09-29', 'OR-123456-789-0', 'PAID', '2', '2026-09-10 08:06:10'),
+(4, 'CON-7', 1000000.00, 'Bank Wire / Online Deposit', '2026-09-16', 'OR-123456-789-1', 'PAID', '2', '2026-09-10 08:11:03'),
+(5, 'CON-7', 1000000.00, 'Bank Wire / Online Deposit', '2026-09-16', 'OR-123456-789-1', 'PAID', '2', '2026-09-10 08:11:07'),
+(6, 'CON-7', 1000000.00, 'Bank Wire / Online Deposit', '2026-09-16', 'OR-123456-789-1', 'PAID', '2', '2026-09-10 08:11:10'),
+(7, 'CON-7', 1000000.00, 'Bank Wire / Online Deposit', '2026-09-16', 'OR-123456-789-1', 'PAID', '2', '2026-09-10 08:11:42'),
+(8, 'CON-7', 1000000.00, 'Bank Wire / Online Deposit', '2026-09-16', 'OR-123456-789-1', 'PAID', '2', '2026-09-10 08:13:54'),
+(9, 'CON-7', 1000000.00, 'Over-the-Counter Cashier', '2026-09-16', 'OR-123456-789-1', 'PAID', '2', '2026-09-10 08:14:20'),
+(10, 'CON-7', 1000000.00, 'Over-the-Counter Cashier', '2026-09-16', 'OR-123456-789-1', 'PAID', '2', '2026-09-10 08:14:33'),
+(11, 'CON-10', 1000000.00, 'Over-the-Counter Cashier', '2026-09-15', 'OR-123456-789-3', 'paid', '2', '2026-09-10 08:36:35'),
+(12, 'CON-8', 2000000.00, 'GCash / Maya', '2026-09-16', 'OR-1123456-9786', 'semi paid', '2', '2026-09-11 02:28:31'),
+(13, 'CON-10', 1000000.00, 'Over-the-Counter Cashier', '2026-09-24', 'OR-123456-0937', 'PAID', '2', '2026-09-11 02:32:07'),
+(14, 'CON-8', 2000000.00, 'GCash / Maya', '2026-09-16', 'OR-12345-6879-5', 'PAID', '2', '2026-09-11 02:32:53'),
+(15, 'CON-7', 1000000.00, 'Bank Wire / Online Deposit', '2026-09-24', 'OR12345-785', 'test', '2', '2026-09-11 03:10:10'),
+(16, 'CON-8', 2000000.00, 'Over-the-Counter Cashier', '2026-09-15', 'OR12345667890', 'PAID', '2', '2026-09-14 06:39:53'),
+(17, 'CON-9', 2000000.00, 'Post-Dated Check (PDC)', '2026-09-23', '34243242342423424', 'DSFSD', '2', '2026-09-14 06:40:29'),
+(18, 'CON-7', 1000000.00, 'Over-the-Counter Cashier', '2026-09-17', '29473792749729479724729', 'paid', '2', '2026-09-16 07:31:17'),
+(19, 'CON-13', 2000000.00, 'Bank Wire / Online Deposit', '2026-09-17', '32434353453453', 'paid', '2', '2026-09-16 10:42:46'),
+(20, 'CON-14', 3500000.00, 'Post-Dated Check (PDC)', '2026-09-19', '43232432343454', 'paid', '2', '2026-09-17 01:24:41');
+
+--
 -- Indexes for dumped tables
 --
+
+--
+-- Indexes for table `client_accounts`
+--
+ALTER TABLE `client_accounts`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_client_accounts_email` (`email`);
 
 --
 -- Indexes for table `contracts`
@@ -118,13 +192,15 @@ ALTER TABLE `contracts`
 -- Indexes for table `notifications_logs`
 --
 ALTER TABLE `notifications_logs`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_notifications_reminder_lookup` (`contract_id`,`channel`,`reminder_type`,`status`,`sent_at`);
 
 --
 -- Indexes for table `officers`
 --
 ALTER TABLE `officers`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_officers_email` (`email`);
 
 --
 -- Indexes for table `payments`
@@ -137,28 +213,34 @@ ALTER TABLE `payments`
 --
 
 --
+-- AUTO_INCREMENT for table `client_accounts`
+--
+ALTER TABLE `client_accounts`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+
+--
 -- AUTO_INCREMENT for table `contracts`
 --
 ALTER TABLE `contracts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `notifications_logs`
 --
 ALTER TABLE `notifications_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `officers`
 --
 ALTER TABLE `officers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `payments`
 --
 ALTER TABLE `payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

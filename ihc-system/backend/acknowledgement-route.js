@@ -138,6 +138,57 @@ function verifyToken(token) {
   }
 }
 
+router.get('/api/acknowledgments/recent', async (req, res) => {
+  try {
+    const officerId = String(req.query.officerId || '').trim();
+    if (!officerId) return res.status(400).json({ success: false, message: 'officerId is required.' });
+
+    // Poll cursor from the dashboard. Default to the last 24h so the first
+    // check after login still surfaces recently-seen reminders.
+    let since = String(req.query.since || '').trim().replace('T', ' ').slice(0, 19);
+    if (!/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/.test(since)) {
+      since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    }
+
+    const { table } = await getNotificationLogSchema();
+    const rows = await db.query(
+      `SELECT c.id AS contract_id, c.client_name, c.email AS contract_email,
+              c.downpayment AS amount_due, c.start_date AS due_date,
+              nl.client_email AS acknowledged_by, nl.sent_at AS acknowledged_at
+       FROM \`${table}\` nl
+       JOIN contracts c
+         ON nl.contract_id IN (
+           CAST(c.id AS CHAR) COLLATE utf8mb4_general_ci,
+           CONCAT('IHC-', c.id) COLLATE utf8mb4_general_ci,
+           CONCAT('CON-', c.id) COLLATE utf8mb4_general_ci
+         )
+       WHERE nl.channel = 'ack_email' AND nl.status = 'sent'
+         AND c.officer_id = ?
+         AND nl.sent_at > ?
+       ORDER BY nl.sent_at ASC
+       LIMIT 50`,
+      [officerId, since]
+    );
+
+    res.json({
+      success: true,
+      acknowledgments: rows.map(row => ({
+        contractId: row.contract_id,
+        accountCode: 'CON-' + row.contract_id,
+        clientName: row.client_name,
+        contractEmail: row.contract_email,
+        acknowledgedBy: row.acknowledged_by,
+        amountDue: row.amount_due != null ? Number(row.amount_due) : null,
+        dueDate: row.due_date,
+        acknowledgedAt: row.acknowledged_at
+      }))
+    });
+  } catch (error) {
+    console.error('[ACKNOWLEDGMENTS RECENT] Failed:', error.message);
+    res.status(500).json({ success: false, message: 'Could not load recent acknowledgments.' });
+  }
+});
+
 router.get('/api/contracts/:id/acknowledgment-status', async (req, res) => {
   try {
     const contractId = normalizeContractId(req.params.id);
