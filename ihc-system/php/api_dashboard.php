@@ -27,6 +27,10 @@ try {
 // into 0 and the query would never match a real officer.
 $officerId = isset($_GET['officerId']) ? trim((string)$_GET['officerId']) : '';
 
+// Shared installment-schedule math — same file the admin and client endpoints
+// use, so the three dashboards always agree on what is paid and what is due.
+require_once __DIR__ . '/installment-schedule.php';
+
 if ($officerId === '') {
     echo json_encode(['success' => false, 'message' => 'Invalid Officer ID']);
     exit;
@@ -39,24 +43,18 @@ $clients = $stmt->fetchAll(PDO::FETCH_ASSOC); // FETCH_ASSOC keeps the array cle
 // payments.contract_id stores prefixed codes ('CON-19', sometimes a bare '7'
 // or 'IHC-14'), so fold the rows onto integer contract ids in PHP — never
 // with a SQL JOIN against contracts (mixed collations blow up at runtime;
-// see AGENTS.md). Ordering by date keeps the chronological allocation below
-// identical to php/api_admin.php's schedule.
-$paidByContract = [];   // contract id => [ ['date' => 'YYYY-MM-DD', 'amount' => float], ... ]
-foreach ($pdo->query('SELECT contract_id, amount, date_collected FROM payments ORDER BY date_collected, id') as $p) {
+// see AGENTS.md). Ordering by date keeps the chronological allocation in
+// installment-schedule.php deterministic.
+$paidByContract = [];   // contract id => chronological payment rows
+foreach ($pdo->query('SELECT contract_id, amount, date_collected, or_number, payment_method FROM payments ORDER BY date_collected, id') as $p) {
     if (!preg_match('/(\d+)\s*$/', (string)$p['contract_id'], $m)) continue;
-    $paidByContract[(int)$m[1]][] = ['date' => (string)$p['date_collected'], 'amount' => (float)$p['amount']];
+    $paidByContract[(int)$m[1]][] = [
+        'amount'   => (float)$p['amount'],
+        'date'     => (string)$p['date_collected'],
+        'orNumber' => $p['or_number'] !== null ? (string)$p['or_number'] : null,
+        'method'   => $p['payment_method'] !== null ? (string)$p['payment_method'] : null,
+    ];
 }
-
-// Same month arithmetic the Admin schedule uses: clamp the day to the last
-// day of the target month (start_date 2026-01-31 + 1 month -> 2026-02-28).
-$addMonths = function (string $date, int $months): string {
-    [$y, $mo, $d] = array_map('intval', explode('-', $date));
-    $mo += $months;
-    $y += intdiv($mo - 1, 12);
-    $mo = (($mo - 1) % 12 + 12) % 12 + 1;
-    $lastDay = (int)date('t', mktime(0, 0, 0, $mo, 1, $y));
-    return sprintf('%04d-%02d-%02d', $y, $mo, min($d, $lastDay));
-};
 
 // Collections belong to the clerk who posted the payment, not merely to a
 // contract that happens to be assigned to them. This makes the KPI persist
@@ -73,42 +71,10 @@ $totalCollections = (float)($collectionsStmt->fetch()['total_collections'] ?? 0)
 $formattedClients = [];
 foreach ($clients as $c) {
     $cid = (int)$c['id'];
-    $tcp = (float)($c['total_contract_price'] ?? 0);
-    $dp = (float)($c['downpayment'] ?? 0);
     $terms = max(1, (int)($c['installment_terms'] ?? 1));
-    $start = (string)$c['start_date'];
 
-    // Installment 1 = downpayment at start_date, then one amortization per
-    // term month; the last one absorbs the rounding remainder. Keep this in
-    // sync with php/api_admin.php ($action = 'schedule') so the clerk and
-    // admin dashboards always agree on what is due.
-    $installments = [['kind' => 'downpayment', 'no' => null, 'dueDate' => $start, 'amount' => round($dp, 2)]];
-    $amortTotal = round($tcp - $dp, 2);
-    $per = floor($amortTotal / $terms * 100) / 100;
-    for ($i = 1; $i <= $terms; $i++) {
-        $amt = ($i === $terms) ? round($amortTotal - $per * ($terms - 1), 2) : $per;
-        $installments[] = ['kind' => 'installment', 'no' => $i, 'dueDate' => $addMonths($start, $i), 'amount' => $amt];
-    }
-
-    // Allocate posted payments chronologically: a paid downpayment rolls the
-    // contract forward to its next installment, a partial payment keeps the
-    // balance showing as the downpayment, and a fully covered contract is Paid.
-    $paidTotal = round(array_sum(array_column($paidByContract[$cid] ?? [], 'amount')), 2);
-    $paidLeft = $paidTotal;
-    $next = null;
-    foreach ($installments as $inst) {
-        if ($paidLeft >= $inst['amount'] - 0.009) {
-            $paidLeft -= $inst['amount'];
-            continue;
-        }
-        $next = [
-            'kind'    => $inst['kind'],
-            'no'      => $inst['no'],
-            'dueDate' => $inst['dueDate'],
-            'amount'  => max(0.0, round($inst['amount'] - $paidLeft, 2)),
-        ];
-        break;
-    }
+    $schedule = ihc_schedule($c, $paidByContract[$cid] ?? []);
+    $next = $schedule['next'];
 
     $formattedClients[] = [
         'accountCode'     => 'CON-' . $c['id'],          // Using the primary key 'id'
@@ -117,10 +83,10 @@ foreach ($clients as $c) {
         'email'           => $c['email'],                // Matches your DB
         'phone'           => $c['cellphone_number'],     // matches your DB
         'propertyAddress' => $c['property_address'] ?? null,
-        'totalPrice'      => $tcp,
+        'totalPrice'      => isset($c['total_contract_price']) ? (float)$c['total_contract_price'] : null,
         'terms'           => $terms,
-        'amountPaid'      => $paidTotal,
-        'nextDueDate'     => $next ? $next['dueDate'] : $start,
+        'amountPaid'      => $schedule['paid'],
+        'nextDueDate'     => $next ? $next['dueDate'] : (string)$c['start_date'],
         'nextAmount'      => $next ? $next['amount'] : 0,
         'nextStatus'      => $next ? 'Pending Payment' : 'Paid',
         'nextType'        => $next ? $next['kind'] : 'settled',

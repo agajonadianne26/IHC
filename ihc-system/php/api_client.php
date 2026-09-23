@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+// Shared installment-schedule math — the clerk and admin endpoints include
+// this same file, so the client's ledger shows exactly what their officer sees.
+require_once __DIR__ . '/installment-schedule.php';
+
 // Client-portal live data bridge.
 // The client dashboard historically read ONLY browser localStorage, so anything
 // a clerk changed (new contracts, posted payments, emailed reminders/receipts)
@@ -140,6 +144,21 @@ try {
             ];
         }
 
+        // Allocate those same payment rows onto the installment schedule the
+        // clerk and admin dashboards render. The client's "Installment
+        // Schedules" table is served from here, so all three views agree on
+        // what is paid, what is due next, and the OR/date that cleared it.
+        $scheduleRows = [];
+        foreach ($payments as $p) {
+            $scheduleRows[] = [
+                'amount'   => $p['amount'],
+                'date'     => $p['date'],
+                'orNumber' => $p['orNumber'],
+                'method'   => $p['method'],
+            ];
+        }
+        $sched = ihc_schedule($contract, $scheduleRows);
+
         // Server-sent client notifications (email + SMS reminders, receipts).
         // The ack rows (channel ack_email) are clerk-facing and stay out of this feed.
         $notifStmt = $pdo->prepare(
@@ -179,6 +198,12 @@ try {
                 'officerName' => $contract['officer_name'],
             ],
             'payments' => $payments,
+            'schedule' => $sched['installments'],
+            'totals' => [
+                'paid'        => $sched['paid'],
+                'outstanding' => $sched['outstanding'],
+                'settled'     => $sched['settled'],
+            ],
             'notifications' => $notifications,
         ]);
         exit;

@@ -292,6 +292,7 @@
     .channel-chip { padding: 2px 8px; border-radius: 4px; background: #f1f5f9; color: var(--text-secondary); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
     .phase-chip { padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
     .phase-chip.deposit { background: #fef3c7; color: #92400e; }
+    .phase-chip.downpayment { background: #dcfce7; color: #166534; }
     .phase-chip.amortization { background: #dbeafe; color: #1e40af; }
 
     .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
@@ -493,6 +494,34 @@
       if (added) portalStore.savePortal(client.contractId, portal);
     }
 
+    // Totals straight from the server's payments table (null while offline).
+    let liveTotals = null;
+
+    // The server schedule is the SOURCE OF TRUTH: it is the exact same
+    // installment math the clerk and admin dashboards run, with this
+    // contract's payments allocated onto it. Saving the result also keeps the
+    // last known schedule in localStorage as the offline fallback, so an
+    // unreachable server still renders the dashboard exactly as before.
+    function applyServerSchedule(schedule, totals) {
+      if (!Array.isArray(schedule) || !schedule.length) return;
+      liveTotals = totals || null;
+      portal.schedules = schedule.map((s, i) => ({
+        // 1-based across the whole schedule (downpayment = 1), the same
+        // numbering the admin's Payment Schedules table prints.
+        no: i + 1,
+        phase: s.kind === 'downpayment' ? 'downpayment' : 'amortization',
+        dueDate: s.dueDate,
+        amount: Number(s.amount) || 0,
+        paid: !!s.paid,
+        payDate: s.payDate || null,
+        orNumber: s.orNumber || null,
+        method: s.method || null,
+        status: s.status || null,
+        paidAmount: Number(s.paidAmount) || 0
+      }));
+      portalStore.savePortal(client.contractId, portal);
+    }
+
     const live = await fetchLiveLedger();
     if (live && live.contract) {
       if (!client) client = registerServerClient(live.contract);
@@ -500,6 +529,7 @@
       portal = portalStore.ensurePortal(client);
       applyServerPayments(live.payments);
       mergeServerNotifications(live.notifications);
+      applyServerSchedule(live.schedule, live.totals);
     }
 
     const fmtPHP = (n) => P.fmtPeso(n);
@@ -575,21 +605,51 @@
        LEDGER HELPERS
     ========================================== */
     function scheduleStatus(s) {
-      if (s.paid) return { label: 'Paid', cls: 'ok' };
-      const due = new Date(s.dueDate + 'T00:00:00');
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      if (due < today) return { label: 'Overdue', cls: 'danger' };
+      // A live schedule row carries its own status from the server (the same
+      // one the clerk/admin dashboards show); the offline fallback derives it.
+      let status = s.status || null;
+      if (!status) {
+        if (s.paid) status = 'paid';
+        else {
+          const due = new Date(s.dueDate + 'T00:00:00');
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          status = due < today ? 'overdue' : 'current';
+        }
+      }
+      if (status === 'paid') return { label: 'Paid', cls: 'ok' };
+      if (status === 'overdue') return { label: 'Overdue', cls: 'danger' };
+      if (status === 'due-soon') return { label: 'Due soon', cls: 'warn' };
       return { label: 'Pending', cls: 'warn' };
+    }
+
+    function phaseLabel(phase) {
+      if (phase === 'downpayment') return 'Downpayment';
+      return phase === 'deposit' ? 'Deposit' : 'Amortization';
     }
 
     const financing = Math.max(0, Number(client.totalPrice) - Number(client.downpayment));
     const annualRate = Number(client.annualRate != null ? client.annualRate : client.annualInterestRate) || 0;
     const amortPmt = portalStore.amortize(financing, annualRate, Math.max(1, Number(client.terms)));
-    const monthlyAmort = Math.round(amortPmt * 100) / 100;
+    const fallbackMonthly = Math.round(amortPmt * 100) / 100;
+
+    // What an unpaid row still needs — a partly covered installment shows its
+    // balance, which is exactly what the clerk posts and the admin ledger shows.
+    const rowRemaining = (s) => Math.max(0, Number(s.amount) - Number(s.paidAmount || 0));
+
     const paidRows = portal.schedules.filter(s => s.paid);
-    const totalPaid = paidRows.reduce((sum, s) => sum + Number(s.amount), 0);
-    const remainingBalance = portal.schedules.filter(s => !s.paid).reduce((sum, s) => sum + Number(s.amount), 0);
+    // Cumulative payments come from the server's payments table when we have
+    // it (they may exceed the schedule if the contract is overpaid); the local
+    // sum is the offline fallback.
+    const totalPaid = liveTotals
+      ? Number(liveTotals.paid) || 0
+      : paidRows.reduce((sum, s) => sum + Number(s.amount), 0);
+    const remainingBalance = portal.schedules.filter(s => !s.paid).reduce((sum, s) => sum + rowRemaining(s), 0);
     const nextDue = portal.schedules.find(s => !s.paid);
+    const nextDueAmount = nextDue ? rowRemaining(nextDue) : 0;
+    // Monthly due = the amortization row of whichever schedule we are showing
+    // (live: the DB's equal installment; offline: the local interest math).
+    const amortRow = portal.schedules.find(s => s.phase === 'amortization');
+    const monthlyAmort = amortRow ? Number(amortRow.amount) : fallbackMonthly;
     const downPct = Number(client.totalPrice) > 0 ? ((Number(client.downpayment) / Number(client.totalPrice)) * 100).toFixed(1) + '%' : '\u2014';
 
     /* ==========================================
@@ -599,7 +659,7 @@
       { cls: 'blue',   icon: 'wallet',        label: 'Total Contract Price',   value: fmtPHP(client.totalPrice),  sub: client.propertyAddress },
       { cls: 'emerald', icon: 'arrow-down-circle', label: 'Downpayment',       value: fmtPHP(client.downpayment), sub: downPct + ' of contract price' },
       { cls: 'amber',  icon: 'scale',         label: 'Remaining Balance',      value: fmtPHP(remainingBalance),  sub: paidRows.length + ' installment(s) paid' },
-      { cls: 'rose',   icon: 'calendar-clock', label: 'Next Due',              value: nextDue ? fmtPHP(nextDue.amount) : 'All paid', sub: nextDue ? 'Due ' + fmtDate(nextDue.dueDate) : 'You\u2019re all caught up' }
+      { cls: 'rose',   icon: 'calendar-clock', label: 'Next Due',              value: nextDue ? fmtPHP(nextDueAmount) : 'All paid', sub: nextDue ? 'Due ' + fmtDate(nextDue.dueDate) : 'You\u2019re all caught up' }
     ];
     document.getElementById('kpiGrid').innerHTML = kpiDefs.map(k => `
       <div class="kpi-card">
@@ -647,7 +707,7 @@
       return `
         <tr>
           <td><strong>${s.no}</strong></td>
-          <td>${s.phase ? `<span class="phase-chip ${s.phase}">${s.phase === 'deposit' ? 'Deposit' : 'Amortization'}</span>` : '<span class="muted">\u2014</span>'}</td>
+          <td>${s.phase ? `<span class="phase-chip ${s.phase}">${phaseLabel(s.phase)}</span>` : '<span class="muted">\u2014</span>'}</td>
           <td>${fmtDate(s.dueDate)}</td>
           <td><strong>${fmtPHP(s.amount)}</strong></td>
           <td><span class="row-status ${st.cls}"><span class="dot"></span>${st.label}</span></td>
@@ -846,7 +906,7 @@
             <div class="kpi-card">
               <div class="kpi-header"><span class="kpi-label">Monthly Due</span><div class="kpi-icon rose"><i data-lucide="calendar-clock" style="width:18px;height:18px;"></i></div></div>
               <div class="kpi-value rose" id="ledgerMonthly">—</div>
-              <div class="kpi-sub">Monthly amortization incl. bank interest</div>
+              <div class="kpi-sub">Scheduled monthly installment</div>
             </div>
           </div>
 
