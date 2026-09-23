@@ -61,7 +61,11 @@ CREATE TABLE `contracts` (
   `start_date` date NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `property_address` varchar(500) DEFAULT NULL,
-  `officer_id` varchar(100) DEFAULT NULL
+  `officer_id` varchar(100) DEFAULT NULL,
+  `dp_mode` varchar(10) DEFAULT NULL,
+  `dp_terms` int(11) DEFAULT NULL,
+  `bank_name` varchar(120) DEFAULT NULL,
+  `annual_interest_rate` decimal(5,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -75,6 +79,34 @@ INSERT INTO `contracts` (`id`, `client_name`, `email`, `cellphone_number`, `tota
 (13, 'Trina Madrigal', 'yanniedianne26@gmail.com', '09096890140', 3500000.00, 2000000.00, 48, '2026-09-19', '2026-09-16 09:05:49', 'block 5 lot 20 Madrigal Alabang Muntinlupa City', '2'),
 (14, 'paul soriano', 'jeremypaulcantalejo28@gmail.com', '0933675436', 4000000.00, 3500000.00, 48, '2026-09-20', '2026-09-17 01:24:13', 'block 6 lot 15 Alabang muntinlupa city', '2'),
 (19, 'Marzia Paloma', 'agajonadianne@gmail.com', '09096890140', 3000000.00, 1500000.00, 60, '2026-09-26', '2026-09-22 03:11:29', 'block 5 lot 20 Madrigal Ayala Alabang Muntinlupa City', '2');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `holding_fees`
+--
+-- Payments > Holding Fees (previously localStorage only). php/api_holding_fees.php
+-- creates this table on demand if it is missing.
+--
+
+CREATE TABLE `holding_fees` (
+  `id` int(11) NOT NULL,
+  `officer_id` varchar(100) DEFAULT NULL,
+  `contract_id` int(11) DEFAULT NULL,
+  `client_name` varchar(255) NOT NULL,
+  `property_address` varchar(500) NOT NULL DEFAULT '',
+  `amount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `payment_method` varchar(100) NOT NULL,
+  `payment_date` date NOT NULL,
+  `or_number` varchar(100) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `proof_name` varchar(255) DEFAULT NULL,
+  `proof_data_url` mediumtext DEFAULT NULL,
+  `proof_is_image` tinyint(1) DEFAULT NULL,
+  `remarks` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -189,6 +221,14 @@ ALTER TABLE `contracts`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `holding_fees`
+--
+ALTER TABLE `holding_fees`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_holding_fees_officer` (`officer_id`),
+  ADD KEY `idx_holding_fees_contract` (`contract_id`);
+
+--
 -- Indexes for table `notifications_logs`
 --
 ALTER TABLE `notifications_logs`
@@ -223,6 +263,12 @@ ALTER TABLE `client_accounts`
 --
 ALTER TABLE `contracts`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+
+--
+-- AUTO_INCREMENT for table `holding_fees`
+--
+ALTER TABLE `holding_fees`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `notifications_logs`

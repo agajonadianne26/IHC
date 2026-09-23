@@ -400,6 +400,12 @@
         downpayment: Number(contract.downpayment) || 0,
         terms: Number(contract.terms) || 0,
         startDate: contract.startDate,
+        // Financing terms from the New Contract form (needed by the offline
+        // schedule fallback, which still applies the bank's interest rate).
+        dpMode: contract.dpMode || 'lump',
+        dpTerms: contract.dpTerms != null ? Number(contract.dpTerms) : null,
+        bank: contract.bank || '',
+        annualRate: Number(contract.annualRate) || 0,
         officerId: contract.officerId != null && contract.officerId !== '' ? contract.officerId : null,
         officerName: contract.officerName || null,
         officerEmail: ''
@@ -413,9 +419,15 @@
         totalPrice: Number(contract.totalPrice) || 0,
         downpayment: Number(contract.downpayment) || 0,
         terms: Number(contract.terms) || 0,
-        startDate: contract.startDate
+        startDate: contract.startDate,
+        // Financing terms (bank, rate, deposit mode/term) — without these the
+        // offline schedule fell back to a 0% lump-sum assumption.
+        dpMode: contract.dpMode || 'lump',
+        dpTerms: contract.dpTerms != null ? Number(contract.dpTerms) : null,
+        bank: contract.bank || '',
+        annualRate: Number(contract.annualRate) || 0
       };
-      const termsChanged = ['totalPrice', 'downpayment', 'terms', 'startDate']
+      const termsChanged = ['totalPrice', 'downpayment', 'terms', 'startDate', 'dpMode', 'dpTerms', 'bank', 'annualRate']
         .some(k => String(client[k]) !== String(serverTerms[k]));
       Object.assign(client, {
         name: contract.name,

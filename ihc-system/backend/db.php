@@ -51,6 +51,35 @@ try {
     $date = DateTime::createFromFormat('!Y-m-d', $startDate);
     if (!$date || $date->format('Y-m-d') !== $startDate) throw new RuntimeException('Invalid start date.');
 
+    // Downpayment plan + financing terms — the rest of the New Contract form.
+    // These used to be collected and then silently dropped (they only ever
+    // reached localStorage), so the database never knew a contract's bank or
+    // deposit mode. Validation mirrors the form's own rules.
+    $dpMode = trim((string)($contract['dpMode'] ?? 'lump'));
+    if ($dpMode === '') $dpMode = 'lump';
+    if (!in_array($dpMode, ['lump', 'monthly'], true)) throw new RuntimeException('Downpayment mode must be Lump Sum or Monthly.');
+
+    $dpTermsRaw = $contract['dpTerms'] ?? null;
+    if ($dpMode === 'monthly') {
+        if ($dpTermsRaw === null || $dpTermsRaw === '' || !ctype_digit((string)$dpTermsRaw) || (int)$dpTermsRaw < 1 || (int)$dpTermsRaw > 60) {
+            throw new RuntimeException('Deposit term must be between 1 and 60 months when the downpayment is spread monthly.');
+        }
+        $dpTerms = (int)$dpTermsRaw;
+    } else {
+        $dpTerms = null; // Lump sum has no deposit term.
+    }
+
+    $bank = trim((string)($contract['bank'] ?? ''));
+    if ($bank === '') throw new RuntimeException('Financing bank is required.');
+    if (mb_strlen($bank) > 120) throw new RuntimeException('Bank name must be 120 characters or fewer.');
+
+    $annualRateRaw = $contract['annualRate'] ?? 0;
+    if ($annualRateRaw === null || $annualRateRaw === '') $annualRateRaw = 0;
+    if (!is_numeric($annualRateRaw) || (float)$annualRateRaw < 0 || (float)$annualRateRaw > 100) {
+        throw new RuntimeException('Annual interest rate must be between 0 and 100.');
+    }
+    $annualRate = round((float)$annualRateRaw, 2);
+
     $portalPassword = (string)($client['portalPassword'] ?? '');
     if ($portalPassword === '') throw new RuntimeException('Client Portal Password is required so the buyer can sign in.');
     if (strlen($portalPassword) < 6) throw new RuntimeException('Portal password must be at least 6 characters.');
@@ -60,6 +89,10 @@ try {
     foreach ($pdo->query('SHOW COLUMNS FROM contracts') as $column) $columns[strtolower($column['Field'])] = true;
     if (!isset($columns['property_address'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN property_address VARCHAR(500) NULL');
     if (!isset($columns['officer_id'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN officer_id VARCHAR(100) NULL');
+    if (!isset($columns['dp_mode'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN dp_mode VARCHAR(10) NULL');
+    if (!isset($columns['dp_terms'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN dp_terms INT NULL');
+    if (!isset($columns['bank_name'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN bank_name VARCHAR(120) NULL');
+    if (!isset($columns['annual_interest_rate'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN annual_interest_rate DECIMAL(5,2) NULL');
 
     // Client portal login accounts (one row per email, so a repeat buyer's
     // credentials are updated instead of duplicated). Passwords are stored as
@@ -82,12 +115,14 @@ try {
     // Contract and login account are written together: either both save or neither.
     $pdo->beginTransaction();
     try {
-        $sql = 'INSERT INTO contracts (client_name,email,cellphone_number,property_address,total_contract_price,downpayment,installment_terms,start_date,officer_id) VALUES (:client_name,:email,:cellphone_number,:property_address,:total_contract_price,:downpayment,:installment_terms,:start_date,:officer_id)';
+        $sql = 'INSERT INTO contracts (client_name,email,cellphone_number,property_address,total_contract_price,downpayment,installment_terms,start_date,officer_id,dp_mode,dp_terms,bank_name,annual_interest_rate)
+                VALUES (:client_name,:email,:cellphone_number,:property_address,:total_contract_price,:downpayment,:installment_terms,:start_date,:officer_id,:dp_mode,:dp_terms,:bank_name,:annual_interest_rate)';
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':client_name'=>$clientName, ':email'=>$email, ':cellphone_number'=>$phone, ':property_address'=>$propertyAddress,
             ':total_contract_price'=>(float)$totalPrice, ':downpayment'=>(float)$downpayment, ':installment_terms'=>(int)$terms,
-            ':start_date'=>$startDate, ':officer_id'=>$officerId !== '' ? $officerId : null
+            ':start_date'=>$startDate, ':officer_id'=>$officerId !== '' ? $officerId : null,
+            ':dp_mode'=>$dpMode, ':dp_terms'=>$dpTerms, ':bank_name'=>$bank, ':annual_interest_rate'=>$annualRate
         ]);
 
         $contractId = (int)$pdo->lastInsertId();
@@ -153,7 +188,12 @@ try {
         'message'=>'Contract created and saved to the IHC database.',
         'id'=>$contractId,
         'accountAction'=>$accountAction,
-        'reminderQueued'=>$reminderQueued
+        'reminderQueued'=>$reminderQueued,
+        // Echo the stored terms so the clerk's local mirror matches the row.
+        'dpMode'=>$dpMode,
+        'dpTerms'=>$dpTerms,
+        'bank'=>$bank,
+        'annualRate'=>$annualRate
     ]);
 } catch (Throwable $e) {
     http_response_code(400);

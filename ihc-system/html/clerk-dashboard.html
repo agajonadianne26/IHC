@@ -2924,7 +2924,68 @@
       }
     };
 
-    const persistHoldingFees = (fees) => localStorage.setItem(holdingFeeStorageKey, JSON.stringify(fees));
+    const persistHoldingFees = (fees) => {
+      // localStorage is only the offline mirror — a quota failure (large proof
+      // attachments) must never break a save that already reached MySQL.
+      try {
+        localStorage.setItem(holdingFeeStorageKey, JSON.stringify(fees));
+      } catch (e) {
+        console.warn('Holding fee cache not written:', e);
+      }
+    };
+
+    /* -------- MySQL sync (php/api_holding_fees.php) --------
+       The database is the source of truth for holding fees; `holdingFees` and
+       its localStorage key are the offline cache. Every mutation pushes its
+       row, and boot pulls the officer's rows back down. */
+    const holdingFeeApi = API_BASE + '/php/api_holding_fees.php';
+
+    async function pushFeeToServer(fee) {
+      try {
+        const res = await fetch(holdingFeeApi, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ action: 'save', officerId: currentUser.officerId || '', fee: fee })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'The holding fee could not be saved.');
+
+        const saved = data.fee;
+        // Rows created while offline carry a Date.now() id — swap in the real
+        // AUTO_INCREMENT id so later edits update the same database row.
+        let idx = holdingFees.indexOf(fee);
+        if (idx < 0) idx = holdingFees.findIndex(f => f.id === saved.id || (fee.id != null && f.id === fee.id));
+        if (idx >= 0) holdingFees[idx] = saved; else holdingFees.push(saved);
+        persistHoldingFees(holdingFees);
+        renderHoldingFees();
+        return saved;
+      } catch (err) {
+        console.error('Holding fee sync failed:', err);
+        showToast(err.message || 'Server unreachable — the fee is kept in this browser only.', 'info');
+        return null;
+      }
+    }
+
+    async function pullHoldingFees() {
+      try {
+        const res = await fetch(holdingFeeApi + '?officerId=' + encodeURIComponent(currentUser.officerId || ''));
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error((data && data.message) || 'Load failed');
+
+        const rows = Array.isArray(data.fees) ? data.fees : [];
+        if (rows.length) {
+          holdingFees = rows;
+          persistHoldingFees(holdingFees);
+          renderHoldingFees();
+        } else if (holdingFees.length) {
+          // First run against MySQL: promote whatever this browser already had
+          // recorded, so nothing the clerk entered before this feature is lost.
+          for (const fee of holdingFees.slice()) await pushFeeToServer(fee);
+        }
+      } catch (err) {
+        console.warn('Holding fees offline — showing the browser cache.', err);
+      }
+    }
 
     function seedHoldingFees() {
       if (readHoldingFees()) return;
@@ -3341,7 +3402,7 @@
       });
     }
 
-    document.getElementById('submitHoldingFee').addEventListener('click', () => {
+    document.getElementById('submitHoldingFee').addEventListener('click', async () => {
       const selectVal = hfClientSelect.value;
       const isNew = selectVal === '__new__';
       const matched = !isNew && selectVal ? myContracts.find(x => String(x.contractId) === String(selectVal)) : null;
@@ -3406,6 +3467,10 @@
           window.portalStore.savePortal(fee.contractId, portalData);
         }
       }
+
+      // Mirror the record to MySQL (the local push above already updated the
+      // table); pushFeeToServer swaps in the real row id when it returns.
+      await pushFeeToServer(fee);
     });
 
     /* -------- Mark paid / cancel ---------- */
@@ -3417,6 +3482,7 @@
       fee.paymentDate = fee.paymentDate || new Date().toISOString().slice(0, 10);
       persistHoldingFees(holdingFees);
       renderHoldingFees();
+      pushFeeToServer(fee);
       showToast('Holding fee marked as paid.', 'success');
       if (!fee.orNumber) editHoldingFee(fee.id);
     };
@@ -3428,6 +3494,7 @@
       fee.proof = null;
       persistHoldingFees(holdingFees);
       renderHoldingFees();
+      pushFeeToServer(fee);
       showToast('Proof / receipt removed.', 'info');
     };
 
@@ -3439,6 +3506,7 @@
       fee.remarks = (fee.remarks ? fee.remarks + ' \u2014 ' : '') + 'Cancelled ' + new Date().toISOString().slice(0, 10);
       persistHoldingFees(holdingFees);
       renderHoldingFees();
+      pushFeeToServer(fee);
       showToast('Holding fee cancelled.', 'info');
     };
 
@@ -3458,6 +3526,9 @@
     proofViewerModal.addEventListener('click', (e) => { if (e.target === proofViewerModal) proofViewerModal.classList.remove('visible'); });
 
     renderHoldingFees();
+    // Load this officer's fees from MySQL (falls back to the browser cache
+    // above when the server is unreachable).
+    pullHoldingFees();
 
     /* ==========================================
        SIDEBAR TOGGLE
@@ -3929,7 +4000,13 @@
               totalPrice: totalPrice,
               downpayment: downpayment,
               terms: terms,
-              startDate: startDate
+              startDate: startDate,
+              // Financing terms: previously read by the form but never sent,
+              // so the database had no record of the bank or deposit mode.
+              dpMode: dpMode,
+              dpTerms: dpTerms,
+              bank: bank,
+              annualRate: isNaN(annualRate) ? 0 : annualRate
             }
           })
         });
