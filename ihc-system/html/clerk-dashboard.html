@@ -2523,9 +2523,11 @@
 
     const mapClientToRow = (c) => {
       const pending = c.nextDueDate && c.nextStatus === 'Pending Payment';
+      // Once the downpayment is covered the backend advances the contract, so
+      // the next payment shown becomes the client's installment.
       const paymentType = c.nextInstallmentNo != null
-        ? 'Monthly Amortization #' + c.nextInstallmentNo
-        : 'Downpayment';
+        ? 'Installment Payment #' + c.nextInstallmentNo
+        : (c.nextType === 'settled' ? 'Settled in Full' : 'Downpayment');
       return {
         id: c.accountCode,
         client: c.name,
@@ -2770,6 +2772,15 @@
         // queue, and the notification log all reflect the real, saved state
         // instead of a locally-guessed one.
         await loadDashboard();
+
+        // The re-pull may have rolled this contract forward: once the
+        // downpayment is fully covered, the next payment becomes the client's
+        // installment. Announce the automatic status change instead of only
+        // silently swapping the row.
+        const updated = myContracts.find(r => r.contractId === row.contractId);
+        if (updated && row.paymentType === 'Downpayment' && String(updated.paymentType).indexOf('Installment Payment') === 0) {
+          showToast(`${row.client}\u2019s downpayment is fully paid \u2014 next payment is ${updated.paymentType}, due ${formatDate(updated.dueDate)}.`, 'success');
+        }
 
         // Front-end portal: reflect the posted payment in the buyer's ledger
         // and push a notification so they see the transaction was recorded.
@@ -3469,7 +3480,7 @@
     function renderPostingQueue() {
       const all = myContracts.filter(c => c.status !== 'paid');
       renderQueueInto('postingBodyDownpayment', all.filter(c => c.paymentType === 'Downpayment'), 'No pending downpayments for your assigned accounts.');
-      renderQueueInto('postingBodyAmortization', all.filter(c => String(c.paymentType).indexOf('Monthly Amortization') === 0), 'No pending monthly amortizations for your assigned accounts.');
+      renderQueueInto('postingBodyAmortization', all.filter(c => String(c.paymentType).indexOf('Installment Payment') === 0), 'No pending monthly amortizations for your assigned accounts.');
       renderQueueInto('postingBodyPdc', all, 'No pending payments \u2014 all accounts are settled.');
       lucide.createIcons();
     }
