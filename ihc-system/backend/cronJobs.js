@@ -76,6 +76,29 @@ async function fetchOverdueRows(todayStr, channel) {
   );
 }
 
+async function fetchHoldingExpiringRows(todayStr, channel) {
+  try{
+    return await db.query(
+      `SELECT hf.id AS holding_id, hf.expiration_date AS due_date, hf.amount AS amount_due,
+              hf.contract_id, CONCAT('IHC-', hf.contract_id) AS contract_code,
+              c.client_name, c.email AS client_email, c.cellphone_number,
+              COALESCE(pu.display_label, c.property_address) AS unit_label
+       FROM holding_fees hf
+       JOIN contracts c ON c.id=hf.contract_id
+       LEFT JOIN property_units pu ON pu.id=hf.property_unit_id
+       WHERE hf.status='PAID' AND hf.expiration_date = DATE_ADD(?, INTERVAL 2 DAY)
+        AND NOT EXISTS (
+          SELECT 1 FROM notifications_logs nl
+          WHERE nl.contract_id IN (CAST(hf.contract_id AS CHAR) COLLATE utf8mb4_general_ci, CONCAT('IHC-', hf.contract_id) COLLATE utf8mb4_general_ci, CONCAT('CON-', hf.contract_id) COLLATE utf8mb4_general_ci)
+           AND nl.channel = ? AND nl.reminder_type='holding_expiring' AND nl.status='sent'
+           AND DATE(nl.sent_at)=?
+           AND nl.subject LIKE CONCAT('%HF-', hf.id ,'%')
+        )`,
+      [todayStr, channel, todayStr]
+    );
+  }catch(e){ return []; }
+}
+
 // Safe to call from the server scheduler or from run-reminders.js.
 async function runDailyReminders() {
   console.log('[CRON] Running daily payment reminder check...');
@@ -147,7 +170,39 @@ async function runDailyReminders() {
       }
     }
 
-    console.log(`[CRON] Daily reminder check complete. Upcoming: ${upcomingEmailRows.length} email / ${upcomingSmsRows.length} SMS, Overdue: ${overdueRows.length}`);
+    // Holding fee expiring in 2 days §18 — notify clerk and client if holding is PAID
+    const holdingExpiringEmail = await fetchHoldingExpiringRows(todayStr, 'email');
+    for(const row of holdingExpiringEmail){
+      if(row.client_email){
+        const result = await sendPaymentReminder(
+          row.client_email,
+          row.client_name,
+          row.contract_code + ' ('+row.unit_label+' HF-'+row.holding_id+')',
+          row.amount_due,
+          row.due_date,
+          2,
+          { reminderType: 'holding_expiring' }
+        );
+        if(result.success) console.log(`[CRON] Holding expiring notice sent to ${row.client_email} for HF-${row.holding_id} (${row.unit_label})`);
+      }
+    }
+    const holdingExpiringSms = await fetchHoldingExpiringRows(todayStr, 'sms');
+    for(const row of holdingExpiringSms){
+      if(row.cellphone_number){
+        const result = await sendPaymentReminderSms(
+          row.cellphone_number,
+          row.client_name,
+          row.contract_code + ' ('+row.unit_label+' HF-'+row.holding_id+')',
+          row.amount_due,
+          row.due_date,
+          2,
+          { reminderType: 'holding_expiring' }
+        );
+        if(result.success) console.log(`[CRON] Holding expiring SMS sent to ${row.cellphone_number} for HF-${row.holding_id}`);
+      }
+    }
+
+    console.log(`[CRON] Daily reminder check complete. Upcoming: ${upcomingEmailRows.length} email / ${upcomingSmsRows.length} SMS, Overdue: ${overdueRows.length}, HoldingExpiring: ${holdingExpiringEmail.length} email / ${holdingExpiringSms.length} SMS`);
   } catch (error) {
     console.error('[CRON] Error during daily reminder check:', error);
     throw error;

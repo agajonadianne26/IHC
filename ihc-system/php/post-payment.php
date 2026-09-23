@@ -71,6 +71,29 @@ try {
 
     $paymentId = (int)$pdo->lastInsertId();
 
+    // Audit trail §17 — every payment insertion is logged (best-effort, never blocks ledger)
+    try{
+        $pdo->exec("CREATE TABLE IF NOT EXISTS audit_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY, action VARCHAR(80) NOT NULL, contract_id INT NULL, holding_fee_id INT NULL, reservation_fee_id INT NULL,
+          property_unit_id INT NULL, from_status VARCHAR(30) NULL, to_status VARCHAR(30) NULL, actor_id VARCHAR(100) NULL, actor_name VARCHAR(255) NULL,
+          details JSON NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          KEY idx_audit_contract (contract_id), KEY idx_audit_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+        $actorName=null;
+        if($postedBy!==''){
+            $oSt=$pdo->prepare('SELECT full_name FROM officers WHERE id=? LIMIT 1');
+            $oSt->execute([$postedBy]); $oRow=$oSt->fetch(); $actorName=$oRow ? $oRow['full_name'] : null;
+        }
+        $auditDetails=json_encode(['contractId'=>$contractId,'amount'=>(float)$amount,'method'=>$method,'orNumber'=>$orNumber,'dateCollected'=>$dateCollected,'paymentId'=>$paymentId], JSON_UNESCAPED_UNICODE);
+        $pdo->prepare('INSERT INTO audit_logs (action,contract_id,actor_id,actor_name,details) VALUES (?,?,?,?,?)')
+            ->execute(['payment.created', $numericId, $postedBy ?: null, $actorName, $auditDetails]);
+        // If this payment corresponds to a property/unit, log unit context as well
+        try{
+            $cRow=$pdo->prepare('SELECT property_address FROM contracts WHERE id=?'); $cRow->execute([$numericId]); $pAddr=$cRow->fetchColumn();
+            if($pAddr){ $uSt=$pdo->prepare('SELECT id FROM property_units WHERE display_label=? LIMIT 1'); $uSt->execute([trim((string)$pAddr)]); $uId=$uSt->fetchColumn(); if($uId) $pdo->prepare('UPDATE audit_logs SET property_unit_id=? WHERE id=LAST_INSERT_ID()')->execute([$uId]); }
+        }catch(Throwable $e){}
+    }catch(Throwable $e){ /* audit must not break payment */ }
+
     // The ledger entry is already committed. Send the email receipt afterwards
     // so a temporary mail outage never rejects a valid client payment.
     $receiptEmailSent = false;

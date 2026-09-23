@@ -43,14 +43,20 @@ SEMAPHORE_API_KEY=
 SEMAPHORE_SENDER_NAME=
 ```
 
-Apply the schema update once, then install packages and test a single run from
+Apply the schema updates once, then install packages and test a single run from
 `backend/`:
 
 ```powershell
 Get-Content .\migrations\002_reminder_automation_ihc.sql | C:\xampp\mysql\bin\mysql.exe -u root ihc
+Get-Content .\migrations\005_holding_reservation_fees_ihc.sql | C:\xampp\mysql\bin\mysql.exe -u root ihc
+Get-Content .\migrations\006_holding_fees_upgrade_legacy.sql | C:\xampp\mysql\bin\mysql.exe -u root ihc
 npm install
 npm run reminders:run
 ```
+
+Holding fee expiration is now part of the same scheduler (§5). `backend/cronJobs.js` runs `runHoldingFeeExpiration()` daily at 12:05 AM `Asia/Manila` (and lazily on every `GET` to `php/api_holding_reservation.php` / `php/api_admin.php` via `expireStaleHolds()`). Rows with `status IN ('PENDING','PAID') AND expiration_date < CURDATE()` become `EXPIRED`; with `business_rules.holding_fee.expire_makes_available=1` the `property_units` row flips `ON HOLD → AVAILABLE` (audited, never deleted). Holding expiring notices (`reminder_type='holding_expiring'`) are sent like payment reminders 2 days before expiry (email + SMS, per-channel dedup in `notifications_logs`).
+
+Admin holds dashboard (`php/api_admin.php?action=overview` → `holdingSummary`/`expiringHolds`) and clerk holding fees pane (`GET /php/api_holding_reservation.php?action=dashboard_summary`) both show `Active Holds` / `Expiring Holds (7d)` / `Reserved Units` / `Pending Payments` and the `Expiring Holds` list sorted nearest-first. Business rules (`holding_fee.default_days=30`, `expire_makes_available`, `convert_on_reservation`, `refundable`, `allow_direct_reservation`) are editable via `POST /php/api_holding_reservation.php` `action=business_rules_update` (admin UI).
 
 ## Windows Task Scheduler (recommended for XAMPP on Windows)
 

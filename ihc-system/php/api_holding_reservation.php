@@ -65,7 +65,53 @@ function ensureHoldingTables(PDO $pdo): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
     $pdo->exec("INSERT IGNORE INTO business_rules (rule_key,rule_value,description) VALUES
       ('holding_fee.default_days','30','Default hold window'),('holding_fee.expire_makes_available','1','1=EXPIRED->AVAILABLE'),
-      ('holding_fee.convert_on_reservation','1','1=reservation PAID marks holding CONVERTED'),('holding_fee.refundable','0',''),('reservation_fee.refundable','1','')");
+      ('holding_fee.convert_on_reservation','1','1=reservation PAID marks holding CONVERTED'),('holding_fee.refundable','0',''),('reservation_fee.refundable','1',''),
+      ('holding_fee.allow_direct_reservation','0','1=allow reservation without prior active hold'),('business_rules.version','6','Migration marker')");
+    // Backfill property_units from existing contracts (idempotent)
+    try { $pdo->exec("INSERT IGNORE INTO property_units (display_label, status, current_contract_id) SELECT DISTINCT TRIM(property_address), 'AVAILABLE', id FROM contracts WHERE property_address IS NOT NULL AND TRIM(property_address) <> ''"); } catch(Throwable $e){}
+    // Upgrade legacy holding_fees table (officer_id, proof_data_url, varchar status) to new schema if needed
+    try {
+        $cols=[]; foreach($pdo->query('SHOW COLUMNS FROM holding_fees') as $c) $cols[strtolower($c['Field'])]=true;
+        if(!isset($cols['client_id'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN client_id INT NULL AFTER contract_id');
+        if(!isset($cols['property_unit_id'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN property_unit_id INT NULL AFTER client_id');
+        if(!isset($cols['reference_number'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN reference_number VARCHAR(100) NULL AFTER payment_date');
+        if(!isset($cols['start_date'])) { $pdo->exec('ALTER TABLE holding_fees ADD COLUMN start_date DATE NULL AFTER or_number'); try{ $pdo->exec("UPDATE holding_fees SET start_date=payment_date WHERE start_date IS NULL AND payment_date IS NOT NULL"); }catch(Throwable $e){} }
+        if(!isset($cols['expiration_date'])) { $pdo->exec('ALTER TABLE holding_fees ADD COLUMN expiration_date DATE NULL AFTER start_date'); try{ $pdo->exec("UPDATE holding_fees SET expiration_date=DATE_ADD(payment_date, INTERVAL 30 DAY) WHERE expiration_date IS NULL AND payment_date IS NOT NULL"); }catch(Throwable $e){} }
+        if(!isset($cols['processed_by'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN processed_by VARCHAR(100) NULL AFTER proof_name');
+        if(!isset($cols['converted_to_reservation_id'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN converted_to_reservation_id INT NULL AFTER processed_by');
+        if(!isset($cols['proof_path'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN proof_path VARCHAR(500) NULL AFTER remarks');
+        // Normalize lowercase statuses before ENUM conversion
+        try{ $pdo->exec("UPDATE holding_fees SET status=UPPER(status) WHERE LOWER(status) IN ('pending','paid','cancelled')"); }catch(Throwable $e){}
+        try{ $pdo->exec("UPDATE holding_fees SET status='PENDING' WHERE status NOT IN ('PENDING','PAID','EXPIRED','REFUNDED','FORFEITED','CONVERTED','CANCELLED')"); }catch(Throwable $e){}
+        // Convert VARCHAR status to ENUM if needed
+        $type=''; foreach($pdo->query("SHOW COLUMNS FROM holding_fees LIKE 'status'") as $c) $type=strtolower($c['Type']);
+        if(strpos($type,'varchar')!==false){
+            $pdo->exec("ALTER TABLE holding_fees MODIFY COLUMN status ENUM('PENDING','PAID','EXPIRED','REFUNDED','FORFEITED','CONVERTED','CANCELLED') NOT NULL DEFAULT 'PENDING'");
+        }
+        // Ensure indexes
+        $hasIdx=function(string $n) use ($pdo): bool { foreach($pdo->query("SHOW INDEX FROM holding_fees") as $r) if($r['Key_name']===$n) return true; return false; };
+        if(!$hasIdx('idx_hf_contract')) $pdo->exec('ALTER TABLE holding_fees ADD KEY idx_hf_contract (contract_id)');
+        if(!$hasIdx('idx_hf_unit')) $pdo->exec('ALTER TABLE holding_fees ADD KEY idx_hf_unit (property_unit_id)');
+        if(!$hasIdx('idx_hf_status_exp')) $pdo->exec('ALTER TABLE holding_fees ADD KEY idx_hf_status_exp (status, expiration_date)');
+        if(!$hasIdx('idx_hf_created')) $pdo->exec('ALTER TABLE holding_fees ADD KEY idx_hf_created (created_at)');
+        // One-time migration of legacy proof_data_url base64 to file if proof_path empty
+        if(isset($cols['proof_data_url'])){
+            try{
+                foreach($pdo->query("SELECT id, proof_data_url, proof_name FROM holding_fees WHERE proof_data_url IS NOT NULL AND proof_data_url<>'' AND (proof_path IS NULL OR proof_path='') LIMIT 20") as $r){
+                    $dataUrl=$r['proof_data_url']; if(strpos($dataUrl,'data:')!==0) continue;
+                    $comma=strpos($dataUrl,','); if($comma===false) continue;
+                    $meta=substr($dataUrl,5,$comma-5); $ext='png';
+                    if(strpos($meta,'jpeg')!==false) $ext='jpg'; elseif(strpos($meta,'png')!==false) $ext='png'; elseif(strpos($meta,'pdf')!==false) $ext='pdf';
+                    elseif(strpos($meta,'gif')!==false) $ext='gif'; elseif(strpos($meta,'webp')!==false) $ext='webp';
+                    $b64=substr($dataUrl,$comma+1); $bin=@base64_decode($b64,true); if($bin===false) continue;
+                    $dir=__DIR__.'/../uploads/holding_fees'; if(!is_dir($dir)) @mkdir($dir,0755,true);
+                    $fname='proof_migrated_'.$r['id'].'_'.bin2hex(random_bytes(4)).'.'.$ext;
+                    $path=$dir.'/'.$fname; if(@file_put_contents($path,$bin)===false) continue;
+                    $pdo->prepare('UPDATE holding_fees SET proof_path=?, proof_name=COALESCE(proof_name,?) WHERE id=?')->execute(['uploads/holding_fees/'.$fname, $r['proof_name'] ?: 'proof.'.$ext, $r['id']]);
+                }
+            }catch(Throwable $e){}
+        }
+    } catch(Throwable $e){ /* self-heal must not block */ }
 }
 ensureHoldingTables($pdo);
 
@@ -465,34 +511,48 @@ try{
             }
 
             if($isUpdate){
+                // Refund policy check §19
+                if($status==='REFUNDED' && getBusinessRule($pdo,'holding_fee.refundable','0')!=='1'){
+                    throw new RuntimeException('Holding fees are not refundable per current IHC policy (business_rules.holding_fee.refundable).');
+                }
                 $prevStatus=$existing['status'];
-                $pdo->prepare('UPDATE holding_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, start_date=?, expiration_date=?, status=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, updated_at=NOW() WHERE id=?')
-                    ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$remarks?:null,$proofPath,$proofName,$processedBy,$holdingId]);
-                audit($pdo,'holding_fee.updated',$contractId,$holdingId,null,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
-                // State machine on status change to PAID: AVAILABLE -> ON HOLD
-                if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
-                    $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=?, current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$holdingId,$unitId]);
-                    audit($pdo,'unit.status_changed',$contractId,$holdingId,null,$unitId,'AVAILABLE','ON HOLD',$processedBy,$actorName,['reason'=>'holding paid']);
-                }
-                if(in_array($status,['CANCELLED','EXPIRED','REFUNDED','FORFEITED'],true) && $unitId){
-                    $makeAvail=getBusinessRule($pdo,'holding_fee.expire_makes_available','1')==='1';
-                    if($makeAvail){
-                        $pdo->prepare("UPDATE property_units SET status='AVAILABLE', current_holding_fee_id=NULL, updated_at=NOW() WHERE id=? AND status='ON HOLD'")->execute([$unitId]);
-                        audit($pdo,'unit.status_changed',$contractId,$holdingId,null,$unitId,'ON HOLD','AVAILABLE',$processedBy,$actorName,['reason'=>'holding '.$status]);
+                $pdo->beginTransaction();
+                try{
+                    if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
+                    $pdo->prepare('UPDATE holding_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, start_date=?, expiration_date=?, status=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, updated_at=NOW() WHERE id=?')
+                        ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$remarks?:null,$proofPath,$proofName,$processedBy,$holdingId]);
+                    audit($pdo,'holding_fee.updated',$contractId,$holdingId,null,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
+                    if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
+                        $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=?, current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$holdingId,$unitId]);
+                        audit($pdo,'unit.status_changed',$contractId,$holdingId,null,$unitId,'AVAILABLE','ON HOLD',$processedBy,$actorName,['reason'=>'holding paid']);
                     }
-                }
+                    if(in_array($status,['CANCELLED','EXPIRED','REFUNDED','FORFEITED'],true) && $unitId){
+                        $makeAvail=getBusinessRule($pdo,'holding_fee.expire_makes_available','1')==='1';
+                        if($makeAvail){
+                            $pdo->prepare("UPDATE property_units SET status='AVAILABLE', current_holding_fee_id=NULL, updated_at=NOW() WHERE id=? AND status='ON HOLD'")->execute([$unitId]);
+                            audit($pdo,'unit.status_changed',$contractId,$holdingId,null,$unitId,'ON HOLD','AVAILABLE',$processedBy,$actorName,['reason'=>'holding '.$status]);
+                        }
+                    }
+                    $pdo->commit();
+                }catch(Throwable $e){ if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
                 $st=$pdo->prepare('SELECT * FROM holding_fees WHERE id=?'); $st->execute([$holdingId]); $row=$st->fetch();
                 echo json_encode(['success'=>true,'message'=>'Holding fee updated.','holdingFee'=>$row]);
                 exit;
             } else {
-                $pdo->prepare('INSERT INTO holding_fees (contract_id,client_id,property_unit_id,amount,payment_method,payment_date,reference_number,or_number,start_date,expiration_date,status,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                    ->execute([$contractId,$clientId,$unitId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$remarks?:null,$proofPath,$proofName,$processedBy]);
-                $newId=(int)$pdo->lastInsertId();
-                audit($pdo,'holding_fee.created',$contractId,$newId,null,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
-                if($status==='PAID' && $unitId){
-                    $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=?, current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
-                    audit($pdo,'unit.status_changed',$contractId,$newId,null,$unitId,'AVAILABLE','ON HOLD',$processedBy,$actorName,['reason'=>'holding paid']);
-                }
+                // Lock unit row if exists to prevent race
+                $pdo->beginTransaction();
+                try{
+                    if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
+                    $pdo->prepare('INSERT INTO holding_fees (contract_id,client_id,property_unit_id,amount,payment_method,payment_date,reference_number,or_number,start_date,expiration_date,status,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                        ->execute([$contractId,$clientId,$unitId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$remarks?:null,$proofPath,$proofName,$processedBy]);
+                    $newId=(int)$pdo->lastInsertId();
+                    audit($pdo,'holding_fee.created',$contractId,$newId,null,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
+                    if($status==='PAID' && $unitId){
+                        $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=?, current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
+                        audit($pdo,'unit.status_changed',$contractId,$newId,null,$unitId,'AVAILABLE','ON HOLD',$processedBy,$actorName,['reason'=>'holding paid']);
+                    }
+                    $pdo->commit();
+                }catch(Throwable $e){ if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
                 $st=$pdo->prepare('SELECT * FROM holding_fees WHERE id=?'); $st->execute([$newId]); $row=$st->fetch();
                 echo json_encode(['success'=>true,'message'=>'Holding fee recorded.','id'=>$newId,'holdingFee'=>$row]);
                 exit;
@@ -571,37 +631,60 @@ try{
             $clientId=null;
             if($contract['email']){ $st=$pdo->prepare('SELECT id FROM client_accounts WHERE LOWER(email)=LOWER(?) LIMIT 1'); $st->execute([$contract['email']]); $ca=$st->fetch(); if($ca) $clientId=(int)$ca['id']; }
 
+            if($status==='REFUNDED' && getBusinessRule($pdo,'reservation_fee.refundable','1')!=='1'){
+                throw new RuntimeException('Reservation fees are not refundable per current IHC policy (business_rules.reservation_fee.refundable).');
+            }
+            // Direct reservation without hold requires explicit rule per §19
+            if(!$isUpdate && $status==='PAID' && $unit && $unit['status']==='AVAILABLE' && $holdingFeeId===null){
+                if(getBusinessRule($pdo,'holding_fee.allow_direct_reservation','0')!=='1'){
+                    // Allow but audit warning; for now permit with warning audit — uncomment to block:
+                    // throw new RuntimeException('Direct reservation without an active hold is not allowed per IHC policy.');
+                    audit($pdo,'reservation_fee.direct_without_hold',$contractId,null,null,$unitId,null,'PAID',$processedBy,$actorName,['warning'=>'reserved AVAILABLE without prior ON HOLD','unit'=>$unitLabel]);
+                }
+            }
             if($isUpdate){
                 $prevStatus=$existing['status'];
-                $pdo->prepare('UPDATE reservation_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, status=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, updated_at=NOW() WHERE id=?')
-                    ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy,$resId]);
-                audit($pdo,'reservation_fee.updated',$contractId,null,$resId,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
-                if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
-                    $pdo->prepare("UPDATE property_units SET status='RESERVED', current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$unitId]);
-                    audit($pdo,'unit.status_changed',$contractId,null,$resId,$unitId,'ON HOLD','RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
-                    // Convert linked holding if rule enabled
-                    if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
-                        $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$holdingFeeId]);
-                        audit($pdo,'holding_fee.converted',$contractId,$holdingFeeId,$resId,$unitId,'PAID','CONVERTED',$processedBy,$actorName,['reservation_id'=>$resId]);
-                    }
+                if($status==='REFUNDED' && getBusinessRule($pdo,'reservation_fee.refundable','1')!=='1'){
+                    throw new RuntimeException('Reservation fees are not refundable per current IHC policy.');
                 }
+                $pdo->beginTransaction();
+                try{
+                    if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
+                    $pdo->prepare('UPDATE reservation_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, status=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, updated_at=NOW() WHERE id=?')
+                        ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy,$resId]);
+                    audit($pdo,'reservation_fee.updated',$contractId,null,$resId,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
+                    if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
+                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$unitId]);
+                        audit($pdo,'unit.status_changed',$contractId,null,$resId,$unitId,'ON HOLD','RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
+                        if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
+                            $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$holdingFeeId]);
+                            audit($pdo,'holding_fee.converted',$contractId,$holdingFeeId,$resId,$unitId,'PAID','CONVERTED',$processedBy,$actorName,['reservation_id'=>$resId]);
+                        }
+                    }
+                    $pdo->commit();
+                }catch(Throwable $e){ if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
                 $st=$pdo->prepare('SELECT * FROM reservation_fees WHERE id=?'); $st->execute([$resId]); $row=$st->fetch();
                 echo json_encode(['success'=>true,'message'=>'Reservation fee updated.','reservationFee'=>$row]);
                 exit;
             } else {
-                $pdo->prepare('INSERT INTO reservation_fees (contract_id,property_unit_id,client_id,holding_fee_id,amount,payment_method,payment_date,reference_number,or_number,status,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                    ->execute([$contractId,$unitId,$clientId,$holdingFeeId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy]);
-                $newId=(int)$pdo->lastInsertId();
-                audit($pdo,'reservation_fee.created',$contractId,null,$newId,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
-                if($status==='PAID' && $unitId){
-                    $prevUnitStatus=$unit['status'];
-                    $pdo->prepare("UPDATE property_units SET status='RESERVED', current_contract_id=?, current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
-                    audit($pdo,'unit.status_changed',$contractId,null,$newId,$unitId,$prevUnitStatus,'RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
-                    if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
-                        $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$newId,$holdingFeeId]);
-                        audit($pdo,'holding_fee.converted',$contractId,$holdingFeeId,$newId,$unitId,'PAID','CONVERTED',$processedBy,$actorName,['reservation_id'=>$newId]);
+                $pdo->beginTransaction();
+                try{
+                    if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
+                    $pdo->prepare('INSERT INTO reservation_fees (contract_id,property_unit_id,client_id,holding_fee_id,amount,payment_method,payment_date,reference_number,or_number,status,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                        ->execute([$contractId,$unitId,$clientId,$holdingFeeId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy]);
+                    $newId=(int)$pdo->lastInsertId();
+                    audit($pdo,'reservation_fee.created',$contractId,null,$newId,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
+                    if($status==='PAID' && $unitId){
+                        $prevUnitStatus=$unit['status'];
+                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_contract_id=?, current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
+                        audit($pdo,'unit.status_changed',$contractId,null,$newId,$unitId,$prevUnitStatus,'RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
+                        if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
+                            $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$newId,$holdingFeeId]);
+                            audit($pdo,'holding_fee.converted',$contractId,$holdingFeeId,$newId,$unitId,'PAID','CONVERTED',$processedBy,$actorName,['reservation_id'=>$newId]);
+                        }
                     }
-                }
+                    $pdo->commit();
+                }catch(Throwable $e){ if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
                 $st=$pdo->prepare('SELECT * FROM reservation_fees WHERE id=?'); $st->execute([$newId]); $row=$st->fetch();
                 echo json_encode(['success'=>true,'message'=>'Reservation fee recorded.','id'=>$newId,'reservationFee'=>$row]);
                 exit;

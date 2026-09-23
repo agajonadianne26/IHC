@@ -1355,6 +1355,95 @@
           </div>
         </section>
 
+        <!-- HOLDING / RESERVATION SUMMARY §12 -->
+        <section style="margin-bottom:24px;">
+          <div style="display:grid; grid-template-columns: repeat(4,1fr); gap:14px; margin-bottom:18px;">
+            <div class="kpi-card" style="padding:16px;">
+              <div class="kpi-label" style="font-size:10px;">Active Holds</div>
+              <div class="kpi-value" id="ahKpiActive" style="font-size:22px; color:var(--accent-emerald);">—</div>
+              <div class="kpi-sub">PAID within window</div>
+            </div>
+            <div class="kpi-card" style="padding:16px;">
+              <div class="kpi-label" style="font-size:10px;">Expiring Holds (7d)</div>
+              <div class="kpi-value" id="ahKpiExpiring" style="font-size:22px; color:var(--accent-amber);">—</div>
+              <div class="kpi-sub">Nearest deadlines first</div>
+            </div>
+            <div class="kpi-card" style="padding:16px;">
+              <div class="kpi-label" style="font-size:10px;">Reserved Units</div>
+              <div class="kpi-value" id="ahKpiReserved" style="font-size:22px; color:var(--accent-blue);">—</div>
+              <div class="kpi-sub">RESERVED status</div>
+            </div>
+            <div class="kpi-card" style="padding:16px;">
+              <div class="kpi-label" style="font-size:10px;">Pending Payments</div>
+              <div class="kpi-value" id="ahKpiPending" style="font-size:22px; color:var(--accent-rose);">—</div>
+              <div class="kpi-sub">Holding + Reservation PENDING</div>
+            </div>
+          </div>
+          <div class="table-section">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h2>Expiring Holds</h2>
+                <p>Nearest expiration first — visual alert when ≤3 days</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr><th>Client</th><th>Unit</th><th>Amount</th><th>Expiration</th><th>Status</th></tr></thead>
+                <tbody id="expiringHoldsBody"><tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn-primary" id="refreshHoldingBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh Holds</button>
+            <button class="btn-primary" id="expireSweepBtn" type="button" style="background:var(--accent-amber); border-color:var(--accent-amber);"><i data-lucide="clock" style="width:14px;height:14px;"></i> Run Expire Sweep</button>
+          </div>
+        </section>
+
+        <!-- BUSINESS RULES §19 (admin-only configurable) -->
+        <section class="table-section" style="margin-bottom:24px;">
+          <div class="table-header">
+            <div class="table-header-left">
+              <h2>Business Rules</h2>
+              <p>Configurable policy — changes are audited</p>
+            </div>
+          </div>
+          <div style="padding:18px 24px; display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+            <label style="font-size:11px; font-weight:700;">Default hold window (days) <input id="brDefaultDays" type="number" min="1" max="365" style="width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;"></label>
+            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brExpireMakesAvail" type="checkbox"> EXPIRED → AVAILABLE</label>
+            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brConvertOnRes" type="checkbox"> Reservation PAID → CONVERT holding</label>
+            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brHoldingRefundable" type="checkbox"> Holding refundable</label>
+            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brReservationRefundable" type="checkbox"> Reservation refundable</label>
+            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brAllowDirectRes" type="checkbox"> Allow direct reservation (no hold)</label>
+          </div>
+          <div style="padding:0 24px 18px; display:flex; gap:10px;">
+            <button class="btn-primary" id="saveRulesBtn" type="button">Save Rules</button>
+            <span id="brStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
+          </div>
+        </section>
+
+        <!-- PROPERTY / UNIT DETAIL §13 -->
+        <section class="table-section" style="margin-bottom:24px;">
+          <div class="table-header">
+            <div class="table-header-left">
+              <h2>Property / Unit Status</h2>
+              <p>AVAILABLE → ON HOLD → RESERVED → SOLD</p>
+            </div>
+          </div>
+          <div style="padding:18px 24px; display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+            <div style="flex:1; min-width:220px;">
+              <label style="font-size:11px; font-weight:700;">Unit display label / property address</label>
+              <input id="unitLookupInput" type="text" placeholder="e.g., Building A - Unit 101 or exact property_address" style="width:100%; height:38px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;">
+            </div>
+            <button class="btn-primary" id="lookupUnitBtn" type="button">Lookup Unit</button>
+          </div>
+          <div id="unitDetailBox" style="padding:0 24px 18px; display:none;">
+            <div id="unitDetailContent" style="font-size:12px; line-height:1.6; color:var(--text-secondary);"></div>
+            <div style="margin-top:12px;" class="table-scroll">
+              <table class="data-table" id="unitHistoryTable"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Status</th><th>OR / Ref</th></tr></thead><tbody id="unitHistoryBody"></tbody></table>
+            </div>
+          </div>
+        </section>
+
         <!-- CHARTS -->
         <section class="chart-grid">
           <div class="chart-card">
@@ -2270,6 +2359,8 @@
         applyAging();
         applyFilters(); // re-renders the ledger table + filter tab counts
         renderContracts();
+        // Holding summary §12
+        renderHoldingSummary(data.holdingSummary, data.expiringHolds || []);
         // If the admin is already sitting on another view, refresh it too
         const activeView = document.querySelector('.view.active');
         const viewName = activeView ? activeView.getAttribute('data-view') : '';
@@ -2282,6 +2373,104 @@
         renderContracts();
       }
     }
+
+    /* Holding summary §12 + Business Rules §19 + Unit lookup §13 */
+    function renderHoldingSummary(summary, expiring){
+      const s = summary || {activeHolds:0, expiringHolds:0, reservedUnits:0, pendingPayments:0};
+      document.getElementById('ahKpiActive').textContent = s.activeHolds;
+      document.getElementById('ahKpiExpiring').textContent = s.expiringHolds;
+      document.getElementById('ahKpiReserved').textContent = s.reservedUnits;
+      document.getElementById('ahKpiPending').textContent = s.pendingPayments;
+      const body=document.getElementById('expiringHoldsBody');
+      if(!expiring || !expiring.length){
+        body.innerHTML='<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:16px;">No active holds expiring soon.</td></tr>';
+      } else {
+        body.innerHTML=expiring.map(r=>{
+          const exp=new Date(r.expiration+'T00:00:00');
+          const days=Math.ceil((exp - new Date().setHours(0,0,0,0))/86400000);
+          const alert = days<=3 ? 'danger' : (days<=7 ? 'warn' : 'ok');
+          const label = days<0 ? 'Expired '+Math.abs(days)+'d ago' : (days===0 ? 'Today' : days+' day'+(days===1?'':'s'));
+          return '<tr><td><strong>'+r.client+'</strong></td><td>'+r.unit+'</td><td>'+formatPHP(r.amount)+'</td><td>'+formatDate(exp)+'</td><td><span class="row-status '+alert+'"><span class="dot"></span>'+label+'</span></td></tr>';
+        }).join('');
+      }
+      lucide.createIcons();
+    }
+    document.getElementById('refreshHoldingBtn')?.addEventListener('click', loadAdminData);
+    document.getElementById('expireSweepBtn')?.addEventListener('click', async ()=>{
+      try{
+        const res=await fetch(API_BASE+'/php/api_holding_reservation.php?action=expire_sweep', {method:'POST'});
+        const d=await res.json();
+        showToast('Expire sweep: '+(d.expired||0)+' holds expired.','success');
+        loadAdminData();
+      }catch(e){ showToast('Expire sweep failed: '+e.message,'info'); }
+    });
+    // Business rules
+    async function loadBusinessRules(){
+      try{
+        const res=await fetch(API_BASE+'/php/api_holding_reservation.php?action=business_rules');
+        const d=await res.json();
+        if(d.success && Array.isArray(d.rules)){
+          const m={}; d.rules.forEach(r=> m[r.rule_key]=r.rule_value);
+          document.getElementById('brDefaultDays').value=m['holding_fee.default_days']||'30';
+          document.getElementById('brExpireMakesAvail').checked=m['holding_fee.expire_makes_available']==='1';
+          document.getElementById('brConvertOnRes').checked=m['holding_fee.convert_on_reservation']==='1';
+          document.getElementById('brHoldingRefundable').checked=m['holding_fee.refundable']==='1';
+          document.getElementById('brReservationRefundable').checked=m['reservation_fee.refundable']==='1';
+          document.getElementById('brAllowDirectRes').checked=m['holding_fee.allow_direct_reservation']==='1';
+        }
+      }catch(e){}
+    }
+    loadBusinessRules();
+    document.getElementById('saveRulesBtn')?.addEventListener('click', async ()=>{
+      const rules={
+        'holding_fee.default_days': document.getElementById('brDefaultDays').value,
+        'holding_fee.expire_makes_available': document.getElementById('brExpireMakesAvail').checked?'1':'0',
+        'holding_fee.convert_on_reservation': document.getElementById('brConvertOnRes').checked?'1':'0',
+        'holding_fee.refundable': document.getElementById('brHoldingRefundable').checked?'1':'0',
+        'reservation_fee.refundable': document.getElementById('brReservationRefundable').checked?'1':'0',
+        'holding_fee.allow_direct_reservation': document.getElementById('brAllowDirectRes').checked?'1':'0'
+      };
+      document.getElementById('brStatus').textContent='Saving…';
+      try{
+        const res=await fetch(API_BASE+'/php/api_holding_reservation.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'business_rules_update', rules})});
+        const d=await res.json();
+        document.getElementById('brStatus').textContent=d.success?'Saved.':'Failed: '+(d.message||'error');
+        if(d.success) showToast('Business rules updated.','success');
+        setTimeout(()=> document.getElementById('brStatus').textContent='', 3000);
+      }catch(e){ document.getElementById('brStatus').textContent='Error: '+e.message; }
+    });
+    // Unit lookup §13
+    document.getElementById('lookupUnitBtn')?.addEventListener('click', async ()=>{
+      const label=document.getElementById('unitLookupInput').value.trim();
+      if(!label){ showToast('Enter a unit label.','info'); return; }
+      const box=document.getElementById('unitDetailBox');
+      const content=document.getElementById('unitDetailContent');
+      const hBody=document.getElementById('unitHistoryBody');
+      box.style.display='block'; content.textContent='Loading…'; hBody.innerHTML='';
+      try{
+        const res=await fetch(API_BASE+'/php/api_holding_reservation.php?action=property_unit&contractId='+encodeURIComponent(label));
+        let data=await res.json();
+        if(!data.success){
+          const res2=await fetch(API_BASE+'/php/api_holding_reservation.php?action=property_unit&unitId='+encodeURIComponent(label));
+          data=await res2.json();
+        }
+        if(!data.success) throw new Error(data.message||'Not found');
+        const u=data.unit;
+        content.innerHTML='<strong>Unit:</strong> '+u.display_label+'<br><strong>Status:</strong> <span class="row-status '+(u.status==='AVAILABLE'?'neutral':u.status==='ON HOLD'?'warn':u.status==='RESERVED'?'ok':'danger')+'"><span class="dot"></span>'+u.status+'</span><br><strong>Current contract:</strong> '+(u.current_contract_id||'—')+'<br><strong>Holding fee:</strong> '+(u.current_holding_fee_id||'—')+'<br><strong>Reservation fee:</strong> '+(u.current_reservation_fee_id||'—');
+        // Try payment_history for that contract if we have it
+        try{
+          const cid=u.current_contract_id;
+          if(cid){
+            const hr=await fetch(API_BASE+'/php/api_holding_reservation.php?action=payment_history&contractId='+encodeURIComponent(cid));
+            const hd=await hr.json();
+            if(hd.success && Array.isArray(hd.history)){
+              hBody.innerHTML=hd.history.slice(0,20).map(h=> '<tr><td>'+h.date+'</td><td>'+h.type+'</td><td>'+formatPHP(h.amount)+'</td><td><span class="row-status '+(h.status==='PAID'?'ok':h.status==='PENDING'?'warn':'neutral')+'"><span class="dot"></span>'+h.status+'</span></td><td>'+(h.orNumber||h.referenceNumber||'<span style="color:var(--text-muted);">Pending</span>')+'</td></tr>').join('');
+            }
+          }
+        }catch(e){}
+        lucide.createIcons();
+      }catch(e){ content.textContent='Error: '+e.message; }
+    });
 
     /* ==========================================
        LUCIDE ICONS INIT
