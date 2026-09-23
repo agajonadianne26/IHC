@@ -253,6 +253,13 @@ try {
                 'downpayment' => (float)$contract['downpayment'],
                 'terms' => (int)$contract['installment_terms'],
                 'startDate' => $contract['start_date'],
+                // Downpayment plan + financing terms saved by the New Contract
+                // form. Rows created before those columns existed have no value
+                // yet, hence the defaults.
+                'dpMode' => (isset($contract['dp_mode']) && $contract['dp_mode'] !== null && $contract['dp_mode'] !== '') ? (string)$contract['dp_mode'] : 'lump',
+                'dpTerms' => (isset($contract['dp_terms']) && $contract['dp_terms'] !== null) ? (int)$contract['dp_terms'] : null,
+                'bank' => isset($contract['bank_name']) ? (string)$contract['bank_name'] : '',
+                'annualRate' => isset($contract['annual_interest_rate']) ? (float)$contract['annual_interest_rate'] : 0.0,
                 'officerId' => $contract['officer_id'],
                 'officerName' => $contract['officer_name'],
             ],

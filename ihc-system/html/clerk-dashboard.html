@@ -2362,6 +2362,7 @@
        API BASE & DATA LOADING (from backend)
     ========================================== */
     const API_BASE = 'http://localhost/ihc-system';
+    const HOLDING_API = API_BASE + '/php/api_holding_reservation.php';
     const NODE_API_BASE = 'http://localhost:3000';
     const notificationStorageKey = 'IHC_NOTIFICATION_STATUS_' + (currentUser.officerId || currentUser.id || 'default');
     const TODAY = new Date();
@@ -2934,7 +2935,6 @@
        §3-§7, §10-§12: holding_fees + reservation_fees via php/api_holding_reservation.php
        Falls back to localStorage when XAMPP is offline so the demo still works.
     ========================================== */
-    const HOLDING_API = API_BASE + '/php/api_holding_reservation.php';
     // Legacy key kept only for one-time migration; server is source of truth.
     const holdingFeeStorageKey = 'IHC_HOLDING_FEES_' + (currentUser.officerId || currentUser.id || 'default');
 
@@ -4075,7 +4075,13 @@
               totalPrice: totalPrice,
               downpayment: downpayment,
               terms: terms,
-              startDate: startDate
+              startDate: startDate,
+              // Financing terms: previously read by the form but never sent,
+              // so the database had no record of the bank or deposit mode.
+              dpMode: dpMode,
+              dpTerms: dpTerms,
+              bank: bank,
+              annualRate: isNaN(annualRate) ? 0 : annualRate
             }
           })
         });
