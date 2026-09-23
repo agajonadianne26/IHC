@@ -132,6 +132,7 @@ try {
             'amount' => (float)$downpayment,
             'dueDate' => $startDate,
             'recipientEmail' => $email,
+            'recipientPhone' => $phone,
             'reminderType' => 'due_soon'
         ]);
         $context = stream_context_create(['http' => [

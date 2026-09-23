@@ -140,11 +140,11 @@ try {
             ];
         }
 
-        // Server-sent client notifications (reminders + receipts). The ack rows
-        // (channel ack_email) are clerk-facing and stay out of this feed.
+        // Server-sent client notifications (email + SMS reminders, receipts).
+        // The ack rows (channel ack_email) are clerk-facing and stay out of this feed.
         $notifStmt = $pdo->prepare(
-            "SELECT id, reminder_type, subject, status, sent_at FROM notifications_logs
-             WHERE contract_id IN ($placeholders) AND channel = 'email' AND status = 'sent'
+            "SELECT id, reminder_type, subject, status, sent_at, channel FROM notifications_logs
+             WHERE contract_id IN ($placeholders) AND channel IN ('email','sms') AND status = 'sent'
              ORDER BY sent_at DESC LIMIT 20"
         );
         $notifStmt->execute($variants);
@@ -155,7 +155,7 @@ try {
             $notifications[] = [
                 'logId' => (int)$n['id'],
                 'kind' => $isReceipt ? 'payment' : 'reminder',
-                'channel' => 'Email',
+                'channel' => ($n['channel'] ?? 'email') === 'sms' ? 'SMS' : 'Email',
                 'title' => $isReceipt ? 'Payment receipt emailed' : 'Payment reminder sent',
                 'message' => (string)$n['subject'],
                 'time' => $n['sent_at'],

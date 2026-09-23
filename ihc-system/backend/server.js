@@ -73,6 +73,18 @@ app.listen(PORT, async () => {
     console.error('  -> Check SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS in .env.');
   }
 
+  // 4) Is the SMS (Semaphore) channel configured?
+  try {
+    const { isSmsConfigured } = require('./smsService');
+    if (isSmsConfigured()) {
+      console.log('[OK] Semaphore API key found — SMS reminders enabled.');
+    } else {
+      console.log('[WARNING] SMS reminders DISABLED — set SEMAPHORE_API_KEY (and SEMAPHORE_SENDER_NAME if your account has no default Sender Name) in .env to enable them. Email reminders are unaffected.');
+    }
+  } catch (err) {
+    console.error('[WARNING] Could not load smsService.js:', err.message);
+  }
+
   console.log('--- Startup checks complete ---');
 });
 

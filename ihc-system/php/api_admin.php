@@ -172,6 +172,7 @@ try {
     $expected = 0.0;
     $dueSoonCount = 0;
     $emailToName = [];
+    $idToName = [];
 
     foreach ($contractRows as $c) {
         $id = (int)$c['id'];
@@ -220,6 +221,7 @@ try {
 
         $expected += $tcp;
         $emailToName[strtolower((string)$c['email'])] = (string)$c['client_name'];
+        $idToName[$id] = (string)$c['client_name'];
     }
 
     // Monthly collection totals across live contracts (this + previous month)
@@ -254,12 +256,20 @@ try {
             $cidDisplay = 'IHC-' . $m[1];
         }
         $email = strtolower((string)$n['client_email']);
+        $channel = (string)$n['channel'];
+        $recipient = (string)$n['client_email'];
+        // SMS rows store the phone number in client_email (there is no phone
+        // column), so resolve their client name through the contract id.
+        $displayName = $emailToName[$email] ?? null;
+        if ($displayName === null && preg_match('/(\d+)\s*$/', $cidDisplay, $mNum) && isset($idToName[(int)$mNum[1]])) {
+            $displayName = $idToName[(int)$mNum[1]];
+        }
         $notifications[] = [
             'time' => date('M j, H:i', strtotime((string)$n['sent_at'])),
-            'client' => $emailToName[$email] ?? (string)$n['client_email'],
+            'client' => $displayName ?? $recipient,
             'contractId' => $cidDisplay,
-            'channel' => $n['channel'] === 'ack_email' ? 'Acknowledgement' : 'Email',
-            'recipient' => (string)$n['client_email'],
+            'channel' => $channel === 'ack_email' ? 'Acknowledgement' : ($channel === 'sms' ? 'SMS' : 'Email'),
+            'recipient' => $recipient,
             'subject' => (string)$n['subject'],
             'status' => $n['status'] === '' ? 'pending' : (string)$n['status'],
         ];
