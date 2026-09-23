@@ -100,16 +100,20 @@ function buildReminderEmail(clientName, contractId, amountDue, dueDate, daysUnti
 }
 
 // Best-effort audit log — a broken/missing notification_logs table should
-// never be allowed to make a successfully-sent email look like a failure.
+// never be allowed to make a successfully-sent message look like a failure.
+// Shared by emailService ('email') and smsService ('sms'); there is no phone
+// column, so for SMS rows `to` (the number) goes in client_email and the
+// channel value is what disambiguates the two.
 async function logNotification(fields) {
   try {
     await db.query(
       `INSERT INTO notifications_logs
         (contract_id, client_email, channel, reminder_type, due_date, subject, status, sent_at, error_message)
-       VALUES (?, ?, 'email', ?, ?, ?, ?, NOW(), ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
       [
         fields.contractId,
         fields.to,
+        fields.channel || 'email',
         fields.reminderType || 'manual',
         fields.dueDate || null,
         fields.subject,
@@ -212,6 +216,7 @@ async function sendPaymentReceipt(to, clientName, contractId, amount, paymentDat
 module.exports = {
   sendPaymentReminder,
   sendPaymentReceipt,
+  logNotification,
   formatCurrency,
   formatDate,
   transporter,

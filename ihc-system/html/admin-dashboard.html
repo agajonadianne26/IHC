@@ -2004,7 +2004,7 @@
             </tr>
             <tr class="total-row">
               <td colspan="2" style="text-align:right;">TOTAL DUE</td>
-              <td style="font-weight:800;">${formatPHP(row.amount)}</td>
+              <td style="font-weight:800;">${formatPHP(row.outstanding != null ? row.outstanding : row.amount)}</td>
               <td></td>
             </tr>
           </tbody>

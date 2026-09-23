@@ -1,5 +1,10 @@
 <?php
 declare(strict_types=1);
+
+// Shared installment-schedule math — the clerk and client endpoints include
+// this same file, so all three dashboards interpret `payments` identically.
+require_once __DIR__ . '/installment-schedule.php';
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
@@ -72,21 +77,9 @@ try {
         return 'pending';
     };
 
-    $daysUntil = function (string $from, string $to): int {
-        return (int)floor((strtotime($to) - strtotime($from)) / 86400);
-    };
-
-    // Contract status from data the schema actually supports:
-    //   paid      -> nothing outstanding
-    //   overdue   -> first payment date (start_date) already passed
-    //   due-soon  -> start_date within the next 3 days
-    //   current   -> everything else
-    $statusOf = function (float $outstanding, string $start) use ($today, $daysUntil): string {
-        if ($outstanding <= 0.009) return 'paid';
-        if ($start < $today) return 'overdue';
-        if ($daysUntil($today, $start) <= 3) return 'due-soon';
-        return 'current';
-    };
+    // Status/type/due-date now all come from ihc_schedule() (see the overview
+    // loop below) — the old start_date heuristic is gone so the admin ledger
+    // and the clerk ledger describe the same next payment.
 
     if ($action === 'schedule') {
         // ---- Installment schedule for one contract --------------------
@@ -105,49 +98,21 @@ try {
             exit;
         }
 
-        $addMonths = function (string $date, int $months): string {
-            [$y, $mo, $d] = array_map('intval', explode('-', $date));
-            $mo += $months;
-            $y += intdiv($mo - 1, 12);
-            $mo = (($mo - 1) % 12 + 12) % 12 + 1;
-            $lastDay = (int)date('t', mktime(0, 0, 0, $mo, 1, $y));
-            return sprintf('%04d-%02d-%02d', $y, $mo, min($d, $lastDay));
-        };
+        // Shared schedule + chronological payment allocation (same code the
+        // clerk and client dashboards run), then relabel it into the shape the
+        // admin schedule table has always rendered.
+        $built = ihc_schedule($contract, $paysByContract[$cid] ?? [], $today);
 
-        $tcp = (float)$contract['total_contract_price'];
-        $dp = (float)$contract['downpayment'];
-        $terms = max(1, (int)$contract['installment_terms']);
-        $start = (string)$contract['start_date'];
-        $paidLeft = $livePaid[$cid] ?? 0.0;
-
-        $installments = [['no' => 1, 'type' => 'Downpayment', 'dueDate' => $start, 'amount' => round($dp, 2)]];
-        $amortTotal = round($tcp - $dp, 2);
-        $per = $terms > 0 ? floor($amortTotal / $terms * 100) / 100 : $amortTotal;
-        for ($i = 1; $i <= $terms; $i++) {
-            $amt = ($i === $terms) ? round($amortTotal - $per * ($terms - 1), 2) : $per;
-            $installments[] = ['no' => $i + 1, 'type' => 'Monthly Amortization', 'dueDate' => $addMonths($start, $i), 'amount' => $amt];
-        }
-
-        // Allocate posted payments chronologically: fully covered = paid.
         $schedule = [];
-        foreach ($installments as $inst) {
-            $covered = $paidLeft >= $inst['amount'] - 0.009;
-            if ($covered) $paidLeft -= $inst['amount'];
-            if ($covered) {
-                $st = 'paid';
-            } elseif ($inst['dueDate'] < $today) {
-                $st = 'overdue';
-            } elseif ($daysUntil($today, $inst['dueDate']) <= 3) {
-                $st = 'due-soon';
-            } else {
-                $st = 'current';
-            }
+        foreach ($built['installments'] as $inst) {
             $schedule[] = [
-                'no' => $inst['no'],
-                'type' => $inst['type'],
+                // Admin numbering has always been 1-based across the whole
+                // schedule (Downpayment = 1, amortizations = 2..n+1).
+                'no'      => $inst['kind'] === 'downpayment' ? 1 : ((int)$inst['no']) + 1,
+                'type'    => $inst['kind'] === 'downpayment' ? 'Downpayment' : 'Monthly Amortization',
                 'dueDate' => $inst['dueDate'],
-                'amount' => $inst['amount'],
-                'status' => $st,
+                'amount'  => $inst['amount'],
+                'status'  => $inst['status'],
             ];
         }
 
@@ -172,20 +137,30 @@ try {
     $expected = 0.0;
     $dueSoonCount = 0;
     $emailToName = [];
+    $idToName = [];
 
     foreach ($contractRows as $c) {
         $id = (int)$c['id'];
         $tcp = (float)$c['total_contract_price'];
         $dp = (float)$c['downpayment'];
-        $paid = round($livePaid[$id] ?? 0.0, 2);
-        $outstanding = max(0.0, round($tcp - $paid, 2));
         $start = (string)$c['start_date'];
-        $status = $statusOf($outstanding, $start);
+
+        // Same schedule + payment allocation the clerk and client dashboards
+        // use: the ledger now describes the contract's real next payment, so
+        // an admin and a clerk looking at one contract always see the same
+        // type, amount, due date and status.
+        $built = ihc_schedule($c, $paysByContract[$id] ?? [], $today);
+        $next = $built['next'];
+        $paid = $built['paid'];
+        $outstanding = $built['outstanding'];
+        $status = $next === null ? 'paid' : ihc_due_status($next['dueDate'], $today);
         if ($status === 'due-soon') $dueSoonCount++;
 
-        $paymentType = $outstanding <= 0.009
+        $paymentType = $next === null
             ? 'Settled in Full'
-            : ($paid >= $dp ? 'Contract Balance' : 'Downpayment');
+            : ($next['kind'] === 'downpayment' ? 'Downpayment' : 'Installment Payment #' . $next['no']);
+        $amountDue = $next === null ? 0.0 : $next['amount'];
+        $dueDate = $next === null ? $start : $next['dueDate'];
         $clerk = $c['clerk_name'] !== null && $c['clerk_name'] !== '' ? (string)$c['clerk_name'] : 'Unassigned';
         $property = $c['property_address'] !== null && $c['property_address'] !== '' ? (string)$c['property_address'] : '—';
         $notif = $notifStatusOf($latestNotif[$id] ?? null);
@@ -196,13 +171,16 @@ try {
             'client' => (string)$c['client_name'],
             'property' => $property,
             'paymentType' => $paymentType,
-            'amount' => $outstanding,
-            'dueDate' => $start,
+            'amount' => $amountDue,
+            'dueDate' => $dueDate,
             'status' => $status,
             'notification' => $notif,
             'clerk' => $clerk,
             'paid' => $paid,
             'tcp' => $tcp,
+            // Whole-contract balance (the SOA "TOTAL DUE"), which is distinct
+            // from 'amount' = what is due on the next installment.
+            'outstanding' => $outstanding,
         ];
         $register[] = [
             'id' => 'IHC-' . $id,
@@ -220,6 +198,7 @@ try {
 
         $expected += $tcp;
         $emailToName[strtolower((string)$c['email'])] = (string)$c['client_name'];
+        $idToName[$id] = (string)$c['client_name'];
     }
 
     // Monthly collection totals across live contracts (this + previous month)
@@ -254,12 +233,20 @@ try {
             $cidDisplay = 'IHC-' . $m[1];
         }
         $email = strtolower((string)$n['client_email']);
+        $channel = (string)$n['channel'];
+        $recipient = (string)$n['client_email'];
+        // SMS rows store the phone number in client_email (there is no phone
+        // column), so resolve their client name through the contract id.
+        $displayName = $emailToName[$email] ?? null;
+        if ($displayName === null && preg_match('/(\d+)\s*$/', $cidDisplay, $mNum) && isset($idToName[(int)$mNum[1]])) {
+            $displayName = $idToName[(int)$mNum[1]];
+        }
         $notifications[] = [
             'time' => date('M j, H:i', strtotime((string)$n['sent_at'])),
-            'client' => $emailToName[$email] ?? (string)$n['client_email'],
+            'client' => $displayName ?? $recipient,
             'contractId' => $cidDisplay,
-            'channel' => $n['channel'] === 'ack_email' ? 'Acknowledgement' : 'Email',
-            'recipient' => (string)$n['client_email'],
+            'channel' => $channel === 'ack_email' ? 'Acknowledgement' : ($channel === 'sms' ? 'SMS' : 'Email'),
+            'recipient' => $recipient,
             'subject' => (string)$n['subject'],
             'status' => $n['status'] === '' ? 'pending' : (string)$n['status'],
         ];

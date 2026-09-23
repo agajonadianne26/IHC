@@ -27,22 +27,34 @@ try {
 // into 0 and the query would never match a real officer.
 $officerId = isset($_GET['officerId']) ? trim((string)$_GET['officerId']) : '';
 
+// Shared installment-schedule math — same file the admin and client endpoints
+// use, so the three dashboards always agree on what is paid and what is due.
+require_once __DIR__ . '/installment-schedule.php';
+
 if ($officerId === '') {
     echo json_encode(['success' => false, 'message' => 'Invalid Officer ID']);
     exit;
 }
 
-$stmt = $pdo->prepare(
-    "SELECT c.*, COALESCE((
-        SELECT SUM(p.amount)
-        FROM payments p
-        WHERE p.contract_id = CONCAT('CON-', c.id)
-    ), 0) AS amount_paid
-    FROM contracts c
-    WHERE c.officer_id = ?"
-);
+$stmt = $pdo->prepare('SELECT c.* FROM contracts c WHERE c.officer_id = ? ORDER BY c.id');
 $stmt->execute([$officerId]);
 $clients = $stmt->fetchAll(PDO::FETCH_ASSOC); // FETCH_ASSOC keeps the array clean
+
+// payments.contract_id stores prefixed codes ('CON-19', sometimes a bare '7'
+// or 'IHC-14'), so fold the rows onto integer contract ids in PHP — never
+// with a SQL JOIN against contracts (mixed collations blow up at runtime;
+// see AGENTS.md). Ordering by date keeps the chronological allocation in
+// installment-schedule.php deterministic.
+$paidByContract = [];   // contract id => chronological payment rows
+foreach ($pdo->query('SELECT contract_id, amount, date_collected, or_number, payment_method FROM payments ORDER BY date_collected, id') as $p) {
+    if (!preg_match('/(\d+)\s*$/', (string)$p['contract_id'], $m)) continue;
+    $paidByContract[(int)$m[1]][] = [
+        'amount'   => (float)$p['amount'],
+        'date'     => (string)$p['date_collected'],
+        'orNumber' => $p['or_number'] !== null ? (string)$p['or_number'] : null,
+        'method'   => $p['payment_method'] !== null ? (string)$p['payment_method'] : null,
+    ];
+}
 
 // Collections belong to the clerk who posted the payment, not merely to a
 // contract that happens to be assigned to them. This makes the KPI persist
@@ -53,13 +65,16 @@ $collectionsStmt = $pdo->prepare(
 $collectionsStmt->execute([$officerId]);
 $totalCollections = (float)($collectionsStmt->fetch()['total_collections'] ?? 0);
 
-// Map the database columns to the keys expected by the frontend
+// Map the database columns to the keys expected by the frontend, advancing
+// each contract to its real next due: the downpayment is cleared first, then
+// the monthly installments take over as the next payment.
 $formattedClients = [];
 foreach ($clients as $c) {
-    $amountDue = (float)($c['downpayment'] ?? 0);
-    $amountPaid = (float)($c['amount_paid'] ?? 0);
-    $isPaid = $amountDue > 0 && $amountPaid >= $amountDue;
-    $remainingAmount = max(0, $amountDue - $amountPaid);
+    $cid = (int)$c['id'];
+    $terms = max(1, (int)($c['installment_terms'] ?? 1));
+
+    $schedule = ihc_schedule($c, $paidByContract[$cid] ?? []);
+    $next = $schedule['next'];
 
     $formattedClients[] = [
         'accountCode'     => 'CON-' . $c['id'],          // Using the primary key 'id'
@@ -69,12 +84,13 @@ foreach ($clients as $c) {
         'phone'           => $c['cellphone_number'],     // matches your DB
         'propertyAddress' => $c['property_address'] ?? null,
         'totalPrice'      => isset($c['total_contract_price']) ? (float)$c['total_contract_price'] : null,
-        'terms'           => isset($c['installment_terms']) ? (int)$c['installment_terms'] : null,
-        'nextDueDate'     => $c['start_date'],            // mapped to your DB
-        // A payment record controls the dashboard status. Partial payments
-        // remain pending and show the balance; fully paid dues show Paid.
-        'nextAmount'      => $isPaid ? 0 : $remainingAmount,
-        'nextStatus'      => $isPaid ? 'Paid' : 'Pending Payment'
+        'terms'           => $terms,
+        'amountPaid'      => $schedule['paid'],
+        'nextDueDate'     => $next ? $next['dueDate'] : (string)$c['start_date'],
+        'nextAmount'      => $next ? $next['amount'] : 0,
+        'nextStatus'      => $next ? 'Pending Payment' : 'Paid',
+        'nextType'        => $next ? $next['kind'] : 'settled',
+        'nextInstallmentNo' => $next ? $next['no'] : null,
     ];
 }
 
