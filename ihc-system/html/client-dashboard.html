@@ -659,6 +659,84 @@
     document.getElementById('printLedgerBtn').addEventListener('click', () => { showView('ledger'); setTimeout(() => window.print(), 50); });
 
     /* ==========================================
+       RENDER: PROPERTY & PAYMENT INFORMATION §9 + Unified History §8
+       Server is source of truth when reachable; fallback to local portal.
+    ========================================== */
+    (function renderPropertyPayment(){
+      const holding = (live && live.holdingFees && live.holdingFees[0]) ? live.holdingFees[0] : null;
+      const reservation = (live && live.reservationFees && live.reservationFees[0]) ? live.reservationFees[0] : null;
+      const unit = (live && live.propertyUnit) ? live.propertyUnit : null;
+      const history = (live && live.history) ? live.history : null;
+      const totalPaidServer = (live && live.totalPaid != null) ? live.totalPaid : null;
+
+      // Property label
+      document.getElementById('cpProperty').textContent = (unit && unit.label) ? unit.label : (client.propertyAddress || '—');
+      // Unit status badge
+      const statusMap = { 'AVAILABLE':{cls:'neutral',label:'Available'}, 'ON HOLD':{cls:'warn',label:'On Hold'}, 'RESERVED':{cls:'ok',label:'Reserved'}, 'SOLD':{cls:'danger',label:'Sold'} };
+      const uStatus = unit ? (statusMap[unit.status] || {cls:'neutral',label:unit.status}) : {cls:'neutral',label:'—'};
+      document.getElementById('cpUnitStatus').innerHTML = '<span class="row-status '+uStatus.cls+'"><span class="dot"></span>'+uStatus.label+'</span>';
+
+      // Holding fee
+      if(holding){
+        document.getElementById('cpHolding').textContent = fmtPHP(holding.amount);
+        const s = String(holding.status||'').toLowerCase();
+        const badge = s==='paid'?'Paid': s==='pending'?'Pending': s==='expired'?'Expired': s==='converted'?'Converted': s==='cancelled'?'Cancelled': s;
+        document.getElementById('cpHoldingStatus').textContent = badge;
+        document.getElementById('cpHoldingExp').textContent = holding.expirationDate ? fmtDate(holding.expirationDate) : '—';
+      } else {
+        document.getElementById('cpHolding').textContent = 'Not yet recorded';
+        document.getElementById('cpHoldingStatus').textContent = '';
+        document.getElementById('cpHoldingExp').textContent = '—';
+      }
+      // Reservation fee
+      if(reservation){
+        document.getElementById('cpReservation').textContent = fmtPHP(reservation.amount);
+        document.getElementById('cpReservationStatus').textContent = String(reservation.status||'').charAt(0).toUpperCase()+String(reservation.status||'').slice(1);
+        document.getElementById('cpReservationDate').textContent = reservation.date ? fmtDate(reservation.date) : '—';
+      } else {
+        document.getElementById('cpReservation').textContent = 'Not yet reserved';
+        document.getElementById('cpReservationStatus').textContent = '';
+        document.getElementById('cpReservationDate').textContent = '—';
+      }
+      // Balances
+      document.getElementById('cpDownPayment').textContent = fmtPHP(client.downpayment) + ' (TCP '+fmtPHP(client.totalPrice)+')';
+      document.getElementById('cpMonthlyAmort').textContent = fmtPHP(monthlyAmort);
+      const totPaid = totalPaidServer!=null ? totalPaidServer : totalPaid;
+      document.getElementById('cpTotalPaid').textContent = fmtPHP(totPaid);
+      document.getElementById('cpRemaining').textContent = fmtPHP(remainingBalance);
+
+      // Unified history table §8
+      const uBody = document.getElementById('unifiedHistoryBody');
+      const uTotal = document.getElementById('unifiedTotalPaid');
+      let rows = [];
+      if(history && history.length){
+        rows = history;
+        if(uTotal) uTotal.textContent = fmtPHP(totalPaidServer!=null? totalPaidServer : totPaid);
+      } else {
+        // Fallback: synthesize from holding/reservation/payments available
+        rows = [];
+        if(holding) rows.push({ date: holding.date||holding.paymentDate||holding.createdAt?.slice(0,10), type:'Holding Fee', amount: holding.amount, status: holding.status, orNumber: holding.orNumber });
+        if(reservation) rows.push({ date: reservation.date||reservation.paymentDate, type:'Reservation Fee', amount: reservation.amount, status: reservation.status, orNumber: reservation.orNumber });
+        portal.schedules.filter(s=>s.paid).forEach(s=> rows.push({ date: s.payDate, type: s.phase==='deposit'?'Down Payment':'Monthly Payment', amount:s.amount, status:'Paid', orNumber:s.orNumber }));
+        rows.sort((a,b)=> String(a.date||'').localeCompare(String(b.date||'')));
+        if(uTotal) uTotal.textContent = fmtPHP(totPaid);
+      }
+      if(!rows.length){
+        uBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:18px; color:var(--text-muted);">No transactions yet — your holding/reservation and payments will appear here.</td></tr>';
+      } else {
+        const badgeCls = (st)=>{ st=String(st||'').toLowerCase(); if(st==='paid'||st==='converted') return 'ok'; if(st==='pending') return 'warn'; if(st==='expired') return 'neutral'; if(st==='cancelled'||st==='refunded'||st==='forfeited') return 'danger'; return 'neutral'; };
+        uBody.innerHTML = rows.map(r=> `
+          <tr>
+            <td>${r.date ? fmtDate(r.date) : '<span class="muted">—</span>'}</td>
+            <td><strong style="font-size:12px;">${r.type}</strong><br><small style="color:var(--text-muted);">${r.transactionType||r.type}</small></td>
+            <td><strong>${fmtPHP(r.amount)}</strong></td>
+            <td><span class="row-status ${badgeCls(r.status)}"><span class="dot"></span>${String(r.status||'').charAt(0).toUpperCase()+String(r.status||'').slice(1)}</span></td>
+            <td>${r.orNumber ? r.orNumber : (r.referenceNumber||'<span class="muted">Pending</span>')}<br>${r.orNumber? '' : '<small style="color:var(--text-muted);">OR No.: Not Yet Issued</small>'}</td>
+          </tr>`).join('');
+      }
+    })();
+
+    /* ==========================================
        RENDER: NOTIFICATIONS
     ========================================== */
     const iconFor = { welcome: 'party-popper', payment: 'badge-check', reminder: 'bell' };
@@ -803,6 +881,31 @@
             </div>
           </div>
 
+          <!-- Property & Payment Information §9 -->
+          <div class="card" style="margin-top:18px;" id="propertyPaymentCard">
+            <div class="card-head">
+              <i data-lucide="home" style="width:18px;height:18px;color:var(--accent-emerald);"></i>
+              <div>
+                <h3>Property & Payment Information</h3>
+                <p>Your selected unit, hold/reservation status and balances</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="info-grid">
+                <div class="info-item"><div class="info-label">Selected Property</div><div class="info-value" id="cpProperty">—</div></div>
+                <div class="info-item"><div class="info-label">Unit Status</div><div class="info-value" id="cpUnitStatus"><span class="row-status neutral"><span class="dot"></span>—</span></div></div>
+                <div class="info-item"><div class="info-label">Holding Fee</div><div class="info-value" id="cpHolding">—</div><small id="cpHoldingStatus" style="font-size:11px;color:var(--text-secondary);"></small></div>
+                <div class="info-item"><div class="info-label">Holding Expiration</div><div class="info-value" id="cpHoldingExp">—</div></div>
+                <div class="info-item"><div class="info-label">Reservation Fee</div><div class="info-value" id="cpReservation">—</div><small id="cpReservationStatus" style="font-size:11px;color:var(--text-secondary);"></small></div>
+                <div class="info-item"><div class="info-label">Reservation Date</div><div class="info-value" id="cpReservationDate">—</div></div>
+                <div class="info-item"><div class="info-label">Down Payment</div><div class="info-value" id="cpDownPayment">—</div></div>
+                <div class="info-item"><div class="info-label">Monthly Amortization</div><div class="info-value" id="cpMonthlyAmort">—</div></div>
+                <div class="info-item"><div class="info-label">Total Paid</div><div class="info-value" id="cpTotalPaid" style="color:var(--accent-emerald);">—</div></div>
+                <div class="info-item"><div class="info-label">Remaining Balance</div><div class="info-value" id="cpRemaining" style="color:var(--accent-amber);">—</div></div>
+              </div>
+            </div>
+          </div>
+
           <div class="card" style="margin-top:18px;">
             <div class="card-head">
               <i data-lucide="user-check" style="width:18px;height:18px;color:var(--accent-blue);"></i>
@@ -875,6 +978,34 @@
                 </thead>
                 <tbody id="ledgerBody"></tbody>
               </table>
+            </div>
+          </div>
+
+          <!-- Unified Payment History §8 (Holding + Reservation + Payments chronological) -->
+          <div class="table-section" style="margin-top:18px;">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h3>Payment History</h3>
+                <p>All transactions linked to your account — Holding, Reservation and installments</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>OR / Reference</th>
+                  </tr>
+                </thead>
+                <tbody id="unifiedHistoryBody"></tbody>
+              </table>
+            </div>
+            <div style="padding:12px 18px; border-top:1px solid var(--border-light); display:flex; justify-content:space-between; font-size:12px;">
+              <span style="color:var(--text-secondary);">Total Paid (all transactions)</span>
+              <strong id="unifiedTotalPaid">—</strong>
             </div>
           </div>
         </section>

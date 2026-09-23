@@ -162,6 +162,65 @@ try {
             ];
         }
 
+        // --- Holding Fees & Reservation Fees (unified transaction history §8) ---
+        // Best-effort: tables may not exist yet if migration 005 not run.
+        $holdingFees = [];
+        $reservationFees = [];
+        $propertyUnit = null;
+        try {
+            $hfStmt = $pdo->prepare('SELECT id, amount, payment_method, payment_date, reference_number, or_number, start_date, expiration_date, status, remarks, created_at FROM holding_fees WHERE contract_id=? ORDER BY payment_date, id');
+            $hfStmt->execute([$id]);
+            foreach ($hfStmt->fetchAll() as $r) {
+                $holdingFees[] = [
+                    'id' => (int)$r['id'],
+                    'amount' => (float)$r['amount'],
+                    'method' => $r['payment_method'],
+                    'date' => $r['payment_date'],
+                    'referenceNumber' => $r['reference_number'],
+                    'orNumber' => $r['or_number'],
+                    'startDate' => $r['start_date'],
+                    'expirationDate' => $r['expiration_date'],
+                    'status' => $r['status'],
+                    'remarks' => $r['remarks'],
+                    'createdAt' => $r['created_at'],
+                ];
+            }
+        } catch (Throwable $e) { /* table missing -> empty */ }
+        try {
+            $rfStmt = $pdo->prepare('SELECT id, amount, payment_method, payment_date, reference_number, or_number, status, remarks, holding_fee_id, created_at FROM reservation_fees WHERE contract_id=? ORDER BY payment_date, id');
+            $rfStmt->execute([$id]);
+            foreach ($rfStmt->fetchAll() as $r) {
+                $reservationFees[] = [
+                    'id' => (int)$r['id'],
+                    'amount' => (float)$r['amount'],
+                    'method' => $r['payment_method'],
+                    'date' => $r['payment_date'],
+                    'referenceNumber' => $r['reference_number'],
+                    'orNumber' => $r['or_number'],
+                    'status' => $r['status'],
+                    'remarks' => $r['remarks'],
+                    'holdingFeeId' => $r['holding_fee_id'] ? (int)$r['holding_fee_id'] : null,
+                    'createdAt' => $r['created_at'],
+                ];
+            }
+        } catch (Throwable $e) { }
+        // Property / unit status (§13)
+        try {
+            $uStmt = $pdo->prepare('SELECT id, display_label, status FROM property_units WHERE current_contract_id=? OR display_label=? LIMIT 1');
+            $uStmt->execute([$id, (string)$contract['property_address']]);
+            $uRow = $uStmt->fetch();
+            if ($uRow) $propertyUnit = ['id'=>(int)$uRow['id'],'label'=>$uRow['display_label'],'status'=>$uRow['status']];
+        } catch (Throwable $e) { }
+
+        // Unified history chronologically (§8)
+        $history = [];
+        foreach ($holdingFees as $h) $history[] = ['type'=>'Holding Fee','transactionType'=>'HOLDING_FEE','date'=>$h['date'],'amount'=>$h['amount'],'status'=>$h['status'],'orNumber'=>$h['orNumber'],'referenceNumber'=>$h['referenceNumber'],'createdAt'=>$h['createdAt']];
+        foreach ($reservationFees as $r) $history[] = ['type'=>'Reservation Fee','transactionType'=>'RESERVATION_FEE','date'=>$r['date'],'amount'=>$r['amount'],'status'=>$r['status'],'orNumber'=>$r['orNumber'],'referenceNumber'=>$r['referenceNumber'],'createdAt'=>$r['createdAt']];
+        foreach ($payments as $p) $history[] = ['type'=>'Payment','transactionType'=>'PAYMENT','date'=>$p['date'],'amount'=>$p['amount'],'status'=>'PAID','orNumber'=>$p['orNumber'],'referenceNumber'=>$p['orNumber'],'createdAt'=>$p['date']];
+        usort($history, function($a,$b){ $c=strcmp($a['date'],$b['date']); return $c!==0?$c:strcmp($a['createdAt'],$b['createdAt']); });
+        $totalPaid = 0.0;
+        foreach ($history as $h) if (in_array($h['status'],['PAID','CONVERTED'],true)) $totalPaid += (float)$h['amount'];
+
         echo json_encode([
             'success' => true,
             'contract' => [
@@ -179,6 +238,11 @@ try {
                 'officerName' => $contract['officer_name'],
             ],
             'payments' => $payments,
+            'holdingFees' => $holdingFees,
+            'reservationFees' => $reservationFees,
+            'propertyUnit' => $propertyUnit,
+            'history' => $history,
+            'totalPaid' => round($totalPaid,2),
             'notifications' => $notifications,
         ]);
         exit;

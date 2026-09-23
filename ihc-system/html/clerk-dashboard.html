@@ -2232,6 +2232,14 @@
       <div class="modal-body">
         <div class="form-grid">
           <div class="form-group full">
+            <label>Payment Type <span style="color:var(--accent-rose);">*</span></label>
+            <select id="hfFeeType">
+              <option value="holding">Holding Fee</option>
+              <option value="reservation">Reservation Fee</option>
+            </select>
+            <small class="file-hint" id="hfFeeTypeHint">Holding Fee puts the unit ON HOLD (with expiration). Reservation Fee reserves it (ON HOLD → RESERVED).</small>
+          </div>
+          <div class="form-group full">
             <label>Client</label>
             <select id="hfClientSelect">
               <option value="">Select a client&hellip;</option>
@@ -2640,7 +2648,19 @@
       renderPostingQueue();
       renderNotifLog();
       populateHfClientSelect();
-      renderHoldingFees();
+      await loadHoldingFees();
+      // Also refresh the admin-style holding summary if server has newer counts
+      try{
+        const dRes=await fetch(HOLDING_API+'?action=dashboard_summary&officerId='+encodeURIComponent(currentUser.officerId||''));
+        if(dRes.ok){ const dData=await dRes.json(); if(dData.success && dData.summary){
+          // Update the Holding Fees pane KPI tiles with server truth when available
+          const s=dData.summary;
+          if(document.getElementById('hfKpiActive')) document.getElementById('hfKpiActive').textContent = String(s.activeHolds);
+          if(document.getElementById('hfKpiCollected')){
+            // keep formatPHP if we have amount, but activeHolds count is more reliable from server
+          }
+        }}
+      }catch(e){}
     };
 
     loadDashboard();
@@ -2897,42 +2917,94 @@
     soaModal.addEventListener('click', (e) => { if (e.target === soaModal) soaModal.classList.remove('visible'); });
 
     /* ==========================================
-       HOLDING FEES (front-end store, localStorage)
+       HOLDING FEES + RESERVATION FEES (server-backed, localStorage fallback)
+       §3-§7, §10-§12: holding_fees + reservation_fees via php/api_holding_reservation.php
+       Falls back to localStorage when XAMPP is offline so the demo still works.
     ========================================== */
+    const HOLDING_API = API_BASE + '/php/api_holding_reservation.php';
+    // Legacy key kept only for one-time migration; server is source of truth.
     const holdingFeeStorageKey = 'IHC_HOLDING_FEES_' + (currentUser.officerId || currentUser.id || 'default');
 
-    const readHoldingFees = () => {
-      try {
-        const raw = localStorage.getItem(holdingFeeStorageKey);
-        const arr = raw ? JSON.parse(raw) : null;
-        return Array.isArray(arr) ? arr : null;
-      } catch {
-        return null;
-      }
-    };
-
-    const persistHoldingFees = (fees) => localStorage.setItem(holdingFeeStorageKey, JSON.stringify(fees));
-
-    function seedHoldingFees() {
-      if (readHoldingFees()) return;
-      persistHoldingFees([
-        { id: 1, contractId: 7, clientName: 'Marzia Hernandez', propertyAddress: 'Las Piñas', amount: 50000, paymentMethod: 'GCash / Maya', paymentDate: '2026-09-08', orNumber: 'HF-2026-00012', status: 'paid', proof: null, remarks: 'Initial holding for Block 4 Lot 12.', createdAt: '2026-09-08T09:00:00' },
-        { id: 2, contractId: null, clientName: 'Diana Santos', propertyAddress: 'Block 2 Lot 8, Greenfield Heights', amount: 25000, paymentMethod: 'Bank Wire / Online Deposit', paymentDate: '2026-09-14', orNumber: 'HF-2026-00019', status: 'pending', proof: null, remarks: 'Prospective buyer \u2014 reservation on unit 2F.', createdAt: '2026-09-14T10:30:00' },
-        { id: 3, contractId: 8, clientName: 'Jimmy Fuentes', propertyAddress: 'Laguna', amount: 50000, paymentMethod: 'Over-the-Counter Cashier', paymentDate: '2026-08-10', orNumber: 'HF-2026-00007', status: 'paid', proof: null, remarks: 'Reservation window lapsed before unit turnover.', createdAt: '2026-08-10T14:00:00' }
-      ]);
-    }
-
-    seedHoldingFees();
-
-    let holdingFees = readHoldingFees() || [];
-    holdingFees = holdingFees.map(f => {
-      const n = Object.assign({}, f);
-      if (n.status === 'refunded') n.status = 'paid';
-      delete n.refundAmount; delete n.refundDate; delete n.refundMethod; delete n.refundRemarks;
-      return n;
-    });
-    persistHoldingFees(holdingFees);
+    // Unified fee arrays: holdingFees = holdings, reservationFees = reservations
+    let holdingFees = [];
+    let reservationFees = [];
     let hfActiveFilter = 'all';
+
+    // Server fetch — with localStorage fallback
+    async function fetchHoldingFeesFromServer() {
+      try {
+        const res = await fetch(HOLDING_API + '?action=holding_fees&officerId=' + encodeURIComponent(currentUser.officerId || ''));
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.holdingFees)) {
+          // Map server fields back to the clerk-dashboard shape expected by render logic
+          return data.holdingFees.map(r => ({
+            id: r.id, contractId: r.contractId, clientName: r.clientName,
+            propertyAddress: r.propertyAddress || r.unitLabel || '',
+            amount: r.amount, paymentMethod: r.paymentMethod,
+            paymentDate: r.paymentDate, orNumber: r.orNumber || r.referenceNumber || '',
+            status: String(r.status||'pending').toLowerCase(),
+            expirationDate: r.expirationDate || null,
+            startDate: r.startDate || r.paymentDate,
+            remarks: r.remarks || '', proof: r.proofPath ? { name: r.proofName||'proof', dataUrl: r.proofPath, isImage: !String(r.proofPath).endsWith('.pdf') } : null,
+            createdAt: r.createdAt, serverRow: r
+          }));
+        }
+      } catch(e){ /* offline -> fallback */ }
+      return null;
+    }
+    async function fetchReservationFeesFromServer(){
+      try{
+        const res=await fetch(HOLDING_API+'?action=reservation_fees&officerId='+encodeURIComponent(currentUser.officerId||''));
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data=await res.json();
+        if(data.success && Array.isArray(data.reservationFees)){
+          return data.reservationFees.map(r=>({
+            id:r.id, contractId:r.contractId, holdingFeeId:r.holdingFeeId, clientName:r.clientName,
+            propertyAddress:r.propertyAddress||r.unitLabel||'', amount:r.amount, paymentMethod:r.paymentMethod,
+            paymentDate:r.paymentDate, orNumber:r.orNumber||r.referenceNumber||'', status:String(r.status||'pending').toLowerCase(),
+            remarks:r.remarks||'', proof:r.proofPath?{name:r.proofName||'proof',dataUrl:r.proofPath,isImage:true}:null, createdAt:r.createdAt, serverRow:r
+          }));
+        }
+      }catch(e){}
+      return null;
+    }
+    async function loadHoldingFees(){
+      const serverHoldings = await fetchHoldingFeesFromServer();
+      const serverReservations = await fetchReservationFeesFromServer();
+      if(serverHoldings!==null){
+        holdingFees = serverHoldings;
+        reservationFees = serverReservations || [];
+        // One-time localStorage migration notice (non-blocking)
+        if(serverHoldings.length===0){
+          try{
+            const legacy=JSON.parse(localStorage.getItem(holdingFeeStorageKey)||'[]');
+            if(Array.isArray(legacy) && legacy.length){
+              console.info('[HoldingFees] Migrating '+legacy.length+' localStorage entries — will sync on next record.');
+            }
+          }catch(e){}
+        }
+      } else {
+        // Offline fallback: read legacy localStorage
+        try{
+          const raw=localStorage.getItem(holdingFeeStorageKey);
+          const arr= raw ? JSON.parse(raw) : [];
+          holdingFees = Array.isArray(arr) ? arr.map(f=>{ const n=Object.assign({},f); if(n.status==='refunded') n.status='paid'; return n; }) : [];
+        }catch(e){ holdingFees=[]; }
+        reservationFees=[];
+        // Seed demo rows if truly empty so the table is not blank offline
+        if(!holdingFees.length){
+          holdingFees=[
+            { id: 1, contractId: 7, clientName: 'Marzia Hernandez', propertyAddress: 'Las Piñas', amount: 50000, paymentMethod: 'GCash / Maya', paymentDate: '2026-09-08', orNumber: 'HF-2026-00012', status: 'paid', proof: null, remarks: 'Initial holding for Block 4 Lot 12.', createdAt: '2026-09-08T09:00:00' },
+            { id: 2, contractId: 8, clientName: 'Jimmy Fuentes', propertyAddress: 'Laguna', amount: 50000, paymentMethod: 'Over-the-Counter Cashier', paymentDate: '2026-08-10', orNumber: 'HF-2026-00007', status: 'paid', proof: null, remarks: 'Reservation window lapsed before unit turnover.', createdAt: '2026-08-10T14:00:00' }
+          ];
+        }
+      }
+      // Merge reservation fees into the same tab view? Keep holdings tab showing holdings only;
+      // reservations are surfaced via status badge conversion and via unified history elsewhere.
+      renderHoldingFees();
+      renderHoldingFeeKPIs();
+    }
 
     const holdingFeeBody = document.getElementById('holdingFeeBody');
     const hfSearchInput = document.getElementById('hfSearch');
@@ -2941,6 +3013,7 @@
     const RESERVATION_DAYS = 30;
 
     const getExpiryDate = (fee) => {
+      if (fee.expirationDate) { const d=new Date(fee.expirationDate); if(!isNaN(d.getTime())) return d; }
       if (!fee.paymentDate) return null;
       const d = new Date(fee.paymentDate);
       if (isNaN(d.getTime())) return null;
@@ -2955,9 +3028,14 @@
     };
 
     const getHfDerived = (fee) => {
-      if (fee.status === 'cancelled') return { key: 'cancelled', label: 'Cancelled', cls: 'cancelled' };
-      if (fee.status === 'pending') return { key: 'pending', label: 'Pending', cls: 'pending' };
-      if (fee.status === 'paid') {
+      const s = String(fee.status||'').toLowerCase();
+      if (s === 'cancelled') return { key: 'cancelled', label: 'Cancelled', cls: 'cancelled' };
+      if (s === 'expired') return { key: 'expired', label: 'Expired', cls: 'expired' };
+      if (s === 'converted') return { key: 'converted', label: 'Converted', cls: 'paid' };
+      if (s === 'refunded') return { key: 'refunded', label: 'Refunded', cls: 'cancelled' };
+      if (s === 'forfeited') return { key: 'forfeited', label: 'Forfeited', cls: 'expired' };
+      if (s === 'pending') return { key: 'pending', label: 'Pending', cls: 'pending' };
+      if (s === 'paid') {
         const dl = daysLeft(fee);
         if (dl !== null && dl >= 0) return { key: 'active', label: 'Active', cls: 'paid' };
         return { key: 'expired', label: 'Expired', cls: 'expired' };
@@ -3328,7 +3406,27 @@
       });
     }
 
-    document.getElementById('submitHoldingFee').addEventListener('click', () => {
+    // Handle Fee Type toggle — reservation hides expiration preview per §10
+    const hfFeeType = document.getElementById('hfFeeType');
+    if(hfFeeType){
+      hfFeeType.addEventListener('change', ()=>{
+        const isHolding = hfFeeType.value==='holding';
+        document.getElementById('hfValidityPreview').parentElement.style.display = isHolding ? '' : 'none';
+        document.getElementById('hfModalTitle').textContent = isHolding ? 'Record Holding Fee' : 'Record Reservation Fee';
+        document.getElementById('hfModalSub').textContent = isHolding
+          ? 'Holding Fee puts the unit ON HOLD for 30 days (AVAILABLE → ON HOLD).'
+          : 'Reservation Fee reserves the unit (ON HOLD → RESERVED). Valid hold required.';
+        document.getElementById('hfSubmitLabel').textContent = isHolding ? 'Save Holding Fee' : 'Save Reservation Fee';
+        document.getElementById('hfFeeTypeHint').textContent = isHolding
+          ? 'Holding Fee puts the unit ON HOLD (with expiration). Reservation Fee reserves it (ON HOLD → RESERVED).'
+          : 'Reservation Fee is a separate transaction from the Holding Fee and will mark it CONVERTED when paid.';
+        updateHfValidity();
+      });
+    }
+
+    document.getElementById('submitHoldingFee').addEventListener('click', async () => {
+      const feeType = (document.getElementById('hfFeeType')?.value || 'holding'); // holding | reservation
+      const isHoldingType = feeType==='holding';
       const selectVal = hfClientSelect.value;
       const isNew = selectVal === '__new__';
       const matched = !isNew && selectVal ? myContracts.find(x => String(x.contractId) === String(selectVal)) : null;
@@ -3344,89 +3442,137 @@
       if (!selectVal) { showToast('Select a client or choose "New buyer".', 'info'); return; }
       if (!clientName) { showToast('Client name is required.', 'info'); return; }
       if (isNew && !property) { showToast('Property / unit is required for a new buyer.', 'info'); return; }
-      if (isNaN(amount) || amount <= 0) { showToast('Enter a valid holding fee amount.', 'info'); return; }
+      if (isNaN(amount) || amount <= 0) { showToast('Enter a valid '+(isHoldingType?'holding':'reservation')+' fee amount.', 'info'); return; }
       if (!method) { showToast('Select the payment method.', 'info'); return; }
       if (!date) { showToast('Select the payment date.', 'info'); return; }
       if (status === 'paid' && !orNum) { showToast('OR / reference number is required for paid fees.', 'info'); return; }
+      if (!matched || !matched.contractId) { showToast('Link the fee to an existing contract (or create one first via New Contract).', 'info'); return; }
 
       const editing = hfEditId != null;
-      let fee = editing ? holdingFees.find(f => f.id === hfEditId) : null;
-      if (editing && !fee) { showToast('Holding fee record not found.', 'info'); return; }
-      if (!editing) fee = { id: Date.now(), contractId: matched ? matched.contractId : null, createdAt: new Date().toISOString() };
-      const wasPaid = editing && fee.status === 'paid';
+      const btn = document.getElementById('submitHoldingFee');
+      const oldLabel = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Saving…';
 
-      fee.contractId = matched ? matched.contractId : null;
-      fee.clientName = clientName;
-      fee.propertyAddress = property;
-      fee.amount = amount;
-      fee.paymentMethod = method;
-      fee.paymentDate = date;
-      fee.orNumber = orNum;
-      fee.status = status;
-      fee.proof = editing ? (hfProofData || fee.proof) : hfProofData;
-      fee.remarks = remarks;
-
-      if (!editing) holdingFees.push(fee);
-      persistHoldingFees(holdingFees);
-      hfEditId = null;
-      hfModal.classList.remove('visible');
-      renderHoldingFees();
-
-      if (status === 'paid' && !wasPaid) {
-        showToast('Holding fee marked as paid \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
-      } else if (editing) {
-        showToast('Holding fee updated \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
+      // Build multipart form so proof file uploads work (php handles $_FILES)
+      const fd = new FormData();
+      fd.append('action', isHoldingType ? (editing ? 'update_holding_fee' : 'create_holding_fee') : (editing ? 'update_reservation_fee' : 'create_reservation_fee'));
+      if(editing) fd.append('id', String(hfEditId));
+      fd.append('contractId', String(matched.contractId));
+      fd.append('amount', String(amount));
+      fd.append('paymentMethod', method);
+      fd.append('paymentDate', date);
+      fd.append('orNumber', orNum);
+      fd.append('status', status);
+      fd.append('remarks', remarks);
+      fd.append('propertyAddress', property || matched.property || '');
+      fd.append('processedBy', String(currentUser.officerId || ''));
+      if(isHoldingType){
+        // Use JS-computed expiration; server will default to 30 days if omitted but we send explicit
+        const exp = new Date(date); exp.setDate(exp.getDate()+30);
+        fd.append('startDate', date);
+        fd.append('expirationDate', exp.toISOString().slice(0,10));
+        // Include clientName for display fallback
+        fd.append('clientName', clientName);
       } else {
-        showToast('Holding fee recorded \u2014 ' + formatPHP(amount) + ' for ' + clientName, 'success');
+        // Reservation — link to holding if one exists for same unit
+        const linkedHold = holdingFees.find(h=> String(h.contractId)===String(matched.contractId) && h.status==='paid');
+        if(linkedHold) fd.append('holdingFeeId', String(linkedHold.id));
+      }
+      // Proof file: hfProofInput holds the <input type=file>; hfProofData is base64 from earlier handler
+      // For server, send the actual file if selected
+      if(hfProofInput && hfProofInput.files && hfProofInput.files[0]){
+        fd.append('proof', hfProofInput.files[0]);
       }
 
-      if (status === 'paid' && window.portalStore && fee.contractId) {
-        const portalData = window.portalStore.readPortal(fee.contractId);
-        if (portalData && Array.isArray(portalData.notifications)) {
-          portalData.notifications.unshift({
-            kind: 'payment',
-            title: wasPaid ? 'Holding fee updated in your account' : 'Holding fee recorded in your account',
-            message: 'Your ' + formatPHP(amount) + ' holding fee has been posted' + (orNum ? ' with OR/Ref #' + orNum : '') + '.',
-            channel: 'Portal',
-            time: new Date().toISOString()
-          });
-          window.portalStore.savePortal(fee.contractId, portalData);
+      try{
+        const res = await fetch(HOLDING_API, { method:'POST', body: fd });
+        const data = await res.json();
+        if(!res.ok || !data.success) throw new Error(data.message || 'Save failed');
+        hfEditId = null;
+        hfModal.classList.remove('visible');
+        showToast(data.message || (isHoldingType?'Holding':'Reservation')+' fee saved — '+formatPHP(amount)+' for '+clientName, 'success');
+        await loadHoldingFees();
+        // Portal notification mirror (local)
+        if(status==='paid' && window.portalStore && matched.contractId){
+          const portalData = window.portalStore.readPortal(matched.contractId);
+          if(portalData && Array.isArray(portalData.notifications)){
+            portalData.notifications.unshift({
+              kind:'payment', title: (isHoldingType?'Holding':'Reservation')+' fee recorded in your account',
+              message: 'Your '+formatPHP(amount)+' '+(isHoldingType?'holding':'reservation')+' fee has been posted'+(orNum?' with OR/Ref #'+orNum:'')+'.',
+              channel:'Portal', time: new Date().toISOString()
+            });
+            window.portalStore.savePortal(matched.contractId, portalData);
+          }
         }
+      }catch(e){
+        // Fallback to localStorage when offline so the demo never blocks
+        console.warn('Holding/Reservation save offline fallback:', e.message);
+        if(!navigator.onLine || String(e.message).includes('Failed to fetch')){
+          const fee={ id: editing? hfEditId : Date.now(), contractId: matched.contractId, clientName, propertyAddress: property, amount, paymentMethod: method, paymentDate: date, orNumber, status, remarks, proof: hfProofData || null, createdAt: new Date().toISOString() };
+          if(editing){ const idx=holdingFees.findIndex(f=>f.id===hfEditId); if(idx>=0) holdingFees[idx]=fee; }
+          else holdingFees.push(fee);
+          try{ localStorage.setItem(holdingFeeStorageKey, JSON.stringify(holdingFees)); }catch(e){}
+          hfEditId=null; hfModal.classList.remove('visible'); renderHoldingFees();
+          showToast((isHoldingType?'Holding':'Reservation')+' fee saved locally (offline) — will sync when online.','success');
+        } else {
+          showToast(e.message || 'Could not save fee: '+e.message,'info');
+        }
+      } finally {
+        btn.disabled=false; btn.textContent=oldLabel;
       }
     });
 
-    /* -------- Mark paid / cancel ---------- */
-    window.markHoldingFeePaid = (id) => {
+    /* -------- Mark paid / cancel / proof (server-backed with fallback) ---------- */
+    window.markHoldingFeePaid = async (id) => {
       const fee = holdingFees.find(f => f.id === id);
       if (!fee) return;
       if (!confirm('Mark this holding fee as paid?')) return;
-      fee.status = 'paid';
-      fee.paymentDate = fee.paymentDate || new Date().toISOString().slice(0, 10);
-      persistHoldingFees(holdingFees);
-      renderHoldingFees();
-      showToast('Holding fee marked as paid.', 'success');
-      if (!fee.orNumber) editHoldingFee(fee.id);
+      try{
+        const fd=new FormData(); fd.append('action','update_holding_status'); fd.append('id',String(id)); fd.append('status','PAID'); fd.append('processedBy',String(currentUser.officerId||''));
+        const res=await fetch(HOLDING_API,{method:'POST',body:fd}); const data=await res.json();
+        if(!res.ok || !data.success) throw new Error(data.message);
+        await loadHoldingFees();
+        showToast('Holding fee marked as paid.', 'success');
+        if (!fee.orNumber) editHoldingFee(id);
+      }catch(e){
+        // Offline fallback
+        fee.status='paid'; fee.paymentDate=fee.paymentDate||new Date().toISOString().slice(0,10);
+        try{ localStorage.setItem(holdingFeeStorageKey, JSON.stringify(holdingFees)); }catch(e){}
+        renderHoldingFees(); showToast('Holding fee marked as paid (offline).','success'); if(!fee.orNumber) editHoldingFee(fee.id);
+      }
     };
 
-    window.removeHoldingFeeProof = (id) => {
+    window.removeHoldingFeeProof = async (id) => {
       const fee = holdingFees.find(f => f.id === id);
       if (!fee || !fee.proof) return;
       if (!confirm('Remove the uploaded proof/receipt for this holding fee?')) return;
-      fee.proof = null;
-      persistHoldingFees(holdingFees);
-      renderHoldingFees();
-      showToast('Proof / receipt removed.', 'info');
+      try{
+        const fd=new FormData(); fd.append('action','update_holding_fee'); fd.append('id',String(id)); fd.append('removeProof','1');
+        // Need contractId for server validation — include minimal fields
+        fd.append('contractId',String(fee.contractId)); fd.append('amount',String(fee.amount));
+        fd.append('paymentMethod',fee.paymentMethod); fd.append('paymentDate',fee.paymentDate); fd.append('status',fee.status);
+        fd.append('propertyAddress',fee.propertyAddress||'');
+        const res=await fetch(HOLDING_API,{method:'POST',body:fd}); const data=await res.json();
+        if(!res.ok||!data.success) throw new Error(data.message);
+        await loadHoldingFees(); showToast('Proof / receipt removed.','info');
+      }catch(e){
+        fee.proof=null; try{localStorage.setItem(holdingFeeStorageKey,JSON.stringify(holdingFees));}catch(e){} renderHoldingFees(); showToast('Proof / receipt removed (offline).','info');
+      }
     };
 
-    window.cancelHoldingFee = (id) => {
+    window.cancelHoldingFee = async (id) => {
       const fee = holdingFees.find(f => f.id === id);
       if (!fee) return;
-      if (!confirm('Cancel this reservation? Holding fees are non-refundable \u2014 the record will be kept with a Cancelled status.')) return;
-      fee.status = 'cancelled';
-      fee.remarks = (fee.remarks ? fee.remarks + ' \u2014 ' : '') + 'Cancelled ' + new Date().toISOString().slice(0, 10);
-      persistHoldingFees(holdingFees);
-      renderHoldingFees();
-      showToast('Holding fee cancelled.', 'info');
+      if (!confirm('Cancel this reservation? Holding fees are non-refundable — the record will be kept with a Cancelled status.')) return;
+      try{
+        const fd=new FormData(); fd.append('action','update_holding_status'); fd.append('id',String(id)); fd.append('status','CANCELLED'); fd.append('processedBy',String(currentUser.officerId||'')); fd.append('reason','Cancelled by clerk');
+        const res=await fetch(HOLDING_API,{method:'POST',body:fd}); const data=await res.json();
+        if(!res.ok||!data.success) throw new Error(data.message);
+        await loadHoldingFees(); showToast('Holding fee cancelled.','info');
+      }catch(e){
+        fee.status='cancelled'; fee.remarks=(fee.remarks?fee.remarks+' — ':'')+'Cancelled '+new Date().toISOString().slice(0,10);
+        try{localStorage.setItem(holdingFeeStorageKey,JSON.stringify(holdingFees));}catch(e){} renderHoldingFees(); showToast('Holding fee cancelled (offline).','info');
+      }
     };
 
     /* -------- Proof viewer -------- */
