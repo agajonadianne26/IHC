@@ -86,7 +86,7 @@ async function fetchHoldingExpiringRows(todayStr, channel) {
        FROM holding_fees hf
        JOIN contracts c ON c.id=hf.contract_id
        LEFT JOIN property_units pu ON pu.id=hf.property_unit_id
-       WHERE hf.status='PAID' AND hf.expiration_date = DATE_ADD(?, INTERVAL 2 DAY)
+       WHERE hf.status='PAID' AND hf.expiration_date BETWEEN DATE_ADD(?, INTERVAL 2 DAY) AND DATE_ADD(?, INTERVAL 3 DAY)
         AND NOT EXISTS (
           SELECT 1 FROM notifications_logs nl
           WHERE nl.contract_id IN (CAST(hf.contract_id AS CHAR) COLLATE utf8mb4_general_ci, CONCAT('IHC-', hf.contract_id) COLLATE utf8mb4_general_ci, CONCAT('CON-', hf.contract_id) COLLATE utf8mb4_general_ci)
@@ -180,7 +180,7 @@ async function runDailyReminders() {
           row.contract_code + ' ('+row.unit_label+' HF-'+row.holding_id+')',
           row.amount_due,
           row.due_date,
-          2,
+          daysUntilDue(row.due_date, todayStr),
           { reminderType: 'holding_expiring' }
         );
         if(result.success) console.log(`[CRON] Holding expiring notice sent to ${row.client_email} for HF-${row.holding_id} (${row.unit_label})`);
@@ -195,7 +195,7 @@ async function runDailyReminders() {
           row.contract_code + ' ('+row.unit_label+' HF-'+row.holding_id+')',
           row.amount_due,
           row.due_date,
-          2,
+          daysUntilDue(row.due_date, todayStr),
           { reminderType: 'holding_expiring' }
         );
         if(result.success) console.log(`[CRON] Holding expiring SMS sent to ${row.cellphone_number} for HF-${row.holding_id}`);

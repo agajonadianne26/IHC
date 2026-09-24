@@ -7,6 +7,9 @@ header('Access-Control-Allow-Headers: Content-Type, Accept');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
+// All date()/expiry math must agree with the Node cron (Asia/Manila).
+date_default_timezone_set('Asia/Manila');
+
 // ---------------------------------------------------------------------
 // DB connection — inline PDO like the rest of the codebase (AGENTS.md:18)
 // ---------------------------------------------------------------------
@@ -252,6 +255,7 @@ try{
             // Fallback: also count via reservation_fees PAID
             $pendingPayments = (int)$pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE contract_id IN ($in) AND status='PENDING'")->fetch()['c'];
             $pendingPayments += (int)$pdo->query("SELECT COUNT(*) c FROM reservation_fees WHERE contract_id IN ($in) AND status='PENDING'")->fetch()['c'];
+            $allHolds = (int)$pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE contract_id IN ($in)")->fetch()['c'];
 
             $rows=$pdo->query("SELECT hf.*, c.client_name, c.property_address FROM holding_fees hf JOIN contracts c ON c.id=hf.contract_id WHERE hf.contract_id IN ($in) AND hf.status='PAID' AND hf.expiration_date >= CURDATE() ORDER BY hf.expiration_date ASC LIMIT 20")->fetchAll();
             $expiring=[];
@@ -260,7 +264,7 @@ try{
                 if($r['property_unit_id']){ $u=getUnitById($pdo,(int)$r['property_unit_id']); if($u) $unitLabel=$u['display_label']; }
                 $expiring[]=['id'=>(int)$r['id'],'contractId'=>(int)$r['contract_id'],'client'=>$r['client_name'],'unit'=>$unitLabel,'amount'=>(float)$r['amount'],'expiration'=>$r['expiration_date'],'status'=>$r['status']];
             }
-            echo json_encode(['success'=>true,'summary'=>['activeHolds'=>$activeHolds,'expiringHolds'=>$expiringHolds,'reservedUnits'=>$reservedUnits,'pendingPayments'=>$pendingPayments,'pendingHolds'=>$pendingHolds],'expiringHolds'=>$expiring]);
+            echo json_encode(['success'=>true,'summary'=>['activeHolds'=>$activeHolds,'expiringHolds'=>$expiringHolds,'reservedUnits'=>$reservedUnits,'pendingPayments'=>$pendingPayments,'pendingHolds'=>$pendingHolds,'allHolds'=>$allHolds],'expiringHolds'=>$expiring]);
             exit;
         }
         if($action==='holding_fees'){
@@ -485,9 +489,11 @@ try{
                     }
                 }
             }
-            // Also block second active hold for same contract+unit
+            // Also block a second active hold for the same contract+unit.
+            // `<=>` (null-safe equals) keeps the "unitless hold" rule without
+            // making one NULL-unit hold block every other unit for this client.
             if(!$isUpdate){
-                $dup2=$pdo->prepare("SELECT id FROM holding_fees WHERE contract_id=? AND status IN ('PENDING','PAID') AND (property_unit_id=? OR property_unit_id IS NULL) LIMIT 1");
+                $dup2=$pdo->prepare("SELECT id FROM holding_fees WHERE contract_id=? AND status IN ('PENDING','PAID') AND property_unit_id <=> ? LIMIT 1");
                 $dup2->execute([$contractId,$unitId]);
                 if($dup2->fetch()) throw new RuntimeException('This client already has an active holding fee for this unit.');
             }
@@ -654,7 +660,7 @@ try{
                         ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy,$resId]);
                     audit($pdo,'reservation_fee.updated',$contractId,null,$resId,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
                     if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
-                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$unitId]);
+                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_holding_fee_id=NULL, current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$unitId]);
                         audit($pdo,'unit.status_changed',$contractId,null,$resId,$unitId,'ON HOLD','RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
                         if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
                             $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$holdingFeeId]);
@@ -676,7 +682,7 @@ try{
                     audit($pdo,'reservation_fee.created',$contractId,null,$newId,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
                     if($status==='PAID' && $unitId){
                         $prevUnitStatus=$unit['status'];
-                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_contract_id=?, current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
+                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_holding_fee_id=NULL, current_contract_id=?, current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
                         audit($pdo,'unit.status_changed',$contractId,null,$newId,$unitId,$prevUnitStatus,'RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
                         if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
                             $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$newId,$holdingFeeId]);
@@ -734,17 +740,61 @@ try{
             }
         }
 
+        if($action==='unit_status_update'){
+            // §13 state machine — lets admins move AVAILABLE → ON HOLD → RESERVED → SOLD
+            // and back to AVAILABLE (never auto-unsell a SOLD unit).
+            $unitId = (int)($get($input,'unitId','property_unit_id') ?? 0);
+            if(!$unitId){
+                $label=trim((string)($get($input,'unitLabel','propertyAddress','property_address','unit_label','property') ?? ''));
+                if($label!==''){
+                    $contractRef=$get($input,'contractId','contract_id');
+                    $cid = $contractRef!==null && $contractRef!=='' ? normalizeContractId($contractRef) : null;
+                    $u=getOrCreateUnit($pdo,$label,$cid); if($u) $unitId=(int)$u['id'];
+                }
+            }
+            if(!$unitId) throw new RuntimeException('Unit not found. Provide unitId or unitLabel.');
+            $toStatus=strtoupper(trim((string)($get($input,'status','toStatus') ?? '')));
+            if(!in_array($toStatus,['AVAILABLE','ON HOLD','RESERVED','SOLD'],true)) throw new RuntimeException('Invalid unit status.');
+            $processedBy=trim((string)($get($input,'processedBy','processed_by','actorId') ?? '')) ?: null;
+            $actorName=resolveOfficerName($pdo,$processedBy);
+            $reason=$get($input,'reason','remarks');
+            $unit=getUnitById($pdo,$unitId);
+            if(!$unit) throw new RuntimeException('Unit not found.');
+            $fromStatus=$unit['status'];
+            if($fromStatus==='SOLD' && $toStatus!=='SOLD') throw new RuntimeException('A SOLD unit cannot be reverted to '.$toStatus.' via this endpoint.');
+            $contractId = $get($input,'contractId','contract_id')!==null && $get($input,'contractId','contract_id')!=='' ? normalizeContractId($get($input,'contractId','contract_id')) : ($unit['current_contract_id']? (int)$unit['current_contract_id']:null);
+            $pdo->beginTransaction();
+            try{
+                $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
+                if($toStatus==='AVAILABLE'){
+                    $pdo->prepare("UPDATE property_units SET status='AVAILABLE', current_holding_fee_id=NULL, current_reservation_fee_id=NULL, updated_at=NOW() WHERE id=?")->execute([$unitId]);
+                } else if($toStatus==='SOLD'){
+                    $pdo->prepare("UPDATE property_units SET status='SOLD', current_holding_fee_id=NULL, current_contract_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId?:$unit['current_contract_id'],$unitId]);
+                } else {
+                    $pdo->prepare("UPDATE property_units SET status=?, updated_at=NOW() WHERE id=?")->execute([$toStatus,$unitId]);
+                }
+                audit($pdo,'unit.status_changed',$contractId,null,null,$unitId,$fromStatus,$toStatus,$processedBy,$actorName,['reason'=>$reason]);
+                $pdo->commit();
+            }catch(Throwable $e){ if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+            echo json_encode(['success'=>true,'message'=>'Unit '.$fromStatus.' → '.$toStatus.'.']);
+            exit;
+        }
+
         if($action==='expire_sweep'){
             $n=expireStaleHolds($pdo);
             echo json_encode(['success'=>true,'expired'=>$n]);
             exit;
         }
         if($action==='business_rules_update'){
+            $ruleKeys=[
+                'holding_fee.default_days','holding_fee.expire_makes_available','holding_fee.convert_on_reservation',
+                'holding_fee.refundable','holding_fee.allow_direct_reservation','reservation_fee.refundable',
+            ];
             $rules = $input['rules'] ?? $input;
             if(!is_array($rules)) throw new RuntimeException('rules object required');
             foreach($rules as $k=>$v){
-                if($k==='action') continue;
                 if(!is_string($k) || $k==='') continue;
+                if(!in_array($k,$ruleKeys,true)) continue; // whitelist only known policy keys
                 $pdo->prepare('INSERT INTO business_rules (rule_key,rule_value) VALUES (?,?) ON DUPLICATE KEY UPDATE rule_value=VALUES(rule_value)')->execute([$k,(string)$v]);
             }
             audit($pdo,'business_rules.updated',null,null,null,null,null,null, $get($input,'actorId','processedBy')?:null, null, ['rules'=>$rules]);

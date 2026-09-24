@@ -1790,6 +1790,9 @@
                     <button class="filter-tab" data-hf-filter="pending">Pending <span class="tab-count" id="hfCountPending">0</span></button>
                     <button class="filter-tab" data-hf-filter="active">Active <span class="tab-count" id="hfCountActive">0</span></button>
                     <button class="filter-tab" data-hf-filter="expired">Expired <span class="tab-count" id="hfCountExpired">0</span></button>
+                    <button class="filter-tab" data-hf-filter="converted">Converted <span class="tab-count" id="hfCountConverted">0</span></button>
+                    <button class="filter-tab" data-hf-filter="refunded">Refunded <span class="tab-count" id="hfCountRefunded">0</span></button>
+                    <button class="filter-tab" data-hf-filter="forfeited">Forfeited <span class="tab-count" id="hfCountForfeited">0</span></button>
                     <button class="filter-tab" data-hf-filter="cancelled">Cancelled <span class="tab-count" id="hfCountCancelled">0</span></button>
                   </div>
                 </div>
@@ -2658,12 +2661,13 @@
       try{
         const dRes=await fetch(HOLDING_API+'?action=dashboard_summary&officerId='+encodeURIComponent(currentUser.officerId||''));
         if(dRes.ok){ const dData=await dRes.json(); if(dData.success && dData.summary){
-          // Update the Holding Fees pane KPI tiles with server truth when available
+          // Update the Holding Fees pane KPI tiles with server truth when available.
+          // (server summary is officer-scoped, same as the fees already loaded)
           const s=dData.summary;
-          if(document.getElementById('hfKpiActive')) document.getElementById('hfKpiActive').textContent = String(s.activeHolds);
-          if(document.getElementById('hfKpiCollected')){
-            // keep formatPHP if we have amount, but activeHolds count is more reliable from server
-          }
+          const setTxt=(id,v)=>{ const el=document.getElementById(id); if(el && v!=null) el.textContent=String(v); };
+          setTxt('hfKpiActive', s.activeHolds);
+          setTxt('hfKpiPending', s.pendingHolds);
+          setTxt('hfKpiTotal', s.allHolds);
         }}
       }catch(e){}
     };
@@ -3158,6 +3162,9 @@
       document.getElementById('hfCountPending').textContent = counts.pending || 0;
       document.getElementById('hfCountActive').textContent = counts.active || 0;
       document.getElementById('hfCountExpired').textContent = counts.expired || 0;
+      document.getElementById('hfCountConverted').textContent = counts.converted || 0;
+      document.getElementById('hfCountRefunded').textContent = counts.refunded || 0;
+      document.getElementById('hfCountForfeited').textContent = counts.forfeited || 0;
       document.getElementById('hfCountCancelled').textContent = counts.cancelled || 0;
     }
 

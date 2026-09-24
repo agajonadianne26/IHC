@@ -1435,6 +1435,7 @@
               <input id="unitLookupInput" type="text" placeholder="e.g., Building A - Unit 101 or exact property_address" style="width:100%; height:38px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;">
             </div>
             <button class="btn-primary" id="lookupUnitBtn" type="button">Lookup Unit</button>
+            <button class="btn-secondary" id="markSoldBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Mark Unit SOLD</button>
           </div>
           <div id="unitDetailBox" style="padding:0 24px 18px; display:none;">
             <div id="unitDetailContent" style="font-size:12px; line-height:1.6; color:var(--text-secondary);"></div>
@@ -2440,6 +2441,7 @@
       }catch(e){ document.getElementById('brStatus').textContent='Error: '+e.message; }
     });
     // Unit lookup §13
+    let lastLookedUpUnit = null;
     document.getElementById('lookupUnitBtn')?.addEventListener('click', async ()=>{
       const label=document.getElementById('unitLookupInput').value.trim();
       if(!label){ showToast('Enter a unit label.','info'); return; }
@@ -2456,6 +2458,9 @@
         }
         if(!data.success) throw new Error(data.message||'Not found');
         const u=data.unit;
+        lastLookedUpUnit = u;
+        const soldBtn=document.getElementById('markSoldBtn');
+        if(soldBtn) soldBtn.disabled = u.status==='SOLD';
         content.innerHTML='<strong>Unit:</strong> '+u.display_label+'<br><strong>Status:</strong> <span class="row-status '+(u.status==='AVAILABLE'?'neutral':u.status==='ON HOLD'?'warn':u.status==='RESERVED'?'ok':'danger')+'"><span class="dot"></span>'+u.status+'</span><br><strong>Current contract:</strong> '+(u.current_contract_id||'—')+'<br><strong>Holding fee:</strong> '+(u.current_holding_fee_id||'—')+'<br><strong>Reservation fee:</strong> '+(u.current_reservation_fee_id||'—');
         // Try payment_history for that contract if we have it
         try{
@@ -2470,6 +2475,24 @@
         }catch(e){}
         lucide.createIcons();
       }catch(e){ content.textContent='Error: '+e.message; }
+    });
+    // §13 state machine — final SOLD transition (manual, per IHC sales policy)
+    document.getElementById('markSoldBtn')?.addEventListener('click', async ()=>{
+      if(!lastLookedUpUnit){ showToast('Look up a unit first.','info'); return; }
+      const unit=lastLookedUpUnit;
+      if(unit.status==='SOLD'){ showToast('Unit is already SOLD.','info'); return; }
+      if(!confirm('Mark '+unit.display_label+' as SOLD? This finalizes the unit and cannot be reverted from this panel.')) return;
+      try{
+        const res=await fetch(API_BASE+'/php/api_holding_reservation.php?action=unit_status_update', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ action:'unit_status_update', unitId: unit.id, status:'SOLD', unitLabel: unit.display_label, reason:'Marked SOLD from admin panel' })
+        });
+        const d=await res.json();
+        if(!d.success) throw new Error(d.message||'Failed');
+        showToast(d.message,'success');
+        document.getElementById('unitLookupInput').value=unit.display_label;
+        document.getElementById('lookupUnitBtn').click();
+      }catch(e){ showToast('Mark SOLD failed: '+e.message,'info'); }
     });
 
     /* ==========================================

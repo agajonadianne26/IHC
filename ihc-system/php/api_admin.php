@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+// All date()/CURDATE-fallback math must agree with the Node cron (Asia/Manila).
+date_default_timezone_set('Asia/Manila');
+
 // Shared installment-schedule math — the clerk and client endpoints include
 // this same file, so all three dashboards interpret `payments` identically.
 require_once __DIR__ . '/installment-schedule.php';
@@ -261,7 +264,9 @@ try {
             $expireMakesAvail = '1';
             try { $r=$pdo->query("SELECT rule_value FROM business_rules WHERE rule_key='holding_fee.expire_makes_available' LIMIT 1")->fetch(); if($r) $expireMakesAvail=(string)$r['rule_value']; } catch(Throwable $e){}
             $todayStr = date('Y-m-d');
-            foreach($pdo->query("SELECT * FROM holding_fees WHERE status IN ('PENDING','PAID') AND expiration_date < '".$pdo->quote($todayStr)."' AND converted_to_reservation_id IS NULL") as $hf){
+            $sweepSt=$pdo->prepare("SELECT * FROM holding_fees WHERE status IN ('PENDING','PAID') AND expiration_date < ? AND converted_to_reservation_id IS NULL");
+            $sweepSt->execute([$todayStr]);
+            foreach($sweepSt->fetchAll() as $hf){
                 $pdo->prepare("UPDATE holding_fees SET status='EXPIRED' WHERE id=?")->execute([$hf['id']]);
                 if($expireMakesAvail==='1' && !empty($hf['property_unit_id'])){
                     $pdo->prepare("UPDATE property_units SET status='AVAILABLE', current_holding_fee_id=NULL WHERE id=? AND status='ON HOLD'")->execute([$hf['property_unit_id']]);
@@ -269,14 +274,20 @@ try {
             }
         } catch(Throwable $e){}
 
-        $holdingSummary['activeHolds'] = (int)($pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE status='PAID' AND expiration_date >= CURDATE()")->fetch()['c'] ?? 0);
-        $holdingSummary['expiringHolds'] = (int)($pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE status='PAID' AND expiration_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)")->fetch()['c'] ?? 0);
-        $holdingSummary['reservedUnits'] = (int)($pdo->query("SELECT COUNT(*) c FROM property_units WHERE status='RESERVED'")->fetch()['c'] ?? 0);
-        $holdingSummary['pendingPayments'] = (int)($pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE status='PENDING'")->fetch()['c'] ?? 0);
-        $holdingSummary['pendingPayments'] += (int)($pdo->query("SELECT COUNT(*) c FROM reservation_fees WHERE status='PENDING'")->fetch()['c'] ?? 0);
+        $countSt = function(string $sql, array $params=[]) use ($pdo): int {
+            if(!$params){ try { return (int)($pdo->query($sql)->fetch()['c'] ?? 0); } catch(Throwable $e){ return 0; } }
+            try { $st=$pdo->prepare($sql); $st->execute($params); return (int)($st->fetch()['c'] ?? 0); } catch(Throwable $e){ return 0; }
+        };
+        $holdingSummary['activeHolds']     = $countSt("SELECT COUNT(*) c FROM holding_fees WHERE status='PAID' AND expiration_date >= ?", [$todayStr]);
+        $holdingSummary['expiringHolds']   = $countSt("SELECT COUNT(*) c FROM holding_fees WHERE status='PAID' AND expiration_date BETWEEN ? AND DATE_ADD(?, INTERVAL 7 DAY)", [$todayStr, $todayStr]);
+        $holdingSummary['reservedUnits']   = $countSt("SELECT COUNT(*) c FROM property_units WHERE status='RESERVED'");
+        $holdingSummary['pendingPayments'] = $countSt("SELECT COUNT(*) c FROM holding_fees WHERE status='PENDING'");
+        $holdingSummary['pendingPayments'] += $countSt("SELECT COUNT(*) c FROM reservation_fees WHERE status='PENDING'");
 
         // Expiring holds table sorted nearest first (§12)
-        foreach($pdo->query("SELECT hf.*, c.client_name, COALESCE(pu.display_label, c.property_address) AS unit_label FROM holding_fees hf JOIN contracts c ON c.id=hf.contract_id LEFT JOIN property_units pu ON pu.id=hf.property_unit_id WHERE hf.status='PAID' AND hf.expiration_date >= CURDATE() ORDER BY hf.expiration_date ASC LIMIT 20") as $r){
+        $expSt=$pdo->prepare("SELECT hf.*, c.client_name, COALESCE(pu.display_label, c.property_address) AS unit_label FROM holding_fees hf JOIN contracts c ON c.id=hf.contract_id LEFT JOIN property_units pu ON pu.id=hf.property_unit_id WHERE hf.status='PAID' AND hf.expiration_date >= ? ORDER BY hf.expiration_date ASC LIMIT 20");
+        $expSt->execute([$todayStr]);
+        foreach($expSt->fetchAll() as $r){
             $expiringHoldsList[] = ['client'=>$r['client_name'],'unit'=>$r['unit_label'],'amount'=>(float)$r['amount'],'expiration'=>$r['expiration_date'],'holdingFeeId'=>(int)$r['id'],'contractId'=>(int)$r['contract_id']];
         }
     } catch(Throwable $e){ /* tables missing -> keep defaults */ }

@@ -134,7 +134,9 @@ INSERT INTO business_rules (rule_key, rule_value, description) VALUES
   ('holding_fee.expire_makes_available', '1', '1 = EXPIRED holding reverts unit to AVAILABLE (requires IHC approval)'),
   ('holding_fee.convert_on_reservation', '1', '1 = reservation PAID auto-marks linked holding CONVERTED'),
   ('holding_fee.refundable', '0', '1 = holding fees may be refunded (policy flag, not auto-refund)'),
-  ('reservation_fee.refundable', '1', '1 = reservation fees may be refunded per IHC policy')
+  ('holding_fee.allow_direct_reservation', '0', '1 = allow reservation without prior active hold (runtime always ensures the key)'),
+  ('reservation_fee.refundable', '1', '1 = reservation fees may be refunded per IHC policy'),
+  ('business_rules.version', '6', 'Migration marker')
 ON DUPLICATE KEY UPDATE
   description = VALUES(description);
 

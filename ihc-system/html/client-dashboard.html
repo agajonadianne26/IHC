@@ -735,8 +735,19 @@
        Server is source of truth when reachable; fallback to local portal.
     ========================================== */
     (function renderPropertyPayment(){
-      const holding = (live && live.holdingFees && live.holdingFees[0]) ? live.holdingFees[0] : null;
-      const reservation = (live && live.reservationFees && live.reservationFees[0]) ? live.reservationFees[0] : null;
+      // Prefer the latest PAID hold/reservation so a stale PENDING or an old
+      // expired row can't shadow the current one; fall back to the newest row.
+      const holdings = Array.isArray(live && live.holdingFees) ? live.holdingFees : [];
+      const reservations = Array.isArray(live && live.reservationFees) ? live.reservationFees : [];
+      const preferLatestPaid = (arr) => {
+        if (!arr.length) return null;
+        for (let i = arr.length - 1; i >= 0; i--) {
+          if (String(arr[i].status || '').toLowerCase() === 'paid') return arr[i];
+        }
+        return arr[arr.length - 1];
+      };
+      const holding = preferLatestPaid(holdings);
+      const reservation = preferLatestPaid(reservations);
       const unit = (live && live.propertyUnit) ? live.propertyUnit : null;
       const history = (live && live.history) ? live.history : null;
       const totalPaidServer = (live && live.totalPaid != null) ? live.totalPaid : null;
@@ -787,8 +798,8 @@
       } else {
         // Fallback: synthesize from holding/reservation/payments available
         rows = [];
-        if(holding) rows.push({ date: holding.date||holding.paymentDate||holding.createdAt?.slice(0,10), type:'Holding Fee', amount: holding.amount, status: holding.status, orNumber: holding.orNumber });
-        if(reservation) rows.push({ date: reservation.date||reservation.paymentDate, type:'Reservation Fee', amount: reservation.amount, status: reservation.status, orNumber: reservation.orNumber });
+        if(holding) rows.push({ date: holding.date||holding.paymentDate||holding.createdAt?.slice(0,10), type:'Holding Fee', amount: holding.amount, status: holding.status, orNumber: holding.orNumber || holding.referenceNumber });
+        if(reservation) rows.push({ date: reservation.date||reservation.paymentDate, type:'Reservation Fee', amount: reservation.amount, status: reservation.status, orNumber: reservation.orNumber || reservation.referenceNumber });
         portal.schedules.filter(s=>s.paid).forEach(s=> rows.push({ date: s.payDate, type: s.phase==='deposit'?'Down Payment':'Monthly Payment', amount:s.amount, status:'Paid', orNumber:s.orNumber }));
         rows.sort((a,b)=> String(a.date||'').localeCompare(String(b.date||'')));
         if(uTotal) uTotal.textContent = fmtPHP(totPaid);
