@@ -1421,6 +1421,23 @@
           </div>
         </section>
 
+        <!-- FINANCING BANKS §20 (admin-configurable default annual interest) -->
+        <section class="table-section" style="margin-bottom:24px;">
+          <div class="table-header">
+            <div class="table-header-left">
+              <h2>Financing Banks</h2>
+              <p>Default annual interest per bank — applies to new contracts only</p>
+            </div>
+          </div>
+          <div style="padding:18px 24px;" id="bankRatesList">
+            <p style="font-size:11px; color:var(--text-muted);">Loading bank rates…</p>
+          </div>
+          <div style="padding:0 24px 18px; display:flex; gap:10px;">
+            <button class="btn-primary" id="saveBankRatesBtn" type="button">Save Bank Rates</button>
+            <span id="brBankStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
+          </div>
+        </section>
+
         <!-- PROPERTY / UNIT DETAIL §13 -->
         <section class="table-section" style="margin-bottom:24px;">
           <div class="table-header">
@@ -2439,6 +2456,40 @@
         if(d.success) showToast('Business rules updated.','success');
         setTimeout(()=> document.getElementById('brStatus').textContent='', 3000);
       }catch(e){ document.getElementById('brStatus').textContent='Error: '+e.message; }
+    });
+    // Financing Banks §20 — editable default annual interest per bank
+    async function loadBankRates(){
+      try{
+        const res=await fetch(API_BASE+'/php/api_bank_rates.php?action=list');
+        const d=await res.json();
+        if(!d.success || !Array.isArray(d.rates)) return;
+        const wrap=document.getElementById('bankRatesList');
+        if(!wrap) return;
+        if(!d.rates.length){ wrap.innerHTML='<p style="font-size:11px; color:var(--text-muted);">No banks configured yet.</p>'; return; }
+        const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        wrap.innerHTML='<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap:16px;">'+
+          d.rates.map((r)=>'<label style="font-size:11px; font-weight:700; margin:0;" data-bank="'+esc(r.bank)+'" data-label="'+esc(r.label)+'">'+esc(r.label)+(r.bank&&r.bank!==r.label?' ('+esc(r.bank)+')':'')+'<input type="number" step="0.01" min="0" max="100" class="br-rate-input" value="'+Number(r.rate).toFixed(2)+'" style="width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;"></label>').join('')+
+          '</div>';
+      }catch(e){}
+    }
+    loadBankRates();
+    document.getElementById('saveBankRatesBtn')?.addEventListener('click', async ()=>{
+      const inputs=document.querySelectorAll('#bankRatesList .br-rate-input');
+      const rates=[];
+      inputs.forEach((inp)=>{
+        const label=inp.closest('label');
+        if(!label) return;
+        rates.push({ bank: label.getAttribute('data-bank'), label: label.getAttribute('data-label'), rate: inp.value });
+      });
+      if(!rates.length) return;
+      document.getElementById('brBankStatus').textContent='Saving…';
+      try{
+        const res=await fetch(API_BASE+'/php/api_bank_rates.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'update', rates})});
+        const d=await res.json();
+        document.getElementById('brBankStatus').textContent=d.success?'Saved.':'Failed: '+(d.message||'error');
+        if(d.success){ showToast('Bank interest rates updated.','success'); loadBankRates(); }
+        setTimeout(()=> document.getElementById('brBankStatus').textContent='', 3000);
+      }catch(e){ document.getElementById('brBankStatus').textContent='Error: '+e.message; }
     });
     // Unit lookup §13
     let lastLookedUpUnit = null;

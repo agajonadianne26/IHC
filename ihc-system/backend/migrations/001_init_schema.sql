@@ -48,10 +48,9 @@ CREATE TABLE IF NOT EXISTS installment_schedules (
 );
 
 -- Notification logs (email / SMS dispatch history)
-CREATE TABLE IF NOT EXISTS notification_logs (
+CREATE TABLE IF NOT EXISTS notifications_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   contract_id VARCHAR(50),
-  installment_id INT DEFAULT NULL,
   client_email VARCHAR(255),
   channel VARCHAR(10) DEFAULT 'email',
   subject VARCHAR(255),
@@ -61,7 +60,11 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 );
 
 CREATE INDEX idx_notification_logs_installment_day
-  ON notification_logs (installment_id, channel, status, sent_at);
+  ON notifications_logs (contract_id, channel, status, sent_at);
+-- NOTE: this table is created as `notifications_logs` (plural) — every PHP API
+-- and the Node service query the plural name. Older installs had a singular
+-- `notification_logs`; rename it (RENAME TABLE notification_logs TO
+-- notifications_logs) rather than re-creating.
 
 -- Seed officers (ID 1 = admin, 2-4 = billing clerks, matching mock login)
 INSERT INTO officers (id, name, role, email) VALUES

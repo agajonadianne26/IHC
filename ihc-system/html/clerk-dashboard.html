@@ -2026,20 +2026,20 @@
                     <label>Financing Bank</label>
                     <select id="ncBank">
                       <option value="In-House" data-rate="0.00">In-House (0% interest)</option>
-                      <option value="Pag-IBIG" data-rate="5.50">Pag-IBIG Fund — 5.50% p.a.</option>
-                      <option value="BDO" data-rate="6.50">BDO — 6.50% p.a.</option>
-                      <option value="BPI" data-rate="6.50">BPI — 6.50% p.a.</option>
-                      <option value="Metrobank" data-rate="6.50">Metrobank — 6.50% p.a.</option>
-                      <option value="Security Bank" data-rate="6.75">Security Bank — 6.75% p.a.</option>
-                      <option value="RCBC" data-rate="6.75">RCBC — 6.75% p.a.</option>
-                      <option value="UnionBank" data-rate="7.00">UnionBank — 7.00% p.a.</option>
-                      <option value="PNB" data-rate="7.00">PNB — 7.00% p.a.</option>
+                      <option value="Pag-IBIG" data-rate="5.50">Pag-IBIG Fund — 5.50%</option>
+                      <option value="BDO" data-rate="6.50">BDO — 6.50%</option>
+                      <option value="BPI" data-rate="6.50">BPI — 6.50%</option>
+                      <option value="Metrobank" data-rate="6.50">Metrobank — 6.50%</option>
+                      <option value="Security Bank" data-rate="6.75">Security Bank — 6.75%</option>
+                      <option value="RCBC" data-rate="6.75">RCBC — 6.75%</option>
+                      <option value="UnionBank" data-rate="7.00">UnionBank — 7.00%</option>
+                      <option value="PNB" data-rate="7.00">PNB — 7.00%</option>
                     </select>
                     <small class="nc-hint" id="hintBank">The bank's annual interest rate is applied to the house amortization.</small>
                   </div>
                   <div class="nc-field full">
                     <label>Annual Interest Rate (%)</label>
-                    <div class="input-affix nc-rate-affix"><input type="text" id="ncInterestRate" inputmode="decimal" placeholder="0.00" value="0.00"><span class="suffix">% p.a.</span></div>
+                    <div class="input-affix nc-rate-affix"><input type="text" id="ncInterestRate" inputmode="decimal" placeholder="0.00" value="0.00"><span class="suffix">%</span></div>
                     <small class="nc-hint" id="hintInterest">Auto-filled when a bank is selected. Editable before saving.</small>
                   </div>
                   <div class="nc-field">
@@ -3784,7 +3784,11 @@
     ncFields.phone.addEventListener('input', () => { formatPhoneField(); validateForm(); });
 
     const dpModeRadios = document.querySelectorAll('input[name="ncDpMode"]');
-    const BANK_RATES = {
+    // Financing bank defaults. These are the OFFLINE FALLBACK values; on load
+    // the form refreshes them from php/api_bank_rates.php (admin-configurable)
+    // and rebuilds the <select>. The rate an admin sets lives in bank_rates and
+    // becomes this form's auto-fill default for NEW contracts only.
+    let BANK_RATES = {
       'In-House': 0,
       'Pag-IBIG': 5.50,
       'BDO': 6.50,
@@ -3795,6 +3799,17 @@
       'UnionBank': 7.00,
       'PNB': 7.00
     };
+    let BANK_LIST = [
+      { bank: 'In-House', label: 'In-House' },
+      { bank: 'Pag-IBIG', label: 'Pag-IBIG Fund' },
+      { bank: 'BDO', label: 'BDO' },
+      { bank: 'BPI', label: 'BPI' },
+      { bank: 'Metrobank', label: 'Metrobank' },
+      { bank: 'Security Bank', label: 'Security Bank' },
+      { bank: 'RCBC', label: 'RCBC' },
+      { bank: 'UnionBank', label: 'UnionBank' },
+      { bank: 'PNB', label: 'PNB' }
+    ];
     const getDpMode = () => {
       const checked = document.querySelector('input[name="ncDpMode"]:checked');
       return checked ? checked.value : '';
@@ -3868,7 +3883,7 @@
       document.getElementById('sumFinancing').textContent = !isNaN(financing) && financing > 0 ? fmtPeso(financing) : '—';
       document.getElementById('sumTerms').textContent = (!isNaN(terms) && terms > 0) ? terms + ' mos' : '—';
       document.getElementById('sumBank').textContent = bank ? bank : '—';
-      document.getElementById('sumRate').textContent = !isNaN(annualRate) ? annualRate.toFixed(2) + '% p.a.' : '—';
+      document.getElementById('sumRate').textContent = !isNaN(annualRate) ? annualRate.toFixed(2) + '%' : '—';
       document.getElementById('sumMonthly').textContent = !isNaN(monthlyAmort) ? fmtPeso(monthlyAmort) : '—';
       document.getElementById('sumInterest').textContent = !isNaN(totalInterest) ? fmtPeso(totalInterest) : '—';
       document.getElementById('sumTotalPay').textContent = !isNaN(totalPayable) ? fmtPeso(totalPayable) : '—';
@@ -3974,6 +3989,40 @@
       updateSummary();
       validateForm();
     });
+
+    // Rebuild the Financing Bank dropdown from the editable defaults. Keeps the
+    // clerk's current selection (and re-applies its rate) when it still exists,
+    // otherwise falls back to In-House — matching the reset-form default.
+    function renderBankOptions() {
+      const prev = ncFields.bank.value;
+      ncFields.bank.innerHTML = '';
+      BANK_LIST.forEach((b) => {
+        const opt = document.createElement('option');
+        opt.value = b.bank;
+        opt.textContent = b.label + (BANK_RATES[b.bank] !== undefined ? ' \u2014 ' + Number(BANK_RATES[b.bank]).toFixed(2) + '%' : '');
+        if (BANK_RATES[b.bank] !== undefined) opt.setAttribute('data-rate', String(BANK_RATES[b.bank]));
+        ncFields.bank.appendChild(opt);
+      });
+      ncFields.bank.value = (prev && BANK_RATES.hasOwnProperty(prev)) ? prev : 'In-House';
+      if (BANK_RATES[ncFields.bank.value] !== undefined) {
+        ncFields.interest.value = Number(BANK_RATES[ncFields.bank.value]).toFixed(2);
+      }
+    }
+
+    // Pull admin-configured per-bank rates; keep the hardcoded list offline.
+    async function loadBankRates() {
+      try {
+        const res = await fetch(API_BASE + '/php/api_bank_rates.php?action=list');
+        const d = await res.json();
+        if (!d.success || !Array.isArray(d.rates) || !d.rates.length) return;
+        BANK_LIST = d.rates.map((r) => ({ bank: r.bank, label: r.label || r.bank }));
+        const m = {};
+        d.rates.forEach((r) => { m[r.bank] = r.rate; });
+        BANK_RATES = m;
+        renderBankOptions();
+      } catch (e) { /* offline: keep the fallback list above */ }
+    }
+    loadBankRates();
 
     ncEmail.addEventListener('input', () => {
       emailValid = false;
