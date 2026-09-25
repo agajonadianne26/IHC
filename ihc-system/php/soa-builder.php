@@ -262,9 +262,11 @@ function soa_status(float $amountDue, float $amountPaid, string $dueDate, string
 /**
  * Whitelisted, compact SOA payload for payment-notification email/SMS.
  * Full schedule rows, allocations, signatures, and detailed sections stay in
- * the dashboard document and are never copied into an email.
+ * the dashboard document and are never copied into an email. If a payment ID is
+ * supplied, paymentTransaction is the one exact posted payment selected by the
+ * server; it is still reduced to a compact, whitelisted object.
  */
-function soa_build_email_summary(array $document): array
+function soa_build_email_summary(array $document, ?array $paymentTransaction = null): array
 {
     $contract = is_array($document['contract'] ?? null) ? $document['contract'] : [];
     $summary = is_array($document['summary'] ?? null) ? $document['summary'] : [];
@@ -311,6 +313,197 @@ function soa_build_email_summary(array $document): array
         'status' => (float)($due['total'] ?? 0) <= 0.009
             ? 'SETTLED'
             : ($nextDueDate < $asOf ? 'OVERDUE' : 'DUE'),
+        // Null for ordinary reminders. When paymentId is supplied by the
+        // Clerk, this is the exact immutable transaction selected server-side.
+        'paymentTransaction' => $paymentTransaction,
+    ];
+}
+
+function soa_payment_type_label(string $kind, $installmentNo): string
+{
+    $kind = strtolower(trim($kind));
+    $installmentNo = ($installmentNo === null || $installmentNo === '') ? null : (int)$installmentNo;
+    if ($kind === 'downpayment' || $kind === 'down payment') return 'Downpayment';
+    if (in_array($kind, ['installment', 'installment payment', 'amortization', 'monthly installment'], true)) {
+        return $installmentNo !== null ? 'Installment Payment #' . $installmentNo : 'Installment Payment';
+    }
+    return $kind !== '' ? ucwords(str_replace('_', ' ', $kind)) : 'Scheduled Payment';
+}
+
+/**
+ * Return one exact payment transaction for a compact client notification.
+ * The payment must belong to the requested contract; callers cannot use a
+ * payment ID from another contract to alter the notification context.
+ */
+function soa_build_payment_transaction(PDO $pdo, int $contractId, int $paymentId, ?array $document = null): ?array
+{
+    if ($paymentId <= 0) return null;
+
+    $select = 'id, contract_id, amount, payment_method, date_collected, or_number, posted_by';
+    foreach (['check_number', 'invoice_number', 'installment_kind', 'installment_no', 'external_reference', 'receipt_requested'] as $column) {
+        if (soa_column_exists($pdo, 'payments', $column)) $select .= ', ' . $column;
+    }
+    $st = $pdo->prepare('SELECT ' . $select . ' FROM payments WHERE id = ? LIMIT 1');
+    $st->execute([$paymentId]);
+    $payment = $st->fetch();
+    if (!$payment || soa_normalize_contract_id($payment['contract_id'] ?? null) !== $contractId) return null;
+
+    $allocations = [];
+    try {
+        $allocationSt = $pdo->prepare(
+            'SELECT installment_kind, installment_no, allocated_amount, principal_amount
+             FROM payment_allocations
+             WHERE payment_id = ? AND contract_id = ?
+             ORDER BY id'
+        );
+        $allocationSt->execute([$paymentId, $contractId]);
+        $allocations = $allocationSt->fetchAll();
+    } catch (Throwable $e) {
+        $allocations = [];
+    }
+
+    $principalAmount = 0.0;
+    $allocationInterest = 0.0;
+    $allocationPenalty = 0.0;
+    $labels = [];
+    $firstKind = (string)($payment['installment_kind'] ?? '');
+    $firstNo = $payment['installment_no'] ?? null;
+    foreach ($allocations as $allocationIndex => $allocation) {
+        $kind = (string)($allocation['installment_kind'] ?? '');
+        $no = $allocation['installment_no'] ?? null;
+        if ($allocationIndex === 0) {
+            $firstKind = $kind !== '' ? $kind : $firstKind;
+            $firstNo = $no ?? $firstNo;
+        }
+        $label = soa_payment_type_label($kind, $no);
+        if ($label !== '' && !in_array($label, $labels, true)) $labels[] = $label;
+        $principalAmount += (float)($allocation['principal_amount'] ?? $allocation['allocated_amount'] ?? 0);
+        $allocationInterest += (float)($allocation['interest_amount'] ?? 0);
+        $allocationPenalty += (float)($allocation['penalty_amount'] ?? 0);
+    }
+    if (count($allocations) === 0) {
+        $principalAmount = (float)$payment['amount'];
+        $labels[] = soa_payment_type_label($firstKind, $firstNo);
+    }
+    $amount = soa_round($payment['amount']);
+    $principalAmount = max(0.0, min($amount, soa_round($principalAmount)));
+    $displayLabels = $labels;
+    if (count($displayLabels) > 6) {
+        $displayLabels = array_slice($displayLabels, 0, 6);
+        $displayLabels[] = (count($labels) - 6) . ' more';
+    }
+    $applicationSummary = implode(' + ', $displayLabels);
+    $primaryKind = strtolower(trim($firstKind));
+    $primaryNo = ($firstNo === null || $firstNo === '') ? null : (int)$firstNo;
+    $paymentType = $primaryKind === 'downpayment'
+        ? 'Downpayment'
+        : (in_array($primaryKind, ['installment', 'installment payment', 'amortization', 'monthly installment'], true)
+            ? 'Installment'
+            : ($applicationSummary !== '' ? $applicationSummary : 'Scheduled Payment'));
+    $scheduleMatch = null;
+    if (is_array($document) && is_array($document['schedule'] ?? null)) {
+        foreach ($document['schedule'] as $scheduleRow) {
+            if (!is_array($scheduleRow)) continue;
+            $rowKind = ((string)($scheduleRow['installmentNo'] ?? '')) === 'DP'
+                ? 'downpayment'
+                : 'installment';
+            $rowNo = ((string)($scheduleRow['installmentNo'] ?? '')) === 'DP'
+                ? null
+                : (int)$scheduleRow['installmentNo'];
+            if ($rowKind === $primaryKind && $rowNo === $primaryNo) {
+                $scheduleMatch = $scheduleRow;
+                break;
+            }
+        }
+    }
+    $amountDue = $scheduleMatch !== null ? soa_round($scheduleMatch['amountDue'] ?? $amount) : $amount;
+    $dueDate = $scheduleMatch !== null ? (string)($scheduleMatch['dueDate'] ?? $payment['date_collected']) : (string)$payment['date_collected'];
+    $paymentStatus = $scheduleMatch !== null
+        ? strtoupper((string)($scheduleMatch['status'] ?? 'POSTED'))
+        : 'POSTED';
+    $remainingBalance = is_array($document) && is_array($document['summary'] ?? null)
+        ? soa_round($document['summary']['remainingBalance'] ?? 0)
+        : 0.0;
+    $totalAmountDue = is_array($document) && is_array($document['amountDue'] ?? null)
+        ? soa_round($document['amountDue']['total'] ?? 0)
+        : $amountDue;
+    $interest = $allocationInterest > 0.009
+        ? soa_round($allocationInterest)
+        : (is_array($document) && is_array($document['amountDue'] ?? null) ? soa_round($document['amountDue']['interest'] ?? 0) : 0.0);
+    $penalty = $allocationPenalty > 0.009
+        ? soa_round($allocationPenalty)
+        : (is_array($document) && is_array($document['amountDue'] ?? null) ? soa_round($document['amountDue']['penalty'] ?? 0) : 0.0);
+    $postedByName = '';
+    if (trim((string)($payment['posted_by'] ?? '')) !== '') {
+        $actorSt = $pdo->prepare('SELECT full_name FROM officers WHERE id = ? LIMIT 1');
+        $actorSt->execute([(string)$payment['posted_by']]);
+        $postedByName = trim((string)($actorSt->fetchColumn() ?: ''));
+    }
+
+    $orNumber = soa_date_or_null($payment['or_number'] ?? null);
+    $paymentDate = (string)$payment['date_collected'];
+    $paymentMethod = (string)$payment['payment_method'];
+    $installmentId = $primaryKind === 'downpayment'
+        ? 'downpayment'
+        : ($primaryNo !== null ? 'installment-' . $primaryNo : null);
+    $contractReference = is_array($document) && is_array($document['contract'] ?? null)
+        ? (string)($document['contract']['reference'] ?? ('IHC-' . $contractId))
+        : ('IHC-' . $contractId);
+
+    return [
+        'source' => 'POSTED_PAYMENT',
+        'paymentId' => (int)$payment['id'],
+        'transactionReference' => 'PAY-' . (int)$payment['id'],
+        'contractId' => $contractId,
+        'contractReference' => $contractReference,
+        'paymentType' => $paymentType,
+        'applicationSummary' => $applicationSummary !== '' ? $applicationSummary : $paymentType,
+        'installmentKind' => $firstKind !== '' ? $firstKind : null,
+        'installmentId' => $installmentId,
+        'installmentNo' => $primaryNo,
+        'installmentNumber' => $primaryNo,
+        'amountDue' => $amountDue,
+        'amountPaid' => $amount,
+        'amount' => $amount,
+        'principal' => $principalAmount,
+        'principalAmount' => $principalAmount,
+        'additionalEquityAmount' => max(0.0, soa_round($amount - $principalAmount)),
+        'installmentDueDate' => $dueDate,
+        'dueDate' => $dueDate,
+        'paymentDate' => $paymentDate,
+        'dateCollected' => $paymentDate,
+        'paymentMethod' => $paymentMethod,
+        'method' => $paymentMethod,
+        'orNumber' => $orNumber,
+        'orReference' => $orNumber,
+        'invoiceNumber' => soa_date_or_null($payment['invoice_number'] ?? null),
+        'checkNumber' => soa_date_or_null($payment['check_number'] ?? null),
+        'externalReference' => soa_date_or_null($payment['external_reference'] ?? null),
+        'interest' => $interest,
+        'penalty' => $penalty,
+        'remainingBalance' => $remainingBalance,
+        'totalAmountDue' => $totalAmountDue,
+        'paymentStatus' => $paymentStatus,
+        'status' => $paymentStatus,
+        'soaNumber' => is_array($document) ? (string)($document['soaNumber'] ?? '') : '',
+        'soaAsOfDate' => is_array($document) ? (string)($document['asOfDate'] ?? '') : '',
+        'soaValidUntil' => is_array($document) ? (string)($document['validUntil'] ?? '') : '',
+        'postedBy' => trim((string)($payment['posted_by'] ?? '')),
+        'postedByName' => $postedByName,
+        'receiptRequested' => !isset($payment['receipt_requested']) || (bool)$payment['receipt_requested'],
+        // Snake-case aliases make the transaction contract explicit for
+        // integrations that use the database/API naming convention.
+        'payment_id' => (int)$payment['id'],
+        'contract_id' => $contractId,
+        'payment_type' => $paymentType,
+        'installment_id' => $installmentId,
+        'installment_number' => $primaryNo,
+        'amount_paid' => $amount,
+        'amount_due' => $amountDue,
+        'payment_date' => $paymentDate,
+        'payment_method' => $paymentMethod,
+        'or_number' => $orNumber,
+        'remaining_balance' => $remainingBalance,
     ];
 }
 

@@ -1,12 +1,15 @@
 # Daily payment-reminder automation
 
-`backend/cronJobs.js` uses the application's live `ihc.contracts` table. It
-checks each contract's first-payment due date (`start_date`), emails the
-client and sends them an SMS text message when that date is within the next
-three calendar days, and stores each result in `ihc.notifications_logs`.
-Each contract receives only one successful `due_soon` email and one
-successful `due_soon` SMS; overdue notices are limited to once per day
-(email only for now).
+`backend/cronJobs.js` asks
+`php/api_soa.php?action=reminder_queue` for the canonical next uncovered
+schedule row. The PHP queue uses the same `ihc_schedule()` allocator as the
+Clerk, Admin, and Client dashboards, so an installment reminder uses the
+installment amount and due date rather than the contract's original
+`start_date`/`downpayment` fields. Each result is stored in
+`ihc.notifications_logs`; each contract receives only one successful
+`due_soon` email and one successful `due_soon` SMS per due date (so a
+downpayment notice cannot suppress a later installment), while overdue
+notices are limited to once per day (email only for now).
 
 SMS goes through Semaphore (`backend/smsService.js`), a Philippine SMS
 gateway (semaphore.co) delivering to Globe/Smart/Sun/DITO at about
@@ -19,10 +22,11 @@ to enable it — while they are blank the SMS channel is skipped and email
 continues alone. Dedup is per channel, so a failed email never suppresses
 the SMS (and the other way around).
 
-When a clerk creates a contract whose first payment is exactly three days away,
-`backend/db.php` also calls the reminder service immediately with the client's
-email and phone number. This prevents a contract created after the 8:00 AM job
-from being missed.
+For a newly created contract whose first downpayment is exactly three days
+away, `backend/db.php` may still trigger the immediate first-payment reminder.
+All later scheduled reminders use the canonical next schedule row. Do not
+reintroduce a direct `start_date` / `downpayment` query for installment
+notices; doing so causes them to show the wrong payment.
 
 Set these values in `backend/.env` before running it:
 
@@ -38,6 +42,8 @@ SMTP_PASS=your-smtp-password
 EMAIL_FROM="Imperial Homes <billing@example.com>"
 ACKNOWLEDGEMENT_SECRET=replace-with-a-long-random-secret
 REMINDER_TIMEZONE=Asia/Manila
+# Optional when the PHP API is not at the default XAMPP URL
+PHP_API_BASE=http://localhost/ihc-system
 # Semaphore SMS reminders (semaphore.co) — leave blank to disable SMS
 SEMAPHORE_API_KEY=
 SEMAPHORE_SENDER_NAME=

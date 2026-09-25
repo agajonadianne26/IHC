@@ -2369,7 +2369,7 @@
 
           <div class="form-grid" style="margin-top:14px;">
             <div class="form-group full">
-              <label class="pm-inline-check"><input type="checkbox" id="pmReceiptRequested" checked> Email the official receipt and SOA update to the client</label>
+              <label class="pm-inline-check"><input type="checkbox" id="pmReceiptRequested" checked> Email the official receipt for this exact payment transaction and updated SOA</label>
             </div>
             <div class="form-group full">
               <label>Remarks / Payment Notes</label>
@@ -2777,6 +2777,10 @@
         paymentType: paymentType,
         paymentKind: c.nextType,
         installmentNo: c.nextInstallmentNo,
+        latestPaymentId: c.latestPaymentId,
+        latestPaymentKind: c.latestPaymentKind,
+        latestPaymentNo: c.latestPaymentNo,
+        latestPaymentType: c.latestPaymentType,
         amount: Number(c.nextAmount) || 0,
         // Always the date the endpoint reported (start_date once settled) so
         // this row matches the admin ledger and the client schedule exactly.
@@ -2869,7 +2873,9 @@
         return;
       }
       try {
-        const res = await fetch(API_BASE + '/php/api_dashboard.php?officerId=' + officerId);
+        const res = await fetch(API_BASE + '/php/api_dashboard.php?officerId=' + encodeURIComponent(officerId) + '&_=' + Date.now(), {
+          headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
+        });
         const data = await res.json();
         if (!data.success) {
           showToast(data.message || 'Failed to load assigned clients.', 'info');
@@ -2908,32 +2914,45 @@
     /* ==========================================
        REMINDER TOAST
     ========================================== */
-    // Sends raw current-payment values plus the API's compact SOA summary.
-    // emailService.js formats currency/date values; the full SOA document is
-    // intentionally never posted to the reminder service.
-    const buildReminderPayload = (row, soaSummary) => ({
-      scenario: row.status === 'overdue' ? 'overdue' : 'due_soon',
-      client: row.client,
-      contractId: row.id,
-      property: row.property,
-      paymentType: row.paymentType,
-      amount: row.amount,                                   // raw number
-      dueDate: row.dueDate.toISOString().slice(0, 10),      // raw ISO date (YYYY-MM-DD)
-      recipientEmail: row.email || '',
-      recipientPhone: row.phone || '',
-      // Email/SMS receives this whitelist only — never the full SOA document.
-      soaSummary
-    });
+    // A reminder normally describes the next unpaid schedule row. When the
+    // Clerk has just posted a payment for that same row, pass its immutable
+    // payment ID so the server can attach the actual transaction context.
+    const buildReminderPayload = (row, soaSummary, paymentId = null) => {
+      const transaction = soaSummary && soaSummary.paymentTransaction;
+      const sourceAmount = transaction ? transaction.amount : row.amount;
+      const sourceDate = transaction ? transaction.dateCollected : row.dueDate.toISOString().slice(0, 10);
+      return {
+        scenario: row.status === 'overdue' ? 'overdue' : 'due_soon',
+        client: row.client,
+        contractId: row.id,
+        property: row.property,
+        paymentType: transaction
+          ? `${transaction.paymentType}${transaction.installmentNumber != null ? ' #' + transaction.installmentNumber : ''}`
+          : row.paymentType,
+        paymentId: paymentId || null,
+        payment_id: paymentId || null,
+        notificationType: paymentId ? 'payment_posted' : 'payment_reminder',
+        amount: sourceAmount,
+        dueDate: sourceDate,
+        recipientEmail: row.email || '',
+        recipientPhone: row.phone || '',
+        // Email/SMS receives this whitelist only — never the full SOA document.
+        soaSummary
+      };
+    };
 
-    const fetchSoaReminderSummary = async (contractId) => {
+    const fetchSoaReminderSummary = async (contractId, paymentId = null) => {
       const params = new URLSearchParams({
         action: 'summary',
         contractId: String(contractId || ''),
         actorId: String(currentUser.officerId || ''),
-        actorEmail: String(currentUser.email || '')
+        actorEmail: String(currentUser.email || ''),
+        // Prevent a pre-payment summary from being reused after a ledger post.
+        _: String(Date.now())
       });
+      if (paymentId) params.set('paymentId', String(paymentId));
       const res = await fetch(API_BASE + '/php/api_soa.php?' + params.toString(), {
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
       });
       const data = await res.json();
       if (!res.ok || !data.success || !data.summary) {
@@ -2942,16 +2961,26 @@
       return data.summary;
     };
 
+    const reminderPaymentIdForRow = (row) => {
+      if (!row || row.latestPaymentId == null) return null;
+      const sameKind = String(row.latestPaymentKind || '').toLowerCase() === String(row.paymentKind || '').toLowerCase();
+      const rowNo = row.installmentNo == null ? null : Number(row.installmentNo);
+      const latestNo = row.latestPaymentNo == null ? null : Number(row.latestPaymentNo);
+      const sameInstallment = rowNo === latestNo;
+      return sameKind && sameInstallment ? Number(row.latestPaymentId) : null;
+    };
+
     window.sendReminder = async (idx) => {
       const row = myContracts[idx];
       const btn = document.querySelector(`[onclick="sendReminder(${idx})"]`);
       if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
       try {
-        const soaSummary = await fetchSoaReminderSummary(row.contractId);
+        const paymentId = reminderPaymentIdForRow(row);
+        const soaSummary = await fetchSoaReminderSummary(row.contractId, paymentId);
         const res = await fetch(NODE_API_BASE + '/api/contracts/' + encodeURIComponent(row.contractId) + '/send-reminder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildReminderPayload(row, soaSummary))
+          body: JSON.stringify(buildReminderPayload(row, soaSummary, paymentId))
         });
         const data = await res.json();
         if (data.success) {

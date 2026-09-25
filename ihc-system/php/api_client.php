@@ -20,6 +20,8 @@ require_once __DIR__ . '/soa-builder.php';
 // stays email-ownership based — the session was established at login. Both
 // remain mock-grade: replace with real server sessions before production.
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
@@ -141,13 +143,20 @@ try {
         );
         $payStmt->execute($variants);
         $principalByPayment = [];
+        $financeByPayment = [];
         try {
-            $principalStmt = $pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount FROM payment_allocations GROUP BY payment_id');
+            $principalStmt = $pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount, SUM(interest_amount) AS interest_amount, SUM(penalty_amount) AS penalty_amount FROM payment_allocations GROUP BY payment_id');
             foreach ($principalStmt as $allocation) {
-                $principalByPayment[(int)$allocation['payment_id']] = (float)$allocation['principal_amount'];
+                $paymentId = (int)$allocation['payment_id'];
+                $principalByPayment[$paymentId] = (float)$allocation['principal_amount'];
+                $financeByPayment[$paymentId] = [
+                    'interest' => (float)$allocation['interest_amount'],
+                    'penalty' => (float)$allocation['penalty_amount'],
+                ];
             }
         } catch (Throwable $e) {
             $principalByPayment = [];
+            $financeByPayment = [];
         }
         $payments = [];
         foreach ($payStmt->fetchAll() as $p) {
@@ -155,6 +164,8 @@ try {
                 'id' => (int)$p['id'],
                 'amount' => (float)$p['amount'],
                 'principalAmount' => $principalByPayment[(int)$p['id']] ?? null,
+                'interestAmount' => $financeByPayment[(int)$p['id']]['interest'] ?? 0,
+                'penaltyAmount' => $financeByPayment[(int)$p['id']]['penalty'] ?? 0,
                 'method' => $p['payment_method'],
                 'date' => $p['date_collected'],
                 'orNumber' => $p['or_number'],
@@ -164,6 +175,9 @@ try {
                 'receiptRequested' => (bool)$p['receipt_requested'],
                 'installmentKind' => $p['installment_kind'],
                 'installmentNo' => $p['installment_no'],
+                'paymentType' => strtolower((string)$p['installment_kind']) === 'downpayment'
+                    ? 'Downpayment'
+                    : ($p['installment_no'] != null ? 'Installment #' . (int)$p['installment_no'] : 'Installment'),
                 'remarks' => $p['remarks'],
                 'postedBy' => $p['posted_by'],
             ];
@@ -195,12 +209,12 @@ try {
         $notifications = [];
         foreach ($notifStmt->fetchAll() as $n) {
             $type = (string)($n['reminder_type'] ?? '');
-            $isReceipt = $type === 'payment_receipt';
+            $isPaymentNotice = in_array($type, ['payment_receipt', 'payment_posted'], true);
             $notifications[] = [
                 'logId' => (int)$n['id'],
-                'kind' => $isReceipt ? 'payment' : 'reminder',
+                'kind' => $isPaymentNotice ? 'payment' : 'reminder',
                 'channel' => ($n['channel'] ?? 'email') === 'sms' ? 'SMS' : 'Email',
-                'title' => $isReceipt ? 'Payment receipt emailed' : 'Payment reminder sent',
+                'title' => $type === 'payment_posted' ? 'Posted payment notification sent' : ($isPaymentNotice ? 'Payment receipt emailed' : 'Payment reminder sent'),
                 'message' => (string)$n['subject'],
                 'time' => $n['sent_at'],
             ];

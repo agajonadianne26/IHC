@@ -58,18 +58,34 @@ function buildReminderSms(clientName, contractId, amountDue, dueDate, daysUntil)
   return `Hi ${name}, Imperial Homes Corporation reminder: your payment of ${smsAmount(amountDue)} for contract ${contractId} ${timing}. Please make your payment on time to avoid late charges. Thank you!`;
 }
 
+function buildPostedPaymentSms(clientName, contractId, transaction) {
+  const name = String(clientName || '').trim() || 'Client';
+  const baseType = String(transaction?.paymentType || 'Scheduled Payment').trim();
+  const type = transaction?.installmentNumber != null
+    ? `${baseType} #${transaction.installmentNumber}`
+    : baseType;
+  const amount = Number(transaction?.amount) || 0;
+  const paymentDate = transaction?.dateCollected || '';
+  const orNumber = String(transaction?.orNumber || '').trim();
+  const reference = orNumber ? ` Reference ${orNumber}` : '';
+  return `Hi ${name}, Imperial Homes Corporation: your ${type} payment of ${smsAmount(amount)} for contract ${contractId} was posted on ${formatDate(paymentDate)}${reference}. Thank you!`;
+}
+
 // Mirrors sendPaymentReminder in emailService.js: the message goes out
 // first, and the notifications_logs row (channel='sms') is best-effort —
 // a logging problem never flips a delivered SMS back to a failure.
 async function sendPaymentReminderSms(to, clientName, contractId, amountDue, dueDate, daysUntil, options = {}) {
-  const message = buildReminderSms(clientName, contractId, amountDue, dueDate, daysUntil);
+  const transaction = options.soaSummary?.paymentTransaction || null;
+  const message = transaction
+    ? buildPostedPaymentSms(clientName, contractId, transaction)
+    : buildReminderSms(clientName, contractId, amountDue, dueDate, daysUntil);
   // notifications_logs.subject is VARCHAR(255).
   const subject = message.slice(0, 255);
   const logFields = {
     contractId,
     subject,
-    reminderType: options.reminderType,
-    dueDate,
+    reminderType: transaction ? 'payment_posted' : options.reminderType,
+    dueDate: transaction ? transaction.dateCollected : dueDate,
     channel: 'sms'
   };
 
@@ -147,6 +163,7 @@ async function sendPaymentReminderSms(to, clientName, contractId, amountDue, due
 module.exports = {
   sendPaymentReminderSms,
   buildReminderSms,
+  buildPostedPaymentSms,
   normalizePhoneNumber,
   isSmsConfigured
 };

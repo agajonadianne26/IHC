@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 date_default_timezone_set('Asia/Manila');
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
@@ -43,6 +45,98 @@ try {
     $requestData = $method === 'POST' ? soa_request_data() : [];
     $action = trim((string)($_GET['action'] ?? ($requestData['action'] ?? '')));
 
+    if ($method === 'GET' && $action === 'reminder_queue') {
+        $mode = strtolower(trim((string)($_GET['mode'] ?? 'upcoming')));
+        $channel = strtolower(trim((string)($_GET['channel'] ?? 'email')));
+        $today = trim((string)($_GET['today'] ?? date('Y-m-d')));
+        $daysRaw = (string)($_GET['days'] ?? '3');
+        if (!in_array($mode, ['upcoming', 'overdue'], true)) throw new RuntimeException('Invalid reminder queue mode.');
+        if (!in_array($channel, ['email', 'sms'], true)) throw new RuntimeException('Invalid reminder channel.');
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $today);
+        if (!$date || $date->format('Y-m-d') !== $today) throw new RuntimeException('Invalid reminder queue date.');
+        if (!ctype_digit($daysRaw)) throw new RuntimeException('Invalid reminder queue window.');
+        $days = max(0, min(31, (int)$daysRaw));
+        $until = $date->modify('+' . $days . ' days');
+        $rows = [];
+
+        // This queue deliberately uses the same document/schedule allocator as
+        // the dashboards. The old cron query selected start_date/downpayment
+        // directly, which sent installment reminders with downpayment values.
+        foreach ($pdo->query('SELECT id FROM contracts ORDER BY id') as $contractRow) {
+            $contractId = (int)$contractRow['id'];
+            try {
+                $document = soa_build_document($pdo, $contractId, '', $today);
+            } catch (Throwable $e) {
+                // One malformed legacy contract must not suppress reminders
+                // for every other contract in the daily queue.
+                continue;
+            }
+            $next = is_array($document['summary']['nextPayment'] ?? null)
+                ? $document['summary']['nextPayment']
+                : null;
+            if ($next === null) continue;
+            $dueDate = (string)($next['dueDate'] ?? '');
+            if ($mode === 'upcoming' && ($dueDate < $today || $dueDate > $until->format('Y-m-d'))) continue;
+            if ($mode === 'overdue' && $dueDate >= $today) continue;
+
+            $reminderType = $mode === 'upcoming' ? 'due_soon' : 'overdue';
+            try {
+                $dedupSql = "SELECT COUNT(*) FROM notifications_logs
+                    WHERE contract_id IN (?, ?, ?)
+                      AND channel = ? AND reminder_type = ? AND status = 'sent'";
+                // Pass all three ID variants as UTF-8 strings. This avoids
+                // mixing a native-prepared binary CAST/CONCAT expression with
+                // the utf8mb4 notifications_logs column.
+                $dedupParams = [
+                    (string)$contractId,
+                    'IHC-' . $contractId,
+                    'CON-' . $contractId,
+                    $channel,
+                    $reminderType,
+                ];
+                if ($mode === 'overdue') {
+                    $dedupSql .= ' AND DATE(sent_at) = ?';
+                    $dedupParams[] = $today;
+                } else {
+                    // A contract has many installment due dates. Suppress a
+                    // duplicate only for this exact schedule row, rather than
+                    // allowing an old downpayment notice to block every later
+                    // installment notice forever.
+                    $dedupSql .= ' AND due_date = ?';
+                    $dedupParams[] = $dueDate;
+                }
+                $dedup = $pdo->prepare($dedupSql);
+                $dedup->execute($dedupParams);
+                if ((int)$dedup->fetchColumn() > 0) continue;
+            } catch (Throwable $e) {
+                // A missing legacy notifications_logs table must not prevent
+                // delivery; logNotification already treats logging as best effort.
+            }
+
+            $summary = soa_build_email_summary($document);
+            $rows[] = [
+                'contract_id' => $contractId,
+                'contract_code' => 'IHC-' . $contractId,
+                'client_name' => (string)($document['client']['name'] ?? ''),
+                'client_email' => (string)($document['client']['email'] ?? ''),
+                'cellphone_number' => (string)($document['client']['phone'] ?? ''),
+                'payment_type' => (string)($next['label'] ?? 'Scheduled Payment'),
+                'amount_due' => soa_round($next['amount'] ?? 0),
+                'due_date' => $dueDate,
+                'soa_summary' => $summary,
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'mode' => $mode,
+            'channel' => $channel,
+            'today' => $today,
+            'rows' => $rows,
+        ]);
+        exit;
+    }
+
     if ($method === 'GET' && $action === 'settings') {
         $settings = $pdo->query('SELECT * FROM soa_settings WHERE id = 1 LIMIT 1')->fetch();
         echo json_encode(['success' => true, 'settings' => $settings ?: []]);
@@ -72,9 +166,26 @@ try {
         $actorId = trim((string)($_GET['actorId'] ?? ''));
         $actorEmail = trim((string)($_GET['actorEmail'] ?? ''));
         $document = soa_build_document($pdo, $contractId, $actorId, null, $actorEmail);
+        $paymentIdRaw = trim((string)($_GET['paymentId'] ?? $_GET['payment_id'] ?? ''));
+        $paymentTransaction = null;
+        if ($paymentIdRaw !== '') {
+            if (!ctype_digit($paymentIdRaw) || (int)$paymentIdRaw <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Invalid payment transaction id.']);
+                exit;
+            }
+            $paymentTransaction = soa_build_payment_transaction($pdo, $contractId, (int)$paymentIdRaw, $document);
+            if ($paymentTransaction === null) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Payment transaction was not found for this contract.']);
+                exit;
+            }
+        }
         echo json_encode([
             'success' => true,
-            'summary' => soa_build_email_summary($document),
+            'paymentId' => $paymentTransaction['paymentId'] ?? null,
+            'paymentTransaction' => $paymentTransaction,
+            'summary' => soa_build_email_summary($document, $paymentTransaction),
         ]);
         exit;
     }

@@ -4,6 +4,7 @@ const { sendPaymentReminder } = require('./emailService');
 const { sendPaymentReminderSms } = require('./smsService');
 require('dotenv').config();
 
+const PHP_API_BASE = String(process.env.PHP_API_BASE || 'http://localhost/ihc-system').replace(/\/+$/, '');
 function dateInTimeZone(date, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -22,58 +23,42 @@ function daysUntilDue(dueDate, todayStr) {
   );
 }
 
-// Dedup lives in notifications_logs and is evaluated per channel: a failed
-// (or unconfigured) email must never suppress the SMS, and vice versa —
-// each helper below binds nl.channel to one channel value. contract_id is
-// folded onto integer contract ids inside the SQL text; never JOIN
-// notifications_logs against contracts (mixed collations blow up).
+async function fetchReminderQueue(mode, todayStr, channel) {
+  const url = new URL(`${PHP_API_BASE}/php/api_soa.php`);
+  url.searchParams.set('action', 'reminder_queue');
+  url.searchParams.set('mode', mode);
+  url.searchParams.set('today', todayStr);
+  url.searchParams.set('days', '3');
+  url.searchParams.set('channel', channel);
+  url.searchParams.set('_', String(Date.now()));
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+      signal: controller.signal
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.success || !Array.isArray(payload.rows)) {
+      throw new Error(payload.message || `SOA reminder queue returned HTTP ${response.status}`);
+    }
+    return payload.rows;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// The PHP queue is the single source of truth for the next uncovered
+// installment/downpayment. Do not reintroduce direct start_date/downpayment
+// queries here: that is what caused installment reminders to carry the
+// downpayment amount. The endpoint also applies per-channel notification dedup.
 async function fetchUpcomingRows(todayStr, channel) {
-  return db.query(
-    `SELECT
-      c.id AS contract_id,
-      c.start_date AS due_date,
-      c.downpayment AS amount_due,
-      CONCAT('IHC-', c.id) AS contract_code,
-      c.client_name,
-      c.email AS client_email,
-      c.cellphone_number
-     FROM contracts c
-     WHERE DATE(c.start_date) BETWEEN ? AND DATE_ADD(?, INTERVAL 3 DAY)
-      AND NOT EXISTS (
-        SELECT 1
-        FROM notifications_logs nl
-        WHERE nl.contract_id IN (CAST(c.id AS CHAR) COLLATE utf8mb4_general_ci, CONCAT('IHC-', c.id) COLLATE utf8mb4_general_ci, CONCAT('CON-', c.id) COLLATE utf8mb4_general_ci)
-         AND nl.channel = ?
-         AND nl.reminder_type = 'due_soon'
-         AND nl.status = 'sent'
-      )`,
-    [todayStr, todayStr, channel]
-  );
+  return fetchReminderQueue('upcoming', todayStr, channel);
 }
 
 async function fetchOverdueRows(todayStr, channel) {
-  return db.query(
-    `SELECT
-      c.id AS contract_id,
-      c.start_date AS due_date,
-      c.downpayment AS amount_due,
-      CONCAT('IHC-', c.id) AS contract_code,
-      c.client_name,
-      c.email AS client_email,
-      c.cellphone_number
-     FROM contracts c
-     WHERE DATE(c.start_date) < ?
-      AND NOT EXISTS (
-        SELECT 1
-        FROM notifications_logs nl
-        WHERE nl.contract_id IN (CAST(c.id AS CHAR) COLLATE utf8mb4_general_ci, CONCAT('IHC-', c.id) COLLATE utf8mb4_general_ci, CONCAT('CON-', c.id) COLLATE utf8mb4_general_ci)
-         AND nl.channel = ?
-         AND nl.reminder_type = 'overdue'
-         AND nl.status = 'sent'
-         AND DATE(nl.sent_at) = ?
-      )`,
-    [todayStr, channel, todayStr]
-  );
+  return fetchReminderQueue('overdue', todayStr, channel);
 }
 
 async function fetchHoldingExpiringRows(todayStr, channel) {
@@ -121,7 +106,7 @@ async function runDailyReminders() {
           row.amount_due,
           row.due_date,
           daysUntilDue(row.due_date, todayStr),
-          { reminderType: 'due_soon' }
+          { reminderType: 'due_soon', soaSummary: row.soa_summary }
         );
         if (result.success) {
           console.log(`[CRON] Reminder sent to ${row.client_email} for ${row.contract_code}`);
@@ -139,7 +124,7 @@ async function runDailyReminders() {
           row.amount_due,
           row.due_date,
           daysUntilDue(row.due_date, todayStr),
-          { reminderType: 'due_soon' }
+          { reminderType: 'due_soon', soaSummary: row.soa_summary }
         );
         if (result.success) {
           console.log(`[CRON] SMS reminder sent to ${row.cellphone_number} for ${row.contract_code}`);
@@ -162,7 +147,7 @@ async function runDailyReminders() {
           row.amount_due,
           row.due_date,
           daysUntil,
-          { reminderType: 'overdue' }
+          { reminderType: 'overdue', soaSummary: row.soa_summary }
         );
         if (result.success) {
           console.log(`[CRON] Overdue reminder sent to ${row.client_email} for ${row.contract_code}`);

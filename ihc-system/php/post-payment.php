@@ -146,6 +146,11 @@ try {
         if ($applicationMode === 'current' && (float)$amount > $currentPrincipalDue + 0.009) {
             throw new RuntimeException('This amount exceeds the current installment balance. Use Auto-apply to advance future installments.');
         }
+        // Preserve the finance amounts assessed immediately before this
+        // transaction. They are informational allocation components; the
+        // existing ledger still applies only principal_amount to the schedule.
+        $transactionInterest = round((float)($currentSoa['amountDue']['interest'] ?? 0), 2);
+        $transactionPenalty = round((float)($currentSoa['amountDue']['penalty'] ?? 0), 2);
 
         $orNumber = ihc_allocate_payment_or_number($pdo, $paymentKind, (int)$date->format('Y'));
 
@@ -211,9 +216,9 @@ try {
             'INSERT INTO payment_allocations
                 (payment_id, contract_id, installment_kind, installment_no,
                  allocated_amount, principal_amount, interest_amount, penalty_amount)
-             VALUES (?,?,?,?,?,?,0,0)'
+             VALUES (?,?,?,?,?,?,?,?)'
         );
-        foreach ($allocations as $allocation) {
+        foreach ($allocations as $allocationIndex => $allocation) {
             $allocationStmt->execute([
                 $paymentId,
                 $numericId,
@@ -221,6 +226,8 @@ try {
                 $allocation['no'],
                 $allocation['amount'],
                 $allocation['amount'],
+                $allocationIndex === 0 ? $transactionInterest : 0,
+                $allocationIndex === 0 ? $transactionPenalty : 0,
             ]);
         }
         $principalApplied = round((float)$amount - $remainingPayment, 2);
@@ -230,6 +237,8 @@ try {
             'additionalEquityApplied' => $additionalEquityApplied,
             'installmentsCovered' => count($allocations),
             'applicationMode' => $applicationMode,
+            'interestAmount' => $transactionInterest,
+            'penaltyAmount' => $transactionPenalty,
             'target' => $principalApplied > 0.009 ? (string)$primaryAllocation['kind'] : 'ADDITIONAL_EQUITY',
         ];
         if ($remainingPayment > 0.009) {
@@ -282,6 +291,8 @@ try {
             'applicationMode'=>$applicationMode,
             'allocations'=>$allocations,
             'allocationSummary'=>$allocationSummary,
+            'interestAmount'=>$transactionInterest,
+            'penaltyAmount'=>$transactionPenalty,
             'dateCollected'=>$dateCollected,
             'paymentId'=>$paymentId
         ], JSON_UNESCAPED_UNICODE);
@@ -298,14 +309,30 @@ try {
     // Payment is already committed, so a read/calculation failure must not turn
     // a successful ledger write into a client-visible posting failure.
     $updatedSoaSummary = null;
+    $paymentTransaction = null;
     try {
-        $updatedSoaSummary = soa_build_email_summary(soa_build_document($pdo, $numericId, $postedBy));
+        $updatedDocument = soa_build_document($pdo, $numericId, $postedBy);
+        $paymentTransaction = soa_build_payment_transaction($pdo, $numericId, $paymentId, $updatedDocument);
+        $updatedSoaSummary = soa_build_email_summary($updatedDocument, $paymentTransaction);
     } catch (Throwable $e) {
         $updatedSoaSummary = null;
     }
 
     // The ledger entry is already committed. Send the email receipt afterwards
     // so a temporary mail outage never rejects a valid client payment.
+    $receiptPaymentType = $paymentTransaction['paymentType'] ?? '';
+    if ($receiptPaymentType === '') {
+        $receiptLabels = [];
+        foreach ($allocations as $allocation) {
+            $label = soa_payment_type_label((string)$allocation['kind'], $allocation['no']);
+            if ($label !== '' && !in_array($label, $receiptLabels, true)) $receiptLabels[] = $label;
+        }
+        $receiptPaymentType = $receiptLabels !== []
+            ? implode(' + ', $receiptLabels)
+            : (string)$allocationSummary['target'];
+    }
+    $receiptPrincipalAmount = $paymentTransaction['principalAmount'] ?? $principalApplied;
+    $receiptAdditionalEquityAmount = $paymentTransaction['additionalEquityAmount'] ?? $additionalEquityApplied;
     $receiptEmailSent = false;
     $receiptSkipped = !$receiptRequested;
     if ($receiptRequested) {
@@ -319,7 +346,22 @@ try {
             'orNumber' => $orNumber,
             'checkNumber' => $checkNumber,
             'externalReference' => $externalReference,
-            'paymentPurpose' => $allocationSummary['target'],
+            'paymentPurpose' => $receiptPaymentType,
+            'paymentType' => $paymentTransaction['paymentType'] ?? $receiptPaymentType,
+            'installmentNumber' => $paymentTransaction['installmentNumber'] ?? null,
+            'amountDue' => $paymentTransaction['amountDue'] ?? $amount,
+            'dueDate' => $paymentTransaction['dueDate'] ?? $dateCollected,
+            'interest' => $paymentTransaction['interest'] ?? $transactionInterest,
+            'penalty' => $paymentTransaction['penalty'] ?? $transactionPenalty,
+            'principalAmount' => $receiptPrincipalAmount,
+            'principal' => $receiptPrincipalAmount,
+            'remainingBalance' => $paymentTransaction['remainingBalance'] ?? null,
+            'totalAmountDue' => $paymentTransaction['totalAmountDue'] ?? null,
+            'paymentStatus' => $paymentTransaction['paymentStatus'] ?? 'POSTED',
+            'soaNumber' => $paymentTransaction['soaNumber'] ?? '',
+            'soaAsOfDate' => $paymentTransaction['soaAsOfDate'] ?? '',
+            'additionalEquityAmount' => $receiptAdditionalEquityAmount,
+            'postedByName' => $paymentTransaction['postedByName'] ?? '',
             'paymentId' => $paymentId
         ]);
         $receiptServiceUrl = rtrim(getenv('REMINDER_SERVICE_URL') ?: 'http://127.0.0.1:3000', '/');
@@ -354,6 +396,17 @@ try {
         'allocationSummary' => $allocationSummary,
         'payment' => [
             'amount' => round((float)$amount, 2),
+            'paymentType' => $paymentTransaction['paymentType'] ?? $receiptPaymentType,
+            'installmentNumber' => $paymentTransaction['installmentNumber'] ?? null,
+            'amountDue' => $paymentTransaction['amountDue'] ?? $amount,
+            'dueDate' => $paymentTransaction['dueDate'] ?? $dateCollected,
+            'interest' => $paymentTransaction['interest'] ?? $transactionInterest,
+            'penalty' => $paymentTransaction['penalty'] ?? $transactionPenalty,
+            'principalAmount' => $receiptPrincipalAmount,
+            'principal' => $receiptPrincipalAmount,
+            'remainingBalance' => $paymentTransaction['remainingBalance'] ?? null,
+            'paymentStatus' => $paymentTransaction['paymentStatus'] ?? 'POSTED',
+            'additionalEquityAmount' => $receiptAdditionalEquityAmount,
             'method' => $method,
             'dateCollected' => $dateCollected,
             'checkNumber' => $checkNumber !== '' ? $checkNumber : null,
@@ -362,6 +415,7 @@ try {
             'postedBy' => $postedBy !== '' ? $postedBy : null,
         ],
         'updatedSoa' => $updatedSoaSummary,
+        'paymentTransaction' => $paymentTransaction,
         'receiptRequested' => $receiptRequested,
         'receiptSkipped' => $receiptSkipped,
         'receiptEmailSent' => $receiptEmailSent

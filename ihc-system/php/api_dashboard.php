@@ -1,5 +1,7 @@
 <?php
 header('Content-Type: application/json');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
@@ -48,23 +50,51 @@ $clients = $stmt->fetchAll(PDO::FETCH_ASSOC); // FETCH_ASSOC keeps the array cle
 // see AGENTS.md). Ordering by date keeps the chronological allocation in
 // installment-schedule.php deterministic.
 $principalByPayment = [];
+$allocationTargetByPayment = [];
 try {
     foreach ($pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount FROM payment_allocations GROUP BY payment_id') as $allocation) {
         $principalByPayment[(int)$allocation['payment_id']] = (float)$allocation['principal_amount'];
     }
+    foreach ($pdo->query('SELECT payment_id, installment_kind, installment_no FROM payment_allocations ORDER BY id') as $allocation) {
+        $paymentId = (int)$allocation['payment_id'];
+        if (!isset($allocationTargetByPayment[$paymentId])) {
+            $allocationTargetByPayment[$paymentId] = [
+                'kind' => (string)$allocation['installment_kind'],
+                'no' => $allocation['installment_no'],
+            ];
+        }
+    }
 } catch (Throwable $e) {
     $principalByPayment = [];
+    $allocationTargetByPayment = [];
 }
 $paidByContract = [];   // contract id => chronological payment rows
-foreach ($pdo->query('SELECT id, contract_id, amount, date_collected, or_number, payment_method FROM payments ORDER BY date_collected, id') as $p) {
+$latestPaymentByContract = [];
+foreach ($pdo->query('SELECT id, contract_id, amount, date_collected, or_number, payment_method, installment_kind, installment_no FROM payments ORDER BY date_collected, id') as $p) {
     if (!preg_match('/(\d+)\s*$/', (string)$p['contract_id'], $m)) continue;
-    $paidByContract[(int)$m[1]][] = [
+    $contractKey = (int)$m[1];
+    $paidByContract[$contractKey][] = [
         'amount'         => (float)$p['amount'],
         'principalAmount'=> $principalByPayment[(int)$p['id']] ?? null,
         'date'           => (string)$p['date_collected'],
         'orNumber'       => $p['or_number'] !== null ? (string)$p['or_number'] : null,
         'method'         => $p['payment_method'] !== null ? (string)$p['payment_method'] : null,
     ];
+    $paymentId = (int)$p['id'];
+    if (!isset($latestPaymentByContract[$contractKey]) || $paymentId > $latestPaymentByContract[$contractKey]['id']) {
+        $allocationTarget = $allocationTargetByPayment[$paymentId] ?? [];
+        $latestKind = strtolower(trim((string)($p['installment_kind'] ?? ($allocationTarget['kind'] ?? ''))));
+        $latestNo = $p['installment_no'] ?? ($allocationTarget['no'] ?? null);
+        $latestType = $latestKind === 'downpayment'
+            ? 'Downpayment'
+            : ($latestKind !== '' && $latestNo !== null ? 'Installment Payment #' . (int)$latestNo : ($latestKind !== '' ? 'Installment Payment' : 'Scheduled Payment'));
+        $latestPaymentByContract[$contractKey] = [
+            'id' => $paymentId,
+            'kind' => $latestKind,
+            'no' => $latestNo !== null && $latestNo !== '' ? (int)$latestNo : null,
+            'type' => $latestType,
+        ];
+    }
 }
 
 // Collections belong to the clerk who posted the payment, not merely to a
@@ -102,6 +132,10 @@ foreach ($clients as $c) {
         'nextStatus'      => $next ? 'Pending Payment' : 'Paid',
         'nextType'        => $next ? $next['kind'] : 'settled',
         'nextInstallmentNo' => $next ? $next['no'] : null,
+        'latestPaymentId' => $latestPaymentByContract[$cid]['id'] ?? null,
+        'latestPaymentKind' => $latestPaymentByContract[$cid]['kind'] ?? null,
+        'latestPaymentNo' => $latestPaymentByContract[$cid]['no'] ?? null,
+        'latestPaymentType' => $latestPaymentByContract[$cid]['type'] ?? null,
     ];
 }
 
