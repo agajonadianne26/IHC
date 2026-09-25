@@ -221,15 +221,24 @@
     let data = readPortal(contractId);
     if (!data) data = ensurePortal(client);
 
-    const schedule =
-      data.schedules.find(s => !s.paid && Math.abs(Number(s.amount) - Number(payment.amount)) < 0.01) ||
-      data.schedules.find(s => !s.paid);
-
-    if (schedule) {
-      schedule.paid = true;
-      schedule.payDate = payment.date || new Date().toISOString().slice(0, 10);
-      schedule.orNumber = payment.orNumber || null;
-      schedule.method = payment.method || null;
+    const principalAmount = Math.max(0, Number(
+      payment.principalAmount != null ? payment.principalAmount : payment.amount
+    ) || 0);
+    let remainingPrincipal = principalAmount;
+    for (const schedule of data.schedules) {
+      if (remainingPrincipal <= 0.009) break;
+      if (schedule.paid) continue;
+      const need = Math.max(0, Number(schedule.amount) - Number(schedule.paidAmount || 0));
+      if (need <= 0.009) continue;
+      const applied = Math.min(remainingPrincipal, need);
+      remainingPrincipal = Math.round((remainingPrincipal - applied) * 100) / 100;
+      schedule.paidAmount = Math.round((Number(schedule.paidAmount || 0) + applied) * 100) / 100;
+      if (schedule.paidAmount >= Number(schedule.amount) - 0.009) {
+        schedule.paid = true;
+        schedule.payDate = payment.date || new Date().toISOString().slice(0, 10);
+        schedule.orNumber = payment.orNumber || null;
+        schedule.method = payment.method || null;
+      }
     }
 
     data.notifications.unshift({

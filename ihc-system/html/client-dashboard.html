@@ -454,9 +454,9 @@
       }
     }
 
-    // Same allocation convention as the clerk's same-browser demo path
-    // (portalStore.postPortalPayment): exact-amount match first, else the
-    // earliest unpaid schedule. syncedPaymentIds makes re-syncs idempotent.
+    // Apply only each payment's principalAmount to the contract schedule;
+    // additional equity remains visible in cash history but does not reduce a
+    // schedule installment twice. syncedPaymentIds makes re-syncs idempotent.
     function applyServerPayments(payments) {
       portal.syncedPaymentIds = portal.syncedPaymentIds || [];
       const knownOr = new Set();
@@ -468,14 +468,24 @@
         portal.syncedPaymentIds.push(payment.id);
         // Already reflected via the same-browser path — no duplicate notice.
         if (payment.orNumber && knownOr.has(String(payment.orNumber))) continue;
-        const schedule = portal.schedules.find(s => !s.paid && Math.abs(Number(s.amount) - Number(payment.amount)) < 0.01)
-          || portal.schedules.find(s => !s.paid);
-        if (schedule) {
-          schedule.paid = true;
-          schedule.payDate = payment.date || new Date().toISOString().slice(0, 10);
-          schedule.orNumber = payment.orNumber || null;
-          schedule.method = payment.method || null;
-          if (payment.orNumber) knownOr.add(String(payment.orNumber));
+        let remainingPrincipal = Math.max(0, Number(
+          payment.principalAmount != null ? payment.principalAmount : payment.amount
+        ) || 0);
+        for (const schedule of portal.schedules) {
+          if (remainingPrincipal <= 0.009) break;
+          if (schedule.paid) continue;
+          const need = Math.max(0, Number(schedule.amount) - Number(schedule.paidAmount || 0));
+          if (need <= 0.009) continue;
+          const applied = Math.min(remainingPrincipal, need);
+          remainingPrincipal = Math.round((remainingPrincipal - applied) * 100) / 100;
+          schedule.paidAmount = Math.round((Number(schedule.paidAmount || 0) + applied) * 100) / 100;
+          if (schedule.paidAmount >= Number(schedule.amount) - 0.009) {
+            schedule.paid = true;
+            schedule.payDate = payment.date || new Date().toISOString().slice(0, 10);
+            schedule.orNumber = payment.orNumber || null;
+            schedule.method = payment.method || null;
+            if (payment.orNumber) knownOr.add(String(payment.orNumber));
+          }
         }
         portal.notifications.unshift({
           kind: 'payment',

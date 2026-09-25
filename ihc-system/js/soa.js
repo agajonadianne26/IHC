@@ -91,7 +91,8 @@
     if (orNumber && invoice !== orNumber) {
       return `${escapeHtml(invoice)}<br><small>OR: ${escapeHtml(orNumber)}</small>`;
     }
-    return escapeHtml(invoice);
+    const external = row.externalReference ? `<br><small>Ref: ${escapeHtml(row.externalReference)}</small>` : '';
+    return escapeHtml(invoice) + external;
   }
 
   function scheduleTable(rows) {

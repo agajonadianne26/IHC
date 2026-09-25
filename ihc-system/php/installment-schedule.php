@@ -27,6 +27,16 @@ function ihc_add_months(string $date, int $months): string {
     return sprintf('%04d-%02d-%02d', $y, $mo, min($d, $lastDay));
 }
 
+/** Principal cash applied to the contract schedule. New payments carry a
+ * principalAmount from payment_allocations; legacy rows without allocations
+ * fall back to the full payment amount for backward compatibility. */
+function ihc_schedule_payment_amount(array $payment): float {
+    if (array_key_exists('principalAmount', $payment) && $payment['principalAmount'] !== null) {
+        return max(0.0, (float)$payment['principalAmount']);
+    }
+    return max(0.0, (float)($payment['amount'] ?? 0));
+}
+
 /** Status of an unpaid installment from its due date. */
 function ihc_due_status(string $dueDate, string $today): string {
     if ($dueDate === '') return 'current';
@@ -72,7 +82,7 @@ function ihc_build_installments(array $contract): array {
  * $contract: a row from `contracts` (total_contract_price, discount_amount,
  *            downpayment, installment_terms, start_date).
  * $payments: chronological rows —
- *            ['amount'=>float, 'date'=>'Y-m-d', 'orNumber'=>?string, 'method'=>?string]
+ *            ['amount'=>float, 'principalAmount'=>?float, 'date'=>'Y-m-d', 'orNumber'=>?string, 'method'=>?string]
  * $today:    'Y-m-d'; defaults to the server date.
  *
  * Returns:
@@ -89,7 +99,7 @@ function ihc_schedule(array $contract, array $payments = [], ?string $today = nu
     $installments = ihc_build_installments($contract);
 
     $paidTotal = 0.0;
-    foreach ($payments as $p) $paidTotal += (float)($p['amount'] ?? 0);
+    foreach ($payments as $p) $paidTotal += ihc_schedule_payment_amount($p);
 
     // Walk the schedule once, consuming payments in order. $cur/$curLeft hold
     // the payment currently being spent so one payment can span installments
@@ -108,7 +118,7 @@ function ihc_schedule(array $contract, array $payments = [], ?string $today = nu
         while ($left > 0.009 && $pi < $count) {
             if ($cur === null) {
                 $cur = $payments[$pi];
-                $curLeft = max(0.0, (float)($cur['amount'] ?? 0));
+                $curLeft = ihc_schedule_payment_amount($cur);
                 if ($curLeft <= 0.009) { $cur = null; $curLeft = 0.0; $pi++; continue; }
             }
             $take = min($curLeft, $left);

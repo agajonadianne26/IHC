@@ -4,6 +4,7 @@ declare(strict_types=1);
 // Shared installment-schedule math — the clerk and admin endpoints include
 // this same file, so the client's ledger shows exactly what their officer sees.
 require_once __DIR__ . '/installment-schedule.php';
+require_once __DIR__ . '/soa-builder.php';
 
 // Client-portal live data bridge.
 // The client dashboard historically read ONLY browser localStorage, so anything
@@ -62,6 +63,13 @@ function fetchContract(PDO $pdo, int $id): ?array {
     $stmt->execute([$id]);
     $row = $stmt->fetch();
     return is_array($row) ? $row : null;
+}
+
+try {
+    soa_ensure_schema($pdo);
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'message' => 'Client ledger schema is not ready.']);
+    exit;
 }
 
 $action = isset($_GET['action']) ? (string)$_GET['action'] : 'ledger';
@@ -126,18 +134,36 @@ try {
         $variants = contractVariants($id);
         $placeholders = implode(',', array_fill(0, count($variants), '?'));
         $payStmt = $pdo->prepare(
-            "SELECT id, amount, payment_method, date_collected, or_number, remarks, posted_by, created_at
+            "SELECT id, amount, payment_method, date_collected, or_number, check_number, invoice_number,
+                    external_reference, receipt_requested, installment_kind, installment_no,
+                    remarks, posted_by, created_at
              FROM payments WHERE contract_id IN ($placeholders) ORDER BY date_collected, id"
         );
         $payStmt->execute($variants);
+        $principalByPayment = [];
+        try {
+            $principalStmt = $pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount FROM payment_allocations GROUP BY payment_id');
+            foreach ($principalStmt as $allocation) {
+                $principalByPayment[(int)$allocation['payment_id']] = (float)$allocation['principal_amount'];
+            }
+        } catch (Throwable $e) {
+            $principalByPayment = [];
+        }
         $payments = [];
         foreach ($payStmt->fetchAll() as $p) {
             $payments[] = [
                 'id' => (int)$p['id'],
                 'amount' => (float)$p['amount'],
+                'principalAmount' => $principalByPayment[(int)$p['id']] ?? null,
                 'method' => $p['payment_method'],
                 'date' => $p['date_collected'],
                 'orNumber' => $p['or_number'],
+                'checkNumber' => $p['check_number'],
+                'invoiceNumber' => $p['invoice_number'],
+                'externalReference' => $p['external_reference'],
+                'receiptRequested' => (bool)$p['receipt_requested'],
+                'installmentKind' => $p['installment_kind'],
+                'installmentNo' => $p['installment_no'],
                 'remarks' => $p['remarks'],
                 'postedBy' => $p['posted_by'],
             ];
@@ -150,7 +176,7 @@ try {
         $scheduleRows = [];
         foreach ($payments as $p) {
             $scheduleRows[] = [
-                'amount'   => $p['amount'],
+                'amount'   => $p['principalAmount'] ?? $p['amount'],
                 'date'     => $p['date'],
                 'orNumber' => $p['orNumber'],
                 'method'   => $p['method'],

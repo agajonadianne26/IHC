@@ -1159,6 +1159,130 @@
     }
 
     /* ==========================================
+       POST COLLECTION / SOA CONTEXT
+    ========================================== */
+    .modal-card.payment-modal-card {
+      width: min(900px, 94vw);
+      max-width: 900px;
+    }
+    .payment-modal-card .modal-body { max-height: 72vh; overflow-y: auto; }
+    .pm-context {
+      padding: 15px;
+      margin-bottom: 18px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: linear-gradient(135deg, #f8fafc, #eff6ff);
+    }
+    .pm-context-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 11px;
+    }
+    .pm-context-head h4 { margin: 0; font-size: 13px; color: var(--sidebar-bg); }
+    .pm-context-head p { margin: 3px 0 0; font-size: 10px; color: var(--text-muted); }
+    .pm-context-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .pm-context-item {
+      padding: 8px 9px;
+      border: 1px solid #dbeafe;
+      border-radius: 7px;
+      background: #fff;
+      min-width: 0;
+    }
+    .pm-context-item label {
+      display: block;
+      color: var(--text-muted);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .35px;
+      text-transform: uppercase;
+    }
+    .pm-context-item strong {
+      display: block;
+      margin-top: 3px;
+      overflow-wrap: anywhere;
+      color: var(--text-primary);
+      font-size: 11px;
+    }
+    .pm-context-item.due strong { color: var(--accent-rose); }
+    .pm-section-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin: 4px 0 10px;
+      color: var(--sidebar-bg);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .25px;
+      text-transform: uppercase;
+    }
+    .pm-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .pm-amount-input input {
+      min-height: 44px;
+      color: var(--accent-emerald);
+      font-size: 20px;
+      font-weight: 900;
+    }
+    .pm-allocation-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+      margin-top: 12px;
+    }
+    .pm-allocation-card {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .pm-allocation-card label {
+      display: block;
+      color: var(--text-muted);
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .pm-allocation-card strong { display: block; margin-top: 3px; font-size: 14px; }
+    .pm-allocation-card.primary { border-color: #a7f3d0; background: #ecfdf5; }
+    .pm-allocation-card.advance { border-color: #bfdbfe; background: #eff6ff; }
+    .pm-review-note {
+      margin-top: 10px;
+      padding: 9px 11px;
+      border-left: 3px solid var(--accent-blue);
+      background: #eff6ff;
+      color: #475569;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .pm-context-action {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--accent-blue);
+      padding: 6px 9px;
+      font-family: inherit;
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .pm-context-action:hover { background: #eff6ff; }
+    .pm-inline-check { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 650; }
+    .pm-inline-check input { width: 15px; height: 15px; }
+    .pm-load-state { padding: 45px 20px; text-align: center; color: var(--text-muted); font-size: 12px; }
+    .pm-load-state.error { color: var(--accent-rose); }
+    @media (max-width: 760px) {
+      .pm-context-grid, .pm-allocation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .pm-context-grid, .pm-allocation-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ==========================================
        PRINT SOA MODAL
     ========================================== */
     .soa-modal {
@@ -2150,58 +2274,113 @@
 
   <!-- PAYMENT POSTING MODAL -->
   <div class="modal-overlay" id="paymentModal">
-    <div class="modal-card">
+    <div class="modal-card payment-modal-card">
       <div class="modal-header">
         <div>
           <h3>Post Collection / Remittance</h3>
-          <p id="paymentModalSub">Installment Entry</p>
+          <p id="paymentModalSub">Loading current SOA and ledger target…</p>
         </div>
         <button class="modal-close" id="closePaymentModal">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Client</label>
-            <input type="text" id="pmClient" readonly>
-          </div>
-          <div class="form-group">
-            <label>Amount Due</label>
-            <input type="text" id="pmAmount" readonly>
-          </div>
-          <div class="form-group">
-            <label>Payment Method *</label>
-            <select id="pmMethod">
-              <option value="">Select channel</option>
-              <option value="Bank Wire / Online Deposit">Bank Wire / Online Deposit</option>
-              <option value="Over-the-Counter Cashier">Over-the-Counter Cashier</option>
-              <option value="Post-Dated Check (PDC)">Post-Dated Check (PDC)</option>
-              <option value="GCash / Maya">GCash / Maya</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Date Collected *</label>
-            <input type="date" id="pmDate">
-          </div>
-          <div class="form-group">
-            <label>Check Number</label>
-            <input type="text" id="pmCheckNumber" placeholder="Optional for check payments">
-          </div>
-          <div class="form-group full">
-            <label>OR / Reference Number</label>
-            <div class="nc-hint" style="padding:11px 13px;border:1px solid var(--border);border-radius:8px;background:var(--bg-input);">
-              Generated automatically when this payment is posted.<br>
-              <strong>Downpayment:</strong> OR-DP-YYYY-##### &nbsp;&nbsp; <strong>Installment:</strong> OR-INS-YYYY-#####
+        <div id="pmLoading" class="pm-load-state">Loading the latest SOA, payment allocation, and client account data…</div>
+        <div id="pmPaymentContent" hidden>
+          <div class="pm-context">
+            <div class="pm-context-head">
+              <div>
+                <h4>Current SOA / Ledger Snapshot</h4>
+                <p id="pmSoaMeta">—</p>
+              </div>
+              <button type="button" class="pm-context-action" id="pmViewSoa">View Full SOA</button>
+            </div>
+            <div class="pm-context-grid">
+              <div class="pm-context-item"><label>Client / Buyer</label><strong id="pmContextClient">—</strong></div>
+              <div class="pm-context-item"><label>Project / Property</label><strong id="pmProperty">—</strong></div>
+              <div class="pm-context-item"><label>Payment Target</label><strong id="pmPaymentType">—</strong></div>
+              <div class="pm-context-item"><label>Target Due Date</label><strong id="pmScheduleDueDate">—</strong></div>
+              <div class="pm-context-item"><label>Outstanding Principal / Equity</label><strong id="pmOutstanding">—</strong></div>
+              <div class="pm-context-item"><label>Calculated Interest</label><strong id="pmInterest">—</strong></div>
+              <div class="pm-context-item"><label>Calculated Penalty</label><strong id="pmPenalty">—</strong></div>
+              <div class="pm-context-item"><label>Reservation / Other Charges</label><strong id="pmFees">—</strong></div>
+              <div class="pm-context-item due"><label>Total SOA Amount Due</label><strong id="pmTotalDue">—</strong></div>
             </div>
           </div>
-          <div class="form-group full">
-            <label>Remarks</label>
-            <input type="text" id="pmRemarks" placeholder="Optional notes">
+
+          <div class="pm-section-title">Collection Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Client</label>
+              <input type="text" id="pmClient" readonly>
+            </div>
+            <div class="form-group">
+              <label>Contract Reference</label>
+              <input type="text" id="pmContract" readonly>
+            </div>
+            <div class="form-group pm-amount-input">
+              <label>Amount Received *</label>
+              <div class="input-affix"><span>₱</span><input type="text" id="pmAmount" inputmode="decimal" placeholder="0.00"></div>
+              <small class="nc-hint" id="pmAmountHint">Enter the actual cash received.</small>
+            </div>
+            <div class="form-group">
+              <label>Payment Method *</label>
+              <select id="pmMethod">
+                <option value="">Select channel</option>
+                <option value="Bank Wire / Online Deposit">Bank Wire / Online Deposit</option>
+                <option value="Over-the-Counter Cashier">Over-the-Counter Cashier</option>
+                <option value="Post-Dated Check (PDC)">Post-Dated Check (PDC)</option>
+                <option value="GCash / Maya">GCash / Maya</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date Collected *</label>
+              <input type="date" id="pmDate">
+            </div>
+            <div class="form-group">
+              <label>Ledger Application *</label>
+              <select id="pmApplicationMode">
+                <option value="auto">Auto-apply to oldest unpaid schedule</option>
+                <option value="current">Current installment only</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Check Number</label>
+              <input type="text" id="pmCheckNumber" placeholder="Required for Post-Dated Check">
+            </div>
+            <div class="form-group">
+              <label>Bank / Wallet Reference</label>
+              <input type="text" id="pmExternalReference" placeholder="Remittance or transaction reference">
+            </div>
+            <div class="form-group">
+              <label>Prepared / Posted By</label>
+              <input type="text" id="pmPreparedBy" readonly>
+            </div>
+            <div class="form-group">
+              <label>OR / Invoice Number</label>
+              <div class="nc-hint" id="pmOrSeries" style="min-height:38px;display:flex;align-items:center;">Generated when posted</div>
+            </div>
+          </div>
+
+          <div class="pm-allocation-grid">
+            <div class="pm-allocation-card primary"><label>Applied to Schedule / Principal</label><strong id="pmAppliedPrincipal">₱0.00</strong></div>
+            <div class="pm-allocation-card advance"><label>Additional Equity / Advance</label><strong id="pmAdditionalEquity">₱0.00</strong></div>
+            <div class="pm-allocation-card"><label>SOA Balance After Posting</label><strong id="pmRemainingTotal">₱0.00</strong></div>
+          </div>
+          <div class="pm-review-note" id="pmAllocationNote">Review the allocation before posting. The server will recalculate it under a contract lock before saving.</div>
+
+          <div class="form-grid" style="margin-top:14px;">
+            <div class="form-group full">
+              <label class="pm-inline-check"><input type="checkbox" id="pmReceiptRequested" checked> Email the official receipt and SOA update to the client</label>
+            </div>
+            <div class="form-group full">
+              <label>Remarks / Payment Notes</label>
+              <input type="text" id="pmRemarks" placeholder="Optional posting notes">
+            </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" id="cancelPayment">Cancel</button>
-        <button class="btn-submit" id="submitPayment">Post to Ledger</button>
+        <button class="btn-submit" id="submitPayment" disabled>Post to Ledger</button>
       </div>
     </div>
   </div>
@@ -2811,36 +2990,214 @@
     ========================================== */
     const paymentModal = document.getElementById('paymentModal');
     let currentPaymentIdx = null;
+    let currentPaymentContext = null;
 
-    window.openPaymentModal = (idx) => {
-      const row = myContracts[idx];
-      currentPaymentIdx = idx;
-      document.getElementById('paymentModalSub').textContent = row.id + ' \u2014 ' + row.paymentType;
-      document.getElementById('pmClient').value = row.client;
-      document.getElementById('pmAmount').value = formatPHP(row.amount);
-      document.getElementById('pmMethod').value = '';
-      document.getElementById('pmDate').value = '';
-      document.getElementById('pmCheckNumber').value = '';
-      document.getElementById('pmRemarks').value = '';
-      paymentModal.classList.add('visible');
+    const parsePaymentMoney = (value) => {
+      const cleaned = String(value || '').replace(/[^\d.]/g, '');
+      if (!cleaned) return NaN;
+      const number = Number(cleaned);
+      return Number.isFinite(number) ? number : NaN;
     };
+    const formatPaymentMoneyInput = (value) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+    };
+    const localTodayInput = () => {
+      const now = new Date();
+      return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+    };
+    const formatSoaDate = (value) => value ? formatDate(new Date(String(value).length === 10 ? value + 'T00:00:00' : value)) : '—';
+
+    const updatePaymentAllocationPreview = () => {
+      if (!currentPaymentContext) return;
+      const amount = parsePaymentMoney(document.getElementById('pmAmount').value);
+      const mode = document.getElementById('pmApplicationMode').value;
+      const capacity = mode === 'current' ? currentPaymentContext.currentUnpaid : currentPaymentContext.scheduleCapacity;
+      const valid = Number.isFinite(amount) && amount > 0;
+      const principal = valid ? Math.min(amount, capacity) : 0;
+      const additional = valid ? Math.max(0, amount - principal) : 0;
+      const remaining = valid ? Math.max(0, currentPaymentContext.totalDue - amount) : currentPaymentContext.totalDue;
+
+      document.getElementById('pmAppliedPrincipal').textContent = formatPHP(principal);
+      document.getElementById('pmAdditionalEquity').textContent = formatPHP(additional);
+      document.getElementById('pmRemainingTotal').textContent = formatPHP(remaining);
+
+      const hint = document.getElementById('pmAmountHint');
+      const note = document.getElementById('pmAllocationNote');
+      hint.className = 'nc-hint';
+      if (!valid) {
+        hint.textContent = 'Enter the actual cash received.';
+        note.textContent = 'Review the allocation before posting. The server will recalculate it under a contract lock before saving.';
+        return;
+      }
+      if (mode === 'current' && amount > currentPaymentContext.currentUnpaid + 0.009) {
+        hint.className = 'nc-hint err';
+        hint.textContent = `Amount cannot exceed the current installment balance of ${formatPHP(currentPaymentContext.currentUnpaid)}.`;
+        note.textContent = 'Choose Auto-apply if the payment should advance future installments or create additional equity.';
+        return;
+      }
+
+      hint.textContent = additional > 0.009
+        ? 'The amount exceeds the selected unpaid schedule balance; the excess will be recorded as additional equity.'
+        : 'The full amount will be applied to the unpaid contract schedule.';
+      const feeNote = currentPaymentContext.feesDue > 0.009
+        ? ` SOA fees/charges of ${formatPHP(currentPaymentContext.feesDue)} remain subject to their respective fee records.`
+        : '';
+      note.textContent = `${currentPaymentContext.targetLabel} will receive ${formatPHP(principal)}; additional equity/advance: ${formatPHP(additional)}. Indicative balance after posting: ${formatPHP(remaining)}.${feeNote}`;
+    };
+
+    const setPaymentMethodRequirements = () => {
+      const method = document.getElementById('pmMethod').value;
+      const checkInput = document.getElementById('pmCheckNumber');
+      checkInput.required = method === 'Post-Dated Check (PDC)';
+      checkInput.placeholder = checkInput.required ? 'Required for Post-Dated Check' : 'Optional for check payments';
+    };
+
+    window.openPaymentModal = async (idx) => {
+      const row = myContracts[idx];
+      if (!row) {
+        showToast('Contract row not found.', 'info');
+        return;
+      }
+      if (row.status === 'paid' || row.paymentKind === 'settled') {
+        showToast('This contract has no unpaid schedule payment. Review its SOA before recording another collection.', 'info');
+        return;
+      }
+
+      currentPaymentIdx = idx;
+      currentPaymentContext = null;
+      const loading = document.getElementById('pmLoading');
+      const content = document.getElementById('pmPaymentContent');
+      const submitBtn = document.getElementById('submitPayment');
+      document.getElementById('paymentModalSub').textContent = row.id + ' — loading current SOA…';
+      loading.className = 'pm-load-state';
+      loading.textContent = 'Loading the latest SOA, payment allocation, and client account data…';
+      loading.hidden = false;
+      content.hidden = true;
+      submitBtn.disabled = true;
+      paymentModal.classList.add('visible');
+
+      try {
+        const params = new URLSearchParams({
+          action: 'document',
+          contractId: String(row.contractId || row.id),
+          actorId: String(currentUser.officerId || ''),
+          actorEmail: String(currentUser.email || '')
+        });
+        const res = await fetch(API_BASE + '/php/api_soa.php?' + params.toString(), { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'The current SOA could not be loaded.');
+
+        const nextRow = (data.schedule || []).find((item) => item.status !== 'PAID') || null;
+        if (!nextRow) throw new Error('The contract schedule is already settled. Any fee-only collection must be posted in its fee module.');
+        const currentUnpaid = Math.max(0, Number(nextRow.amountDue) - Number(nextRow.amountPaid || 0));
+        const scheduleCapacity = (data.schedule || []).reduce((sum, item) => sum + Math.max(0, Number(item.amountDue) - Number(item.amountPaid || 0)), 0);
+        const serverKind = nextRow.installmentNo === 'DP' ? 'downpayment' : 'installment';
+        if (serverKind !== row.paymentKind || (row.installmentNo != null && Number(row.installmentNo) !== Number(nextRow.installmentNo))) {
+          throw new Error('This payment queue changed. Close the form and refresh the dashboard before posting.');
+        }
+
+        const feesDue = Number(data.amountDue.reservationOutstanding || 0)
+          + Number(data.amountDue.additionalCharges || 0)
+          + Number(data.amountDue.additionalEquityOutstanding || 0);
+        currentPaymentContext = {
+          document: data,
+          nextRow,
+          currentUnpaid,
+          scheduleCapacity,
+          totalDue: Number(data.amountDue.total || 0),
+          feesDue,
+          targetLabel: nextRow.type
+        };
+
+        document.getElementById('paymentModalSub').textContent = `${data.contract.reference} — ${nextRow.type}`;
+        document.getElementById('pmSoaMeta').textContent = `${data.soaNumber} • As of ${formatSoaDate(data.asOfDate)} • Valid until ${formatSoaDate(data.validUntil)}`;
+        document.getElementById('pmContextClient').textContent = data.client.name;
+        document.getElementById('pmProperty').textContent = [data.project.projectName, data.project.block ? `Block ${data.project.block}` : '', data.project.lot ? `Lot ${data.project.lot}` : ''].filter(Boolean).join(' • ') || data.project.propertyAddress || '—';
+        document.getElementById('pmPaymentType').textContent = nextRow.type;
+        document.getElementById('pmScheduleDueDate').textContent = formatSoaDate(nextRow.dueDate);
+        document.getElementById('pmOutstanding').textContent = formatPHP(data.summary.remainingBalance);
+        document.getElementById('pmInterest').textContent = formatPHP(data.amountDue.interest);
+        document.getElementById('pmPenalty').textContent = formatPHP(data.amountDue.penalty);
+        document.getElementById('pmFees').textContent = formatPHP(feesDue);
+        document.getElementById('pmTotalDue').textContent = formatPHP(data.amountDue.total);
+
+        document.getElementById('pmClient').value = data.client.name;
+        document.getElementById('pmContract').value = data.contract.reference;
+        document.getElementById('pmAmount').value = formatPaymentMoneyInput(currentUnpaid);
+        document.getElementById('pmMethod').value = '';
+        document.getElementById('pmDate').value = localTodayInput();
+        document.getElementById('pmApplicationMode').value = 'auto';
+        document.getElementById('pmCheckNumber').value = '';
+        document.getElementById('pmExternalReference').value = '';
+        document.getElementById('pmPreparedBy').value = `${currentUser.name || 'IHC Staff'} • ${currentUser.role === 'admin' ? 'Administrator' : 'Billing Clerk'}`;
+        document.getElementById('pmReceiptRequested').checked = !!row.email;
+        document.getElementById('pmReceiptRequested').disabled = !row.email;
+        document.getElementById('pmRemarks').value = '';
+        document.getElementById('pmOrSeries').textContent = serverKind === 'downpayment'
+          ? 'Automatic series: OR-DP-YYYY-#####'
+          : 'Automatic series: OR-INS-YYYY-#####';
+        setPaymentMethodRequirements();
+        updatePaymentAllocationPreview();
+
+        loading.hidden = true;
+        content.hidden = false;
+        submitBtn.disabled = false;
+      } catch (err) {
+        loading.className = 'pm-load-state error';
+        loading.textContent = err.message || 'The payment form could not be prepared.';
+        content.hidden = true;
+        submitBtn.disabled = true;
+      }
+    };
+
+    document.getElementById('pmAmount').addEventListener('input', updatePaymentAllocationPreview);
+    document.getElementById('pmAmount').addEventListener('blur', () => {
+      const amount = parsePaymentMoney(document.getElementById('pmAmount').value);
+      if (Number.isFinite(amount) && amount > 0) document.getElementById('pmAmount').value = formatPaymentMoneyInput(amount);
+      updatePaymentAllocationPreview();
+    });
+    document.getElementById('pmApplicationMode').addEventListener('change', updatePaymentAllocationPreview);
+    document.getElementById('pmMethod').addEventListener('change', setPaymentMethodRequirements);
+    document.getElementById('pmViewSoa').addEventListener('click', () => {
+      const idx = currentPaymentIdx;
+      paymentModal.classList.remove('visible');
+      if (idx != null) window.printSOA(idx);
+    });
 
     document.getElementById('closePaymentModal').addEventListener('click', () => paymentModal.classList.remove('visible'));
     document.getElementById('cancelPayment').addEventListener('click', () => paymentModal.classList.remove('visible'));
     paymentModal.addEventListener('click', (e) => { if (e.target === paymentModal) paymentModal.classList.remove('visible'); });
 
     document.getElementById('submitPayment').addEventListener('click', async () => {
+      if (!currentPaymentContext) {
+        showToast('Reload the payment form before posting.', 'info');
+        return;
+      }
       const method = document.getElementById('pmMethod').value;
       const date = document.getElementById('pmDate').value;
+      const amount = parsePaymentMoney(document.getElementById('pmAmount').value);
+      const applicationMode = document.getElementById('pmApplicationMode').value;
       const checkNumber = document.getElementById('pmCheckNumber').value.trim();
+      const externalReference = document.getElementById('pmExternalReference').value.trim();
       const remarks = document.getElementById('pmRemarks').value.trim();
+      const receiptRequested = document.getElementById('pmReceiptRequested').checked;
+      const row = myContracts[currentPaymentIdx];
 
-      if (!method || !date) {
-        showToast('Please select a payment method and collection date', 'info');
+      if (!method || !date || !Number.isFinite(amount) || amount <= 0) {
+        showToast('Enter a valid amount, payment method, and collection date.', 'info');
+        return;
+      }
+      if (method === 'Post-Dated Check (PDC)' && !checkNumber) {
+        showToast('Check number is required for a Post-Dated Check.', 'info');
+        document.getElementById('pmCheckNumber').focus();
+        return;
+      }
+      if (applicationMode === 'current' && amount > currentPaymentContext.currentUnpaid + 0.009) {
+        showToast(`Amount cannot exceed the current installment balance of ${formatPHP(currentPaymentContext.currentUnpaid)}.`, 'info');
         return;
       }
 
-      const row = myContracts[currentPaymentIdx];
       const submitBtn = document.getElementById('submitPayment');
       submitBtn.disabled = true;
       submitBtn.textContent = 'Posting…';
@@ -2853,11 +3210,16 @@
             contractId: row.id,
             paymentKind: row.paymentKind,
             expectedInstallmentNo: row.installmentNo,
-            method: method,
+            expectedSoaTotal: currentPaymentContext.totalDue,
+            expectedPrincipalDue: currentPaymentContext.currentUnpaid,
+            applicationMode,
+            method,
             dateCollected: date,
-            checkNumber: checkNumber,
-            remarks: remarks,
-            amount: row.amount,
+            checkNumber,
+            externalReference,
+            receiptRequested,
+            remarks,
+            amount,
             postedBy: currentUser.officerId
           })
         });
@@ -2871,31 +3233,28 @@
         }
 
         paymentModal.classList.remove('visible');
-        showToast(data.message || `Payment posted for ${row.client} \u2014 OR #${generatedOrNumber}`, 'success');
-
-        // Re-pull from the backend so billing dashboard, payment posting
-        // queue, and the notification log all reflect the real, saved state
-        // instead of a locally-guessed one.
-        await loadDashboard();
-
-        // The re-pull may have rolled this contract forward: once the
-        // downpayment is fully covered, the next payment becomes the client's
-        // installment. Announce the automatic status change instead of only
-        // silently swapping the row.
-        const updated = myContracts.find(r => r.contractId === row.contractId);
-        if (updated && row.paymentType === 'Downpayment' && String(updated.paymentType).indexOf('Installment Payment') === 0) {
-          showToast(`${row.client}\u2019s downpayment is fully paid \u2014 next payment is ${updated.paymentType}, due ${formatDate(updated.dueDate)}.`, 'success');
+        showToast(data.message || `Payment posted for ${row.client} — OR #${generatedOrNumber}`, 'success');
+        if (data.updatedSoa) {
+          showToast(`Updated SOA total due: ${formatPHP(data.updatedSoa.totalAmountDue)}.`, 'info');
+        }
+        if (data.allocationSummary && Number(data.allocationSummary.additionalEquityApplied || 0) > 0) {
+          showToast(`${formatPHP(data.allocationSummary.additionalEquityApplied)} recorded as additional equity/advance.`, 'info');
         }
 
-        // Front-end portal: reflect the posted payment in the buyer's ledger
-        // and push a notification so they see the transaction was recorded.
-        // (Swap for a server-side write when wiring the real backend.)
+        await loadDashboard();
+
+        const updated = myContracts.find(r => r.contractId === row.contractId);
+        if (updated && row.paymentType === 'Downpayment' && String(updated.paymentType).indexOf('Installment Payment') === 0) {
+          showToast(`${row.client}’s downpayment is fully paid — next payment is ${updated.paymentType}, due ${formatDate(updated.dueDate)}.`, 'success');
+        }
+
         if (window.portalStore && row.contractId != null) {
           portalStore.postPortalPayment(row.contractId, {
-            amount: row.amount,
+            amount,
+            principalAmount: data.allocationSummary ? data.allocationSummary.principalApplied : amount,
             orNumber: generatedOrNumber,
-            method: method,
-            date: date
+            method,
+            date
           });
         }
       } catch (err) {

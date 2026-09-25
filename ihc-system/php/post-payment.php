@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+date_default_timezone_set('Asia/Manila');
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -33,19 +35,37 @@ try {
     $dateCollected     = trim((string)($data['dateCollected'] ?? ''));
     $remarks           = trim((string)($data['remarks'] ?? ''));
     $checkNumber       = trim((string)($data['checkNumber'] ?? ''));
+    $externalReference = trim((string)($data['externalReference'] ?? ''));
+    $applicationMode   = strtolower(trim((string)($data['applicationMode'] ?? 'auto')));
+    $receiptRequested  = !array_key_exists('receiptRequested', $data)
+        || filter_var($data['receiptRequested'], FILTER_VALIDATE_BOOLEAN);
     $amount            = $data['amount'] ?? null;
     $postedBy          = trim((string)($data['postedBy'] ?? ''));
     $requestedKind     = strtolower(trim((string)($data['paymentKind'] ?? '')));
     $expectedNoRaw     = $data['expectedInstallmentNo'] ?? null;
     $expectedInstallmentNo = ($expectedNoRaw === null || $expectedNoRaw === '') ? null : (int)$expectedNoRaw;
+    $expectedSoaTotal = $data['expectedSoaTotal'] ?? null;
+    $expectedPrincipalDue = $data['expectedPrincipalDue'] ?? null;
     if ($requestedKind === 'installment payment') $requestedKind = 'installment';
     if ($requestedKind !== '' && !in_array($requestedKind, ['downpayment', 'installment'], true)) {
         throw new RuntimeException('Invalid payment type.');
+    }
+    if (!in_array($applicationMode, ['auto', 'current'], true)) {
+        throw new RuntimeException('Invalid ledger application mode.');
     }
 
     if ($contractId === '') throw new RuntimeException('Missing contract reference.');
     if ($method === '') throw new RuntimeException('Payment method is required.');
     if (mb_strlen($checkNumber) > 100) throw new RuntimeException('Check number must be 100 characters or fewer.');
+    if (mb_strlen($externalReference) > 100) throw new RuntimeException('External reference must be 100 characters or fewer.');
+    if ($method === 'Post-Dated Check (PDC)' && $checkNumber === '') {
+        throw new RuntimeException('Check number is required for a Post-Dated Check.');
+    }
+    foreach (['expectedSoaTotal' => $expectedSoaTotal, 'expectedPrincipalDue' => $expectedPrincipalDue] as $label => $value) {
+        if ($value !== null && $value !== '' && (!is_numeric($value) || (float)$value < 0)) {
+            throw new RuntimeException('Invalid ' . $label . ' value.');
+        }
+    }
     if ($amount === null || $amount === '' || !is_numeric($amount) || (float)$amount <= 0) {
         throw new RuntimeException('Invalid payment amount.');
     }
@@ -79,8 +99,12 @@ try {
         // the browser, decides whether this transaction covers a downpayment or
         // an installment. Prefix legacy CON-7 / IHC-14 IDs in PHP as elsewhere.
         $existingPayments = [];
+        $principalByPayment = [];
+        foreach ($pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount FROM payment_allocations GROUP BY payment_id') as $allocationRow) {
+            $principalByPayment[(int)$allocationRow['payment_id']] = (float)$allocationRow['principal_amount'];
+        }
         $paymentRows = $pdo->query(
-            'SELECT contract_id, amount, date_collected, or_number, payment_method
+            'SELECT id, contract_id, amount, date_collected, or_number, payment_method
              FROM payments ORDER BY date_collected, id'
         );
         foreach ($paymentRows as $payment) {
@@ -88,6 +112,7 @@ try {
             if ((int)$paymentMatch[1] !== $numericId) continue;
             $existingPayments[] = [
                 'amount' => (float)$payment['amount'],
+                'principalAmount' => $principalByPayment[(int)$payment['id']] ?? null,
                 'date' => (string)$payment['date_collected'],
                 'orNumber' => $payment['or_number'] !== null ? (string)$payment['or_number'] : null,
                 'method' => $payment['payment_method'] !== null ? (string)$payment['payment_method'] : null,
@@ -107,6 +132,21 @@ try {
             throw new RuntimeException('This installment was already paid by another transaction. Refresh the dashboard before posting again.');
         }
 
+        $currentPrincipalDue = round((float)$schedule['next']['amount'], 2);
+        if ($expectedPrincipalDue !== null && $expectedPrincipalDue !== ''
+            && abs((float)$expectedPrincipalDue - $currentPrincipalDue) > 0.009) {
+            throw new RuntimeException('The SOA installment balance changed. Refresh the payment form before posting.');
+        }
+        $currentSoa = soa_build_document($pdo, $numericId, $postedBy);
+        $currentSoaTotal = round((float)($currentSoa['amountDue']['total'] ?? 0), 2);
+        if ($expectedSoaTotal !== null && $expectedSoaTotal !== ''
+            && abs((float)$expectedSoaTotal - $currentSoaTotal) > 0.009) {
+            throw new RuntimeException('The SOA total changed after the form was opened. Refresh before posting.');
+        }
+        if ($applicationMode === 'current' && (float)$amount > $currentPrincipalDue + 0.009) {
+            throw new RuntimeException('This amount exceeds the current installment balance. Use Auto-apply to advance future installments.');
+        }
+
         $orNumber = ihc_allocate_payment_or_number($pdo, $paymentKind, (int)$date->format('Y'));
 
         // Preserve the exact payment-to-installment allocation. A single cash
@@ -114,7 +154,16 @@ try {
         // after the net contract price is recorded as additional equity.
         $remainingPayment = round((float)$amount, 2);
         $allocations = [];
-        foreach ($schedule['installments'] as $installment) {
+        $allocatableInstallments = $schedule['installments'];
+        if ($applicationMode === 'current') {
+            $allocatableInstallments = array_values(array_filter(
+                $allocatableInstallments,
+                static fn(array $installment): bool =>
+                    (string)$installment['kind'] === $paymentKind
+                    && ($installment['no'] === null ? $currentInstallmentNo === null : (int)$installment['no'] === $currentInstallmentNo)
+            ));
+        }
+        foreach ($allocatableInstallments as $installment) {
             if ($remainingPayment <= 0.009) break;
             $unpaid = max(0.0, (float)$installment['amount'] - (float)$installment['paidAmount']);
             if ($unpaid <= 0.009) continue;
@@ -134,10 +183,12 @@ try {
         ];
         $sql = 'INSERT INTO payments
                     (contract_id, amount, payment_method, date_collected, or_number,
-                     remarks, posted_by, check_number, invoice_number, installment_kind, installment_no)
+                     remarks, posted_by, check_number, invoice_number, installment_kind, installment_no,
+                     external_reference, receipt_requested)
                 VALUES
                     (:contract_id, :amount, :payment_method, :date_collected, :or_number,
-                     :remarks, :posted_by, :check_number, :invoice_number, :installment_kind, :installment_no)';
+                     :remarks, :posted_by, :check_number, :invoice_number, :installment_kind, :installment_no,
+                     :external_reference, :receipt_requested)';
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':contract_id'      => $contractId,
@@ -151,6 +202,8 @@ try {
             ':invoice_number'   => $orNumber,
             ':installment_kind' => (string)$primaryAllocation['kind'],
             ':installment_no'   => $primaryAllocation['no'],
+            ':external_reference' => $externalReference !== '' ? $externalReference : null,
+            ':receipt_requested' => $receiptRequested ? 1 : 0,
         ]);
 
         $paymentId = (int)$pdo->lastInsertId();
@@ -170,6 +223,15 @@ try {
                 $allocation['amount'],
             ]);
         }
+        $principalApplied = round((float)$amount - $remainingPayment, 2);
+        $additionalEquityApplied = round($remainingPayment, 2);
+        $allocationSummary = [
+            'principalApplied' => $principalApplied,
+            'additionalEquityApplied' => $additionalEquityApplied,
+            'installmentsCovered' => count($allocations),
+            'applicationMode' => $applicationMode,
+            'target' => $principalApplied > 0.009 ? (string)$primaryAllocation['kind'] : 'ADDITIONAL_EQUITY',
+        ];
         if ($remainingPayment > 0.009) {
             $pdo->prepare(
                 'INSERT INTO additional_equity_payments
@@ -215,8 +277,11 @@ try {
             'orNumber'=>$orNumber,
             'paymentKind'=>$paymentKind,
             'checkNumber'=>$checkNumber !== '' ? $checkNumber : null,
+            'externalReference'=>$externalReference !== '' ? $externalReference : null,
+            'receiptRequested'=>$receiptRequested,
+            'applicationMode'=>$applicationMode,
             'allocations'=>$allocations,
-            'additionalEquityAmount'=>round($remainingPayment, 2),
+            'allocationSummary'=>$allocationSummary,
             'dateCollected'=>$dateCollected,
             'paymentId'=>$paymentId
         ], JSON_UNESCAPED_UNICODE);
@@ -229,35 +294,55 @@ try {
         }catch(Throwable $e){}
     }catch(Throwable $e){ /* audit must not break payment */ }
 
+    // Build the post-transaction SOA summary for the dashboard confirmation.
+    // Payment is already committed, so a read/calculation failure must not turn
+    // a successful ledger write into a client-visible posting failure.
+    $updatedSoaSummary = null;
+    try {
+        $updatedSoaSummary = soa_build_email_summary(soa_build_document($pdo, $numericId, $postedBy));
+    } catch (Throwable $e) {
+        $updatedSoaSummary = null;
+    }
+
     // The ledger entry is already committed. Send the email receipt afterwards
     // so a temporary mail outage never rejects a valid client payment.
     $receiptEmailSent = false;
-    $receiptPayload = json_encode([
-        'client' => $contract['client_name'],
-        'recipientEmail' => $contract['email'],
-        'contractId' => $contractId,
-        'amount' => (float)$amount,
-        'paymentDate' => $dateCollected,
-        'method' => $method,
-        'orNumber' => $orNumber,
-        'paymentId' => $paymentId
-    ]);
-    $receiptServiceUrl = rtrim(getenv('REMINDER_SERVICE_URL') ?: 'http://127.0.0.1:3000', '/');
-    $receiptContext = stream_context_create(['http' => [
-        'method' => 'POST',
-        'header' => "Content-Type: application/json\r\nContent-Length: " . strlen($receiptPayload) . "\r\n",
-        'content' => $receiptPayload,
-        'timeout' => 8,
-        'ignore_errors' => true
-    ]]);
-    $receiptResponse = @file_get_contents($receiptServiceUrl . '/api/payments/receipt', false, $receiptContext);
-    $receiptResult = is_string($receiptResponse) ? json_decode($receiptResponse, true) : null;
-    $receiptEmailSent = is_array($receiptResult) && !empty($receiptResult['success']);
+    $receiptSkipped = !$receiptRequested;
+    if ($receiptRequested) {
+        $receiptPayload = json_encode([
+            'client' => $contract['client_name'],
+            'recipientEmail' => $contract['email'],
+            'contractId' => $contractId,
+            'amount' => (float)$amount,
+            'paymentDate' => $dateCollected,
+            'method' => $method,
+            'orNumber' => $orNumber,
+            'checkNumber' => $checkNumber,
+            'externalReference' => $externalReference,
+            'paymentPurpose' => $allocationSummary['target'],
+            'paymentId' => $paymentId
+        ]);
+        $receiptServiceUrl = rtrim(getenv('REMINDER_SERVICE_URL') ?: 'http://127.0.0.1:3000', '/');
+        $receiptContext = stream_context_create(['http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json\r\nContent-Length: " . strlen($receiptPayload) . "\r\n",
+            'content' => $receiptPayload,
+            'timeout' => 8,
+            'ignore_errors' => true
+        ]]);
+        $receiptResponse = @file_get_contents($receiptServiceUrl . '/api/payments/receipt', false, $receiptContext);
+        $receiptResult = is_string($receiptResponse) ? json_decode($receiptResponse, true) : null;
+        $receiptEmailSent = is_array($receiptResult) && !empty($receiptResult['success']);
+    }
 
     $message = 'Payment posted successfully. OR / Reference No. ' . $orNumber . '.';
-    $message .= $receiptEmailSent
-        ? ' Receipt emailed to the client.'
-        : ' The receipt email could not be sent.';
+    if ($receiptSkipped) {
+        $message .= ' Receipt email was not requested.';
+    } else {
+        $message .= $receiptEmailSent
+            ? ' Receipt emailed; the updated SOA is available in the client dashboard.'
+            : ' The receipt email could not be sent.';
+    }
 
     echo json_encode([
         'success' => true,
@@ -266,6 +351,19 @@ try {
         'orNumber' => $orNumber,
         'paymentKind' => $paymentKind,
         'allocations' => $allocations,
+        'allocationSummary' => $allocationSummary,
+        'payment' => [
+            'amount' => round((float)$amount, 2),
+            'method' => $method,
+            'dateCollected' => $dateCollected,
+            'checkNumber' => $checkNumber !== '' ? $checkNumber : null,
+            'externalReference' => $externalReference !== '' ? $externalReference : null,
+            'receiptRequested' => $receiptRequested,
+            'postedBy' => $postedBy !== '' ? $postedBy : null,
+        ],
+        'updatedSoa' => $updatedSoaSummary,
+        'receiptRequested' => $receiptRequested,
+        'receiptSkipped' => $receiptSkipped,
         'receiptEmailSent' => $receiptEmailSent
     ]);
 } catch (Throwable $e) {

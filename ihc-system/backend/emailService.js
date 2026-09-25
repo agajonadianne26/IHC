@@ -288,7 +288,14 @@ async function sendPaymentReminder(to, clientName, contractId, amountDue, dueDat
   return { success: true, messageId: info.messageId };
 }
 
-function buildPaymentReceiptEmail(clientName, contractId, amount, paymentDate, method, orNumber, paymentId, recipientEmail) {
+function buildPaymentReceiptEmail(
+  clientName, contractId, amount, paymentDate, method, orNumber, paymentId, recipientEmail,
+  checkNumber, externalReference, paymentPurpose
+) {
+  const referenceRow = (label, value) => value
+    ? `<tr><td style="padding:10px 16px;font-weight:600;">${escapeHtml(label)}</td><td style="padding:10px 16px;">${escapeHtml(value)}</td></tr>`
+    : '';
+  const purpose = safeText(paymentPurpose, 120).replace(/_/g, ' ');
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
       <div style="background:linear-gradient(135deg,#065f46,#059669);padding:28px 32px;text-align:center;">
@@ -297,26 +304,35 @@ function buildPaymentReceiptEmail(clientName, contractId, amount, paymentDate, m
       </div>
       <div style="padding:32px;color:#475569;">
         <h2 style="color:#1e293b;margin:0 0 16px;font-size:20px;">Payment received</h2>
-        <p>Dear <strong>${clientName}</strong>,</p>
-        <p>Thank you. We have recorded your payment. This email serves as your payment receipt.</p>
+        <p>Dear <strong>${escapeHtml(clientName)}</strong>,</p>
+        <p>Thank you. We have recorded your payment and updated the contract ledger. This email serves as your payment receipt; the current SOA summary is available in your Client Dashboard.</p>
         <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fff;border:1px solid #e2e8f0;">
-          <tr><td style="padding:10px 16px;font-weight:600;">Contract ID</td><td style="padding:10px 16px;">${contractId}</td></tr>
-          <tr><td style="padding:10px 16px;font-weight:600;">Receipt / OR No.</td><td style="padding:10px 16px;">${orNumber}</td></tr>
-          <tr><td style="padding:10px 16px;font-weight:600;">Payment date</td><td style="padding:10px 16px;">${formatDate(paymentDate)}</td></tr>
-          <tr><td style="padding:10px 16px;font-weight:600;">Payment method</td><td style="padding:10px 16px;">${method}</td></tr>
-          <tr><td style="padding:10px 16px;font-weight:600;">Amount received</td><td style="padding:10px 16px;color:#047857;font-size:17px;font-weight:700;">${formatCurrency(amount)}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Contract ID</td><td style="padding:10px 16px;">${escapeHtml(contractId)}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Receipt / OR No.</td><td style="padding:10px 16px;">${escapeHtml(orNumber)}</td></tr>
+          ${referenceRow('Check number', checkNumber)}
+          ${referenceRow('Bank / wallet reference', externalReference)}
+          ${referenceRow('Payment application', purpose)}
+          <tr><td style="padding:10px 16px;font-weight:600;">Payment date</td><td style="padding:10px 16px;">${escapeHtml(formatDate(paymentDate))}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Payment method</td><td style="padding:10px 16px;">${escapeHtml(method)}</td></tr>
+          <tr><td style="padding:10px 16px;font-weight:600;">Amount received</td><td style="padding:10px 16px;color:#047857;font-size:17px;font-weight:700;">${escapeHtml(formatCurrency(amount))}</td></tr>
         </table>
-        <p style="margin-bottom:24px;">Receipt reference: <strong>PAY-${paymentId}</strong></p>
-        <p style="text-align:center;"><a href="${getClientAccessUrl(recipientEmail)}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:6px;">Open Client Dashboard</a></p>
+        <p style="margin-bottom:24px;">Receipt reference: <strong>PAY-${escapeHtml(paymentId)}</strong></p>
+        <p style="text-align:center;"><a href="${escapeHtml(getClientAccessUrl(recipientEmail))}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:6px;">Open Client Dashboard / SOA Summary</a></p>
         <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0 16px;">
         <p style="color:#94a3b8;font-size:12px;margin:0;">This is a system-generated receipt from Imperial Homes Corporation.</p>
       </div>
     </div>`;
 }
 
-async function sendPaymentReceipt(to, clientName, contractId, amount, paymentDate, method, orNumber, paymentId) {
-  const subject = `Payment Receipt: ${formatCurrency(amount)} received for ${contractId}`;
-  const html = buildPaymentReceiptEmail(clientName, contractId, amount, paymentDate, method, orNumber, paymentId, to);
+async function sendPaymentReceipt(
+  to, clientName, contractId, amount, paymentDate, method, orNumber, paymentId,
+  checkNumber, externalReference, paymentPurpose
+) {
+  const subject = `Payment Receipt ${orNumber}: ${formatCurrency(amount)} received for ${contractId}`;
+  const html = buildPaymentReceiptEmail(
+    clientName, contractId, amount, paymentDate, method, orNumber, paymentId, to,
+    checkNumber, externalReference, paymentPurpose
+  );
 
   try {
     const info = await transporter.sendMail({ from: process.env.EMAIL_FROM, to, subject, html });
@@ -334,6 +350,7 @@ module.exports = {
   sendPaymentReminder,
   sendPaymentReceipt,
   buildReminderEmail,
+  buildPaymentReceiptEmail,
   normalizeSoaSummary,
   logNotification,
   formatCurrency,

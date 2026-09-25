@@ -7,6 +7,7 @@ date_default_timezone_set('Asia/Manila');
 // Shared installment-schedule math — the clerk and client endpoints include
 // this same file, so all three dashboards interpret `payments` identically.
 require_once __DIR__ . '/installment-schedule.php';
+require_once __DIR__ . '/soa-builder.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -33,6 +34,8 @@ try {
     exit;
 }
 
+soa_ensure_schema($pdo);
+
 try {
     $action = isset($_GET['action']) ? (string)$_GET['action'] : 'overview';
     $today = date('Y-m-d');
@@ -41,17 +44,30 @@ try {
     // '7' or 'IHC-14') — fold them onto integer contract ids in PHP instead of
     // SQL JOINs (mixed collations between notifications/payments and contracts
     // blow up at runtime; see AGENTS.md).
+    $principalByPayment = [];
+    try {
+        foreach ($pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount FROM payment_allocations GROUP BY payment_id') as $allocation) {
+            $principalByPayment[(int)$allocation['payment_id']] = (float)$allocation['principal_amount'];
+        }
+    } catch (Throwable $e) {
+        $principalByPayment = [];
+    }
     $paidByContract = [];   // contractId => float
     $paidMonthByContract = []; // contractId => ['YYYY-MM' => float]
     $paysByContract = [];   // contractId => [ ['date','amount'] ] chronological
-    foreach ($pdo->query('SELECT contract_id, amount, date_collected FROM payments ORDER BY date_collected, id') as $p) {
+    foreach ($pdo->query('SELECT id, contract_id, amount, date_collected FROM payments ORDER BY date_collected, id') as $p) {
         if (!preg_match('/(\d+)\s*$/', (string)$p['contract_id'], $m)) continue;
         $key = (int)$m[1];
         $amt = (float)$p['amount'];
+        $principalAmt = $principalByPayment[(int)$p['id']] ?? $amt;
         $paidByContract[$key] = ($paidByContract[$key] ?? 0.0) + $amt;
         $month = substr((string)$p['date_collected'], 0, 7);
         $paidMonthByContract[$key][$month] = ($paidMonthByContract[$key][$month] ?? 0.0) + $amt;
-        $paysByContract[$key][] = ['date' => (string)$p['date_collected'], 'amount' => $amt];
+        $paysByContract[$key][] = [
+            'date' => (string)$p['date_collected'],
+            'amount' => $principalAmt,
+            'principalAmount' => $principalAmt,
+        ];
     }
 
     // contracts + assigned clerk (o.id = c.officer_id implicit cast matches the

@@ -111,6 +111,8 @@ function soa_ensure_schema(PDO $pdo): void
         'invoice_number' => 'VARCHAR(100) NULL',
         'installment_kind' => 'VARCHAR(20) NULL',
         'installment_no' => 'INT NULL',
+        'external_reference' => 'VARCHAR(100) NULL',
+        'receipt_requested' => 'TINYINT(1) NOT NULL DEFAULT 1',
     ];
     if (soa_table_exists($pdo, 'payments')) {
         foreach ($paymentColumns as $column => $definition) {
@@ -186,13 +188,14 @@ function soa_allocate_payments(array $installments, array $payments): array
             'orNumbers' => [],
             'checkNumbers' => [],
             'invoiceNumbers' => [],
+            'externalReferences' => [],
             'allocations' => [],
         ];
     }
 
     $extras = [];
     foreach ($payments as $payment) {
-        $remaining = max(0.0, (float)$payment['amount']);
+        $remaining = ihc_schedule_payment_amount($payment);
         foreach ($rows as $index => &$row) {
             if ($remaining <= 0.009) break;
             $need = max(0.0, (float)$row['amount'] - (float)$row['amountPaid']);
@@ -207,6 +210,7 @@ function soa_allocate_payments(array $installments, array $payments): array
                 'orNumber' => $payment['orNumber'],
                 'checkNumber' => $payment['checkNumber'],
                 'invoiceNumber' => $payment['invoiceNumber'],
+                'externalReference' => $payment['externalReference'] ?? null,
             ];
             $row['allocations'][] = $allocation;
             if ($allocation['date'] !== '') {
@@ -218,6 +222,7 @@ function soa_allocate_payments(array $installments, array $payments): array
                 'checkNumbers' => $allocation['checkNumber'],
                 'invoiceNumbers' => $allocation['invoiceNumber'] !== null && $allocation['invoiceNumber'] !== ''
                     ? $allocation['invoiceNumber'] : $allocation['orNumber'],
+                'externalReferences' => $allocation['externalReference'] ?? null,
             ] as $field => $value) {
                 if ($value !== null && $value !== '') $row[$field][] = (string)$value;
             }
@@ -235,7 +240,7 @@ function soa_allocate_payments(array $installments, array $payments): array
     }
 
     foreach ($rows as &$row) {
-        foreach (['orNumbers', 'checkNumbers', 'invoiceNumbers', 'paymentDates'] as $field) {
+        foreach (['orNumbers', 'checkNumbers', 'invoiceNumbers', 'externalReferences', 'paymentDates'] as $field) {
             $row[$field] = array_values(array_unique(array_filter($row[$field], static fn($v) => $v !== null && $v !== '')));
         }
     }
@@ -383,8 +388,16 @@ function soa_build_document(PDO $pdo, int $contractId, string $actorId = '', ?st
     ];
 
     $payments = [];
+    $principalByPayment = [];
+    try {
+        foreach ($pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount FROM payment_allocations GROUP BY payment_id') as $allocationRow) {
+            $principalByPayment[(int)$allocationRow['payment_id']] = (float)$allocationRow['principal_amount'];
+        }
+    } catch (Throwable $e) {
+        $principalByPayment = [];
+    }
     $paymentSql = 'SELECT id, contract_id, amount, date_collected, or_number, payment_method';
-    foreach (['check_number', 'invoice_number', 'installment_kind', 'installment_no'] as $column) {
+    foreach (['check_number', 'invoice_number', 'installment_kind', 'installment_no', 'external_reference', 'receipt_requested'] as $column) {
         if (soa_column_exists($pdo, 'payments', $column)) $paymentSql .= ', ' . $column;
     }
     $paymentSql .= ' FROM payments ORDER BY date_collected, id';
@@ -395,6 +408,7 @@ function soa_build_document(PDO $pdo, int $contractId, string $actorId = '', ?st
         $payments[] = [
             'id' => (int)$payment['id'],
             'amount' => (float)$payment['amount'],
+            'principalAmount' => $principalByPayment[(int)$payment['id']] ?? null,
             'date' => (string)$payment['date_collected'],
             'orNumber' => $orNumber,
             'checkNumber' => $payment['check_number'] ?? null,
@@ -402,6 +416,8 @@ function soa_build_document(PDO $pdo, int $contractId, string $actorId = '', ?st
             'method' => (string)$payment['payment_method'],
             'installmentKind' => $payment['installment_kind'] ?? null,
             'installmentNo' => isset($payment['installment_no']) ? $payment['installment_no'] : null,
+            'externalReference' => $payment['external_reference'] ?? null,
+            'receiptRequested' => !isset($payment['receipt_requested']) || (bool)$payment['receipt_requested'],
         ];
     }
 
@@ -547,6 +563,7 @@ function soa_build_document(PDO $pdo, int $contractId, string $actorId = '', ?st
             'daysPastDue' => $daysPastDue,
             'checkNumber' => implode(', ', $row['checkNumbers']),
             'invoiceNumber' => implode(', ', $row['invoiceNumbers']),
+            'externalReference' => implode(', ', $row['externalReferences']),
             'orNumber' => implode(', ', $row['orNumbers']),
             'amountDue' => soa_round($amountDue),
             'amountPaid' => soa_round($amountPaid),

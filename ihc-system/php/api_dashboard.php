@@ -30,6 +30,8 @@ $officerId = isset($_GET['officerId']) ? trim((string)$_GET['officerId']) : '';
 // Shared installment-schedule math — same file the admin and client endpoints
 // use, so the three dashboards always agree on what is paid and what is due.
 require_once __DIR__ . '/installment-schedule.php';
+require_once __DIR__ . '/soa-builder.php';
+soa_ensure_schema($pdo);
 
 if ($officerId === '') {
     echo json_encode(['success' => false, 'message' => 'Invalid Officer ID']);
@@ -45,14 +47,23 @@ $clients = $stmt->fetchAll(PDO::FETCH_ASSOC); // FETCH_ASSOC keeps the array cle
 // with a SQL JOIN against contracts (mixed collations blow up at runtime;
 // see AGENTS.md). Ordering by date keeps the chronological allocation in
 // installment-schedule.php deterministic.
+$principalByPayment = [];
+try {
+    foreach ($pdo->query('SELECT payment_id, SUM(principal_amount) AS principal_amount FROM payment_allocations GROUP BY payment_id') as $allocation) {
+        $principalByPayment[(int)$allocation['payment_id']] = (float)$allocation['principal_amount'];
+    }
+} catch (Throwable $e) {
+    $principalByPayment = [];
+}
 $paidByContract = [];   // contract id => chronological payment rows
-foreach ($pdo->query('SELECT contract_id, amount, date_collected, or_number, payment_method FROM payments ORDER BY date_collected, id') as $p) {
+foreach ($pdo->query('SELECT id, contract_id, amount, date_collected, or_number, payment_method FROM payments ORDER BY date_collected, id') as $p) {
     if (!preg_match('/(\d+)\s*$/', (string)$p['contract_id'], $m)) continue;
     $paidByContract[(int)$m[1]][] = [
-        'amount'   => (float)$p['amount'],
-        'date'     => (string)$p['date_collected'],
-        'orNumber' => $p['or_number'] !== null ? (string)$p['or_number'] : null,
-        'method'   => $p['payment_method'] !== null ? (string)$p['payment_method'] : null,
+        'amount'         => (float)$p['amount'],
+        'principalAmount'=> $principalByPayment[(int)$p['id']] ?? null,
+        'date'           => (string)$p['date_collected'],
+        'orNumber'       => $p['or_number'] !== null ? (string)$p['or_number'] : null,
+        'method'         => $p['payment_method'] !== null ? (string)$p['payment_method'] : null,
     ];
 }
 

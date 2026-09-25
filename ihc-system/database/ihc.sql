@@ -307,7 +307,9 @@ CREATE TABLE `payments` (
   `check_number` varchar(100) DEFAULT NULL,
   `invoice_number` varchar(100) DEFAULT NULL,
   `installment_kind` varchar(20) DEFAULT NULL,
-  `installment_no` int(11) DEFAULT NULL
+  `installment_no` int(11) DEFAULT NULL,
+  `external_reference` varchar(100) DEFAULT NULL,
+  `receipt_requested` tinyint(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
