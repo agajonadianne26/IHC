@@ -53,8 +53,7 @@ function contractVariants(int $id): array {
 }
 
 function fetchContract(PDO $pdo, int $id): ?array {
-    // officers.full_name only — the live ihc.officers table has no email
-    // column, so there is no officer address to show or mail to here.
+    // The client portal only needs the assigned officer's display name.
     $stmt = $pdo->prepare(
         'SELECT c.*, o.full_name AS officer_name
          FROM contracts c LEFT JOIN officers o ON o.id = c.officer_id
@@ -250,6 +249,8 @@ try {
                 'phone' => $contract['cellphone_number'],
                 'propertyAddress' => $contract['property_address'],
                 'totalPrice' => (float)$contract['total_contract_price'],
+                'discountAmount' => (float)($contract['discount_amount'] ?? 0),
+                'netPrice' => max(0, (float)$contract['total_contract_price'] - (float)($contract['discount_amount'] ?? 0)),
                 'downpayment' => (float)$contract['downpayment'],
                 'terms' => (int)$contract['installment_terms'],
                 'startDate' => $contract['start_date'],

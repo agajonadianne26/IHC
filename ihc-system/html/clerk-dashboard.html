@@ -1568,6 +1568,7 @@
       @page { margin: 15mm; }
     }
   </style>
+  <link rel="stylesheet" href="../css/soa.css?v=1">
 </head>
 <body>
 
@@ -1973,10 +1974,22 @@
                     <small class="nc-hint" id="hintPassword">At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.</small>
                   </div>
                   <div class="nc-field full">
+                    <label>Client Address</label>
+                    <input type="text" id="ncClientAddress" placeholder="Client's complete mailing address">
+                    <small class="nc-hint">Optional — shown in the Statement of Account when available.</small>
+                  </div>
+                  <div class="nc-field full">
                     <label>Property Address <span class="req">*</span></label>
                     <input type="text" id="ncPropertyAddress" placeholder="e.g., Block 1 Lot 2, Sample Subdivision, City">
                     <small class="nc-hint" id="hintAddress"></small>
                   </div>
+                  <div class="nc-field"><label>Project Name</label><input type="text" id="ncProjectName" placeholder="e.g., Imperial Homes"></div>
+                  <div class="nc-field"><label>Phase</label><input type="text" id="ncProjectPhase" placeholder="e.g., Phase 1"></div>
+                  <div class="nc-field"><label>Block</label><input type="text" id="ncBlockNo" placeholder="e.g., Block 1"></div>
+                  <div class="nc-field"><label>Lot</label><input type="text" id="ncLotNo" placeholder="e.g., Lot 2"></div>
+                  <div class="nc-field"><label>Model Type</label><input type="text" id="ncModelType" placeholder="e.g., 2-storey"></div>
+                  <div class="nc-field"><label>Lot Area</label><input type="text" id="ncLotArea" placeholder="e.g., 150 sqm"></div>
+                  <div class="nc-field"><label>Floor Area</label><input type="text" id="ncFloorArea" placeholder="e.g., 120 sqm"></div>
                 </div>
               </div>
 
@@ -1999,6 +2012,32 @@
                     <label>Downpayment <span class="req">*</span></label>
                     <div class="input-affix"><span>₱</span><input type="text" id="ncDownpayment" inputmode="decimal" placeholder="0.00"></div>
                     <small class="nc-hint" id="hintDownpayment"></small>
+                  </div>
+                  <div class="nc-field">
+                    <label>Discount Amount</label>
+                    <div class="input-affix"><span>₱</span><input type="text" id="ncDiscountAmount" inputmode="decimal" placeholder="0.00"></div>
+                    <small class="nc-hint">Optional sales discount applied before net contract value.</small>
+                  </div>
+                  <div class="nc-field">
+                    <label>Loanable / Approved Amount</label>
+                    <div class="input-affix"><span>₱</span><input type="text" id="ncLoanableAmount" inputmode="decimal" placeholder="Auto: TCP less downpayment"></div>
+                    <small class="nc-hint">Optional; leave blank to derive the financing amount.</small>
+                  </div>
+                  <div class="nc-field">
+                    <label>Early Move-in Amount</label>
+                    <div class="input-affix"><span>₱</span><input type="text" id="ncEarlyMoveIn" inputmode="decimal" placeholder="0.00"></div>
+                  </div>
+                  <div class="nc-field">
+                    <label>Equity Mortgage Monthly Rate (%)</label>
+                    <div class="input-affix"><input type="text" id="ncEquityRate" inputmode="decimal" placeholder="0.00"><span class="suffix">%</span></div>
+                  </div>
+                  <div class="nc-field">
+                    <label>Equity Penalty Rate (% / month)</label>
+                    <div class="input-affix"><input type="text" id="ncEquityPenalty" inputmode="decimal" placeholder="0.00"><span class="suffix">%</span></div>
+                  </div>
+                  <div class="nc-field">
+                    <label>Home Financing Term (years)</label>
+                    <input type="text" id="ncLoanTermYears" inputmode="decimal" placeholder="Auto: installment terms / 12">
                   </div>
                   <div class="nc-field full">
                     <label>Downpayment Mode <span class="req">*</span></label>
@@ -2081,6 +2120,8 @@
               </div>
               <div class="nc-summary-body">
                 <div class="nc-summary-row"><span>Total Contract Price</span><strong id="sumPrice">—</strong></div>
+                <div class="nc-summary-row"><span>Discount</span><strong id="sumDiscount">—</strong></div>
+                <div class="nc-summary-row"><span>Net Contract Price</span><strong id="sumNetPrice">—</strong></div>
                 <div class="nc-summary-row"><span>Downpayment</span><strong id="sumDP">—</strong></div>
                 <div class="nc-summary-row"><span>Downpayment %</span><strong id="sumDPPct">—</strong></div>
                 <div class="nc-summary-row"><span>DP Mode</span><strong id="sumDpMode">—</strong></div>
@@ -2141,9 +2182,16 @@
             <label>Date Collected *</label>
             <input type="date" id="pmDate">
           </div>
+          <div class="form-group">
+            <label>Check Number</label>
+            <input type="text" id="pmCheckNumber" placeholder="Optional for check payments">
+          </div>
           <div class="form-group full">
-            <label>OR / Reference Number *</label>
-            <input type="text" id="pmOR" placeholder="e.g., OR-2026-00741">
+            <label>OR / Reference Number</label>
+            <div class="nc-hint" style="padding:11px 13px;border:1px solid var(--border);border-radius:8px;background:var(--bg-input);">
+              Generated automatically when this payment is posted.<br>
+              <strong>Downpayment:</strong> OR-DP-YYYY-##### &nbsp;&nbsp; <strong>Installment:</strong> OR-INS-YYYY-#####
+            </div>
           </div>
           <div class="form-group full">
             <label>Remarks</label>
@@ -2329,6 +2377,7 @@
        JAVASCRIPT
   ============================================= -->
   <script src="../js/portal-store.js"></script>
+  <script src="../js/soa.js?v=1"></script>
   <script>
   'use strict';
 
@@ -2547,6 +2596,8 @@
         totalPrice: c.totalPrice,
         terms: c.terms,
         paymentType: paymentType,
+        paymentKind: c.nextType,
+        installmentNo: c.nextInstallmentNo,
         amount: Number(c.nextAmount) || 0,
         // Always the date the endpoint reported (start_date once settled) so
         // this row matches the admin ledger and the client schedule exactly.
@@ -2748,7 +2799,7 @@
       document.getElementById('pmAmount').value = formatPHP(row.amount);
       document.getElementById('pmMethod').value = '';
       document.getElementById('pmDate').value = '';
-      document.getElementById('pmOR').value = '';
+      document.getElementById('pmCheckNumber').value = '';
       document.getElementById('pmRemarks').value = '';
       paymentModal.classList.add('visible');
     };
@@ -2760,11 +2811,11 @@
     document.getElementById('submitPayment').addEventListener('click', async () => {
       const method = document.getElementById('pmMethod').value;
       const date = document.getElementById('pmDate').value;
-      const orNum = document.getElementById('pmOR').value.trim();
+      const checkNumber = document.getElementById('pmCheckNumber').value.trim();
       const remarks = document.getElementById('pmRemarks').value.trim();
 
-      if (!method || !date || !orNum) {
-        showToast('Please fill in all required fields', 'info');
+      if (!method || !date) {
+        showToast('Please select a payment method and collection date', 'info');
         return;
       }
 
@@ -2779,9 +2830,11 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contractId: row.id,
+            paymentKind: row.paymentKind,
+            expectedInstallmentNo: row.installmentNo,
             method: method,
             dateCollected: date,
-            orNumber: orNum,
+            checkNumber: checkNumber,
             remarks: remarks,
             amount: row.amount,
             postedBy: currentUser.officerId
@@ -2791,9 +2844,13 @@
         if (!res.ok || !data.success) {
           throw new Error(data.message || 'The payment could not be posted.');
         }
+        const generatedOrNumber = String(data.orNumber || '').trim();
+        if (!generatedOrNumber) {
+          throw new Error('The payment was posted, but no OR / Reference number was returned. Refresh the ledger before continuing.');
+        }
 
         paymentModal.classList.remove('visible');
-        showToast(data.message || `Payment posted for ${row.client} \u2014 OR #${orNum}`, 'success');
+        showToast(data.message || `Payment posted for ${row.client} \u2014 OR #${generatedOrNumber}`, 'success');
 
         // Re-pull from the backend so billing dashboard, payment posting
         // queue, and the notification log all reflect the real, saved state
@@ -2815,7 +2872,7 @@
         if (window.portalStore && row.contractId != null) {
           portalStore.postPortalPayment(row.contractId, {
             amount: row.amount,
-            orNumber: orNum,
+            orNumber: generatedOrNumber,
             method: method,
             date: date
           });
@@ -2898,36 +2955,19 @@
 
     window.printSOA = (idx) => {
       const row = myContracts[idx];
-      const statusLabel = getStatusLabel(row);
-
-      soaDocument.innerHTML = `
-        <div class="soa-doc-header">
-          <div class="soa-brand">
-            <img src="../img/ihc logo.png" alt="IHC" style="width:48px;height:48px;margin-bottom:8px;">
-            <strong>Imperial Homes Corporation</strong>
-            <small>Imperial Homes Corporation \u2022 Billing & Accounts Receivable</small>
-          </div>
-          <div class="soa-doc-title">
-            <h3>Statement of Account</h3>
-            <p>SOA-${row.id} \u2022 Generated ${formatDate(TODAY)}</p>
-          </div>
-        </div>
-        <div class="soa-info-grid">
-          <div class="soa-info-group"><label>Client Name</label><span>${row.client}</span></div>
-          <div class="soa-info-group"><label>Contract / IHC Ref</label><span>${row.id}</span></div>
-          <div class="soa-info-group"><label>Property</label><span>${row.property}</span></div>
-          <div class="soa-info-group"><label>Payment Type</label><span>${row.paymentType}</span></div>
-        </div>
-        <table class="soa-table">
-          <thead><tr><th>Payment Type</th><th>Due Date</th><th>Amount Due</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td>${row.paymentType}</td><td>${formatDate(row.dueDate)}</td><td style="font-weight:700;">${formatPHP(row.amount)}</td><td>${statusLabel}</td></tr>
-            <tr class="total-row"><td colspan="2" style="text-align:right;">TOTAL DUE</td><td>${formatPHP(row.amount)}</td><td></td></tr>
-          </tbody>
-        </table>
-        <div class="soa-footer-note">This is a system-generated Statement of Account from Imperial Homes Corporation.<br>For concerns, contact Imperial Homes Corporation Billing Department.</div>`;
-
-      soaModal.classList.add('visible');
+      if (!row) {
+        showToast('Contract row not found.', 'info');
+        return;
+      }
+      window.IHCSoa.open({
+        apiBase: API_BASE,
+        modalId: 'soaModal',
+        documentId: 'soaDocument',
+        contractId: row.contractId || row.id,
+        actorId: currentUser.officerId || '',
+        actorEmail: currentUser.email || '',
+        onError: (err) => showToast(err.message || 'Could not generate the SOA.', 'info')
+      });
     };
 
     document.getElementById('closeSoaModal').addEventListener('click', () => soaModal.classList.remove('visible'));
@@ -3759,9 +3799,23 @@
       email: ncEmail,
       phone: document.getElementById('ncClientPhone'),
       password: document.getElementById('ncClientPassword'),
+      clientAddress: document.getElementById('ncClientAddress'),
       address: document.getElementById('ncPropertyAddress'),
+      projectName: document.getElementById('ncProjectName'),
+      phase: document.getElementById('ncProjectPhase'),
+      blockNo: document.getElementById('ncBlockNo'),
+      lotNo: document.getElementById('ncLotNo'),
+      modelType: document.getElementById('ncModelType'),
+      lotArea: document.getElementById('ncLotArea'),
+      floorArea: document.getElementById('ncFloorArea'),
       price: document.getElementById('ncTotalPrice'),
+      discount: document.getElementById('ncDiscountAmount'),
       downpayment: document.getElementById('ncDownpayment'),
+      loanable: document.getElementById('ncLoanableAmount'),
+      earlyMoveIn: document.getElementById('ncEarlyMoveIn'),
+      equityRate: document.getElementById('ncEquityRate'),
+      equityPenalty: document.getElementById('ncEquityPenalty'),
+      loanTermYears: document.getElementById('ncLoanTermYears'),
       dpTerms: document.getElementById('ncDpTerms'),
       bank: document.getElementById('ncBank'),
       interest: document.getElementById('ncInterestRate'),
@@ -3856,7 +3910,7 @@
     }
 
     function formatAmountBlur() {
-      [ncFields.price, ncFields.downpayment].forEach(el => {
+      [ncFields.price, ncFields.discount, ncFields.downpayment, ncFields.loanable, ncFields.earlyMoveIn].forEach(el => {
         const n = parseAmount(el.value);
         el.value = isNaN(n) ? '' : Number(n.toFixed(2)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       });
@@ -3864,9 +3918,11 @@
 
     function updateSummary() {
       const price = parseAmount(ncFields.price.value);
+      const discount = ncFields.discount.value.trim() === '' ? 0 : parseAmount(ncFields.discount.value);
+      const netPrice = (!isNaN(price) && !isNaN(discount)) ? Math.max(0, price - discount) : NaN;
       const dp = parseAmount(ncFields.downpayment.value);
       const terms = parseInt(ncFields.terms.value, 10);
-      const financing = (!isNaN(price) && !isNaN(dp)) ? Math.max(0, price - dp) : NaN;
+      const financing = (!isNaN(netPrice) && !isNaN(dp)) ? Math.max(0, netPrice - dp) : NaN;
       const dpMode = getDpMode();
       const dpTerms = parseInt(ncFields.dpTerms.value, 10);
       const bank = ncFields.bank.value.trim();
@@ -3877,6 +3933,8 @@
       const totalPayable = (!isNaN(dp) && dp > 0 ? dp : 0) + (!isNaN(monthlyAmort) ? monthlyAmort * terms : NaN);
 
       document.getElementById('sumPrice').textContent = !isNaN(price) && price > 0 ? fmtPeso(price) : '—';
+      document.getElementById('sumDiscount').textContent = !isNaN(discount) && discount > 0 ? fmtPeso(discount) : '—';
+      document.getElementById('sumNetPrice').textContent = !isNaN(netPrice) && netPrice > 0 ? fmtPeso(netPrice) : '—';
       document.getElementById('sumDP').textContent = !isNaN(dp) && dp > 0 ? fmtPeso(dp) : '—';
       document.getElementById('sumDPPct').textContent = (!isNaN(price) && price > 0 && !isNaN(dp) && dp > 0) ? ((dp / price) * 100).toFixed(1) + '%' : '—';
       document.getElementById('sumDpMode').textContent = dpMode === 'monthly' ? 'Monthly' : (dpMode === 'lump' ? 'Lump Sum' : '—');
@@ -3919,6 +3977,32 @@
       const dpOk = !isNaN(dp) && dp >= 0 && (isNaN(price) || dp <= price);
       setFieldState(ncFields.downpayment, 'hintDownpayment', dpOk, 'Valid amount', !ncFields.downpayment.value.trim() ? 'Downpayment is required.' : (dpOk ? '' : 'Downpayment cannot exceed the total price.'));
 
+      const discount = ncFields.discount.value.trim() === '' ? 0 : parseAmount(ncFields.discount.value);
+      const discountOk = !isNaN(discount) && discount >= 0 && (isNaN(price) || discount <= price);
+      setFieldState(ncFields.discount, '', discountOk, 'Valid discount', discountOk ? '' : 'Discount must be between zero and TCP.');
+
+      const loanableRaw = ncFields.loanable.value.trim();
+      const loanable = loanableRaw === '' ? NaN : parseAmount(loanableRaw);
+      const loanableOk = loanableRaw === '' || (!isNaN(loanable) && loanable >= 0 && (isNaN(price) || loanable <= price));
+      setFieldState(ncFields.loanable, '', loanableOk, 'Valid loan amount', loanableOk ? '' : 'Loanable amount must be between zero and TCP.');
+
+      const earlyMoveInRaw = ncFields.earlyMoveIn.value.trim();
+      const earlyMoveIn = earlyMoveInRaw === '' ? 0 : parseAmount(earlyMoveInRaw);
+      const earlyMoveInOk = !isNaN(earlyMoveIn) && earlyMoveIn >= 0 && (isNaN(price) || earlyMoveIn <= price);
+      setFieldState(ncFields.earlyMoveIn, '', earlyMoveInOk, 'Valid amount', earlyMoveInOk ? '' : 'Enter a valid early move-in amount.');
+
+      const equityRate = ncFields.equityRate.value.trim() === '' ? 0 : parseAmount(ncFields.equityRate.value);
+      const equityPenalty = ncFields.equityPenalty.value.trim() === '' ? 0 : parseAmount(ncFields.equityPenalty.value);
+      const equityRateOk = !isNaN(equityRate) && equityRate >= 0 && equityRate <= 100;
+      const equityPenaltyOk = !isNaN(equityPenalty) && equityPenalty >= 0 && equityPenalty <= 100;
+      setFieldState(ncFields.equityRate, '', equityRateOk, 'Valid rate', equityRateOk ? '' : 'Equity rate must be between 0 and 100.');
+      setFieldState(ncFields.equityPenalty, '', equityPenaltyOk, 'Valid rate', equityPenaltyOk ? '' : 'Penalty rate must be between 0 and 100.');
+
+      const loanTermRaw = ncFields.loanTermYears.value.trim();
+      const loanTermYears = loanTermRaw === '' ? NaN : parseAmount(loanTermRaw);
+      const loanTermOk = loanTermRaw === '' || (!isNaN(loanTermYears) && loanTermYears > 0 && loanTermYears <= 120);
+      setFieldState(ncFields.loanTermYears, '', loanTermOk, 'Valid term', loanTermOk ? '' : 'Enter a term between 0 and 120 years.');
+
       const dpMode = getDpMode();
       const dpModeOk = dpMode === 'lump' || dpMode === 'monthly';
       setFieldState(dpModeRadios[0], 'hintDpMode', dpModeOk, 'Mode selected', !dpMode ? 'Choose how the downpayment will be paid.' : '');
@@ -3951,13 +4035,13 @@
       else if (emailValid) setFieldState(ncFields.email, 'ncEmailStatus', true, 'Working email — can receive SOA reminders', '');
       else setFieldState(ncFields.email, 'ncEmailStatus', false, '', emailChecking ? 'Checking email domain…' : 'Email not verified yet — click away from the field to check it.');
 
-      const baseOk = !!name && phoneOk && !!address && priceOk && dpOk && dpModeOk && dpTermsOk && bankOk && rateOk && termsOk && dateOk && passwordOk && emailBaseOk && emailValid;
+      const baseOk = !!name && phoneOk && !!address && priceOk && dpOk && discountOk && loanableOk && earlyMoveInOk && equityRateOk && equityPenaltyOk && loanTermOk && dpModeOk && dpTermsOk && bankOk && rateOk && termsOk && dateOk && passwordOk && emailBaseOk && emailValid;
       refreshSubmit(baseOk);
       return baseOk;
     }
 
     // Live validation + summary wiring
-    [ncFields.price, ncFields.downpayment].forEach(el => {
+    [ncFields.price, ncFields.discount, ncFields.downpayment, ncFields.loanable, ncFields.earlyMoveIn].forEach(el => {
       el.addEventListener('input', () => { formatAmountField(el); updateSummary(); validateForm(); });
       el.addEventListener('blur', () => { formatAmountBlur(); updateSummary(); validateForm(); });
     });
@@ -3973,6 +4057,15 @@
       });
     });
     ncFields.dpTerms.addEventListener('input', () => { updateSummary(); validateForm(); });
+    [ncFields.equityRate, ncFields.equityPenalty, ncFields.loanTermYears].forEach((el) => {
+      el.addEventListener('input', () => {
+        const parts = el.value.split('.');
+        if (parts.length > 1) parts[1] = parts[1].slice(0, 2);
+        const cleaned = parts.join('.');
+        if (cleaned !== el.value) el.value = cleaned;
+        validateForm();
+      });
+    });
     ncFields.bank.addEventListener('change', () => {
       if (BANK_RATES[ncFields.bank.value] !== undefined) {
         ncFields.interest.value = Number(BANK_RATES[ncFields.bank.value]).toFixed(2);
@@ -4074,7 +4167,7 @@
 
     document.getElementById('ncCancelBtn').addEventListener('click', resetNewContractForm);
     function resetNewContractForm() {
-      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncPropertyAddress', 'ncTotalPrice', 'ncDownpayment', 'ncDpTerms', 'ncTerms', 'ncStartDate'].forEach(id => {
+      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncClientAddress', 'ncPropertyAddress', 'ncProjectName', 'ncProjectPhase', 'ncBlockNo', 'ncLotNo', 'ncModelType', 'ncLotArea', 'ncFloorArea', 'ncTotalPrice', 'ncDiscountAmount', 'ncDownpayment', 'ncLoanableAmount', 'ncEarlyMoveIn', 'ncEquityRate', 'ncEquityPenalty', 'ncLoanTermYears', 'ncDpTerms', 'ncTerms', 'ncStartDate'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
@@ -4104,9 +4197,16 @@
       const email = ncFields.email.value.trim();
       const phone = ncFields.phone.value.trim().replace(/[\s-]/g, '');
       const portalPassword = ncFields.password.value.trim();
+      const clientAddress = ncFields.clientAddress.value.trim();
       const propertyAddress = ncFields.address.value.trim();
       const totalPrice = parseAmount(ncFields.price.value);
+      const discountAmount = ncFields.discount.value.trim() === '' ? 0 : parseAmount(ncFields.discount.value);
       const downpayment = parseAmount(ncFields.downpayment.value);
+      const loanableAmount = ncFields.loanable.value.trim() === '' ? null : parseAmount(ncFields.loanable.value);
+      const earlyMoveInAmount = ncFields.earlyMoveIn.value.trim() === '' ? 0 : parseAmount(ncFields.earlyMoveIn.value);
+      const equityMonthlyRate = ncFields.equityRate.value.trim() === '' ? 0 : parseAmount(ncFields.equityRate.value);
+      const equityPenaltyRate = ncFields.equityPenalty.value.trim() === '' ? null : parseAmount(ncFields.equityPenalty.value);
+      const loanTermYears = ncFields.loanTermYears.value.trim() === '' ? null : parseAmount(ncFields.loanTermYears.value);
       const terms = ncFields.terms.value.trim();
       const startDate = ncFields.date.value;
       const dpMode = getDpMode();
@@ -4125,11 +4225,25 @@
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
             officerId: officerId,
-            client: { fullName: clientName, email: email, phone: phone, portalPassword: portalPassword },
+            client: { fullName: clientName, email: email, phone: phone, address: clientAddress, portalPassword: portalPassword },
             contract: {
               propertyAddress: propertyAddress,
+              projectName: ncFields.projectName.value.trim(),
+              phase: ncFields.phase.value.trim(),
+              blockNo: ncFields.blockNo.value.trim(),
+              lotNo: ncFields.lotNo.value.trim(),
+              modelType: ncFields.modelType.value.trim(),
+              lotArea: ncFields.lotArea.value.trim(),
+              floorArea: ncFields.floorArea.value.trim(),
               totalPrice: totalPrice,
+              discountAmount: discountAmount,
               downpayment: downpayment,
+              loanableAmount: loanableAmount,
+              approvedLoanAmount: loanableAmount,
+              earlyMoveInAmount: earlyMoveInAmount,
+              equityMonthlyRate: equityMonthlyRate,
+              equityPenaltyRate: equityPenaltyRate,
+              loanTermYears: loanTermYears,
               terms: terms,
               startDate: startDate,
               // Financing terms: previously read by the form but never sent,
@@ -4162,6 +4276,7 @@
             password: '',
             propertyAddress: propertyAddress,
             totalPrice: totalPrice,
+            discountAmount: discountAmount,
             downpayment: downpayment,
             terms: Number(terms),
             startDate: startDate,

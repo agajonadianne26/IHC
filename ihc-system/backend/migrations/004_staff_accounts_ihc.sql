@@ -17,22 +17,14 @@ ALTER TABLE officers
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_officers_email ON officers (email);
 
--- id 1: repurposed as the admin account (contracts only ever used officer_id '2')
-UPDATE officers SET full_name = 'Jeremy Cantalejo', role = 'admin',
-  email = 'admin@ihc.com',
-  password_hash = '$2y$10$BL9dLew5Rpc5hX/HKk3l7O4/6iqVbAlm3J7ubMOYR4JwgjwIOfSBi'
-WHERE id = 1;
-
--- id 2: renamed to match the login page's Ana Reyes (officerId 2) and to fix
--- the client-ledger officer name for every live contract.
-UPDATE officers SET full_name = 'Ana Reyes', role = 'clerk',
-  email = 'ana@ihc.com',
-  password_hash = '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe'
-WHERE id = 2;
-
+-- Seed every staff account with an upsert. Using INSERT for all four IDs
+-- (rather than UPDATE for IDs 1 and 2) also works when an older or partial
+-- database has an empty officers table.
 INSERT INTO officers (id, full_name, role, email, password_hash) VALUES
-  (3, 'Mark Cruz',    'clerk', 'mark@ihc.com',    '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe'),
-  (4, 'Jessica Lim',  'clerk', 'jessica@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe')
+  (1, 'Jeremy Cantalejo', 'admin',  'admin@ihc.com',   '$2y$10$BL9dLew5Rpc5hX/HKk3l7O4/6iqVbAlm3J7ubMOYR4JwgjwIOfSBi'),
+  (2, 'Ana Reyes',        'clerk', 'ana@ihc.com',     '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe'),
+  (3, 'Mark Cruz',        'clerk', 'mark@ihc.com',    '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe'),
+  (4, 'Jessica Lim',      'clerk', 'jessica@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe')
 ON DUPLICATE KEY UPDATE
   full_name = VALUES(full_name), role = VALUES(role),
   email = VALUES(email), password_hash = VALUES(password_hash);

@@ -333,6 +333,8 @@
       thead th { background: #fff; }
     }
   </style>
+  <link rel="stylesheet" href="../css/soa.css?v=1">
+  <script src="../js/soa.js?v=1" defer></script>
 </head>
 <body>
   <script>
@@ -397,6 +399,7 @@
         password: '',
         propertyAddress: contract.propertyAddress || '',
         totalPrice: Number(contract.totalPrice) || 0,
+        discountAmount: Number(contract.discountAmount) || 0,
         downpayment: Number(contract.downpayment) || 0,
         terms: Number(contract.terms) || 0,
         startDate: contract.startDate,
@@ -417,6 +420,7 @@
     function refreshClientFromServer(contract) {
       const serverTerms = {
         totalPrice: Number(contract.totalPrice) || 0,
+        discountAmount: Number(contract.discountAmount) || 0,
         downpayment: Number(contract.downpayment) || 0,
         terms: Number(contract.terms) || 0,
         startDate: contract.startDate,
@@ -427,7 +431,7 @@
         bank: contract.bank || '',
         annualRate: Number(contract.annualRate) || 0
       };
-      const termsChanged = ['totalPrice', 'downpayment', 'terms', 'startDate', 'dpMode', 'dpTerms', 'bank', 'annualRate']
+      const termsChanged = ['totalPrice', 'discountAmount', 'downpayment', 'terms', 'startDate', 'dpMode', 'dpTerms', 'bank', 'annualRate']
         .some(k => String(client[k]) !== String(serverTerms[k]));
       Object.assign(client, {
         name: contract.name,
@@ -639,7 +643,10 @@
       return phase === 'deposit' ? 'Deposit' : 'Amortization';
     }
 
-    const financing = Math.max(0, Number(client.totalPrice) - Number(client.downpayment));
+    const grossPrice = Math.max(0, Number(client.totalPrice) || 0);
+    const discount = Math.min(grossPrice, Math.max(0, Number(client.discountAmount) || 0));
+    const netPrice = Math.max(0, grossPrice - discount);
+    const financing = Math.max(0, netPrice - Number(client.downpayment));
     const annualRate = Number(client.annualRate != null ? client.annualRate : client.annualInterestRate) || 0;
     const amortPmt = portalStore.amortize(financing, annualRate, Math.max(1, Number(client.terms)));
     const fallbackMonthly = Math.round(amortPmt * 100) / 100;
@@ -662,7 +669,7 @@
     // (live: the DB's equal installment; offline: the local interest math).
     const amortRow = portal.schedules.find(s => s.phase === 'amortization');
     const monthlyAmort = amortRow ? Number(amortRow.amount) : fallbackMonthly;
-    const downPct = Number(client.totalPrice) > 0 ? ((Number(client.downpayment) / Number(client.totalPrice)) * 100).toFixed(1) + '%' : '\u2014';
+    const downPct = netPrice > 0 ? ((Number(client.downpayment) / netPrice) * 100).toFixed(1) + '%' : '\u2014';
 
     /* ==========================================
        RENDER: OVERVIEW
@@ -728,7 +735,21 @@
         </tr>`;
     }).join('');
 
-    document.getElementById('printLedgerBtn').addEventListener('click', () => { showView('ledger'); setTimeout(() => window.print(), 50); });
+    document.getElementById('printLedgerBtn').addEventListener('click', () => {
+      window.IHCSoa.open({
+        apiBase: 'http://localhost/ihc-system',
+        modalId: 'soaModal',
+        documentId: 'soaDocument',
+        contractId: session.contractId,
+        onError: (err) => console.error('Client SOA generation failed:', err)
+      });
+    });
+    const clientSoaModal = document.getElementById('soaModal');
+    document.getElementById('closeSoaModal')?.addEventListener('click', () => clientSoaModal.classList.remove('visible'));
+    document.getElementById('doPrintSoa')?.addEventListener('click', () => window.print());
+    clientSoaModal?.addEventListener('click', (event) => {
+      if (event.target === clientSoaModal) clientSoaModal.classList.remove('visible');
+    });
 
     /* ==========================================
        RENDER: PROPERTY & PAYMENT INFORMATION §9 + Unified History §8
@@ -1099,6 +1120,17 @@
         </section>
 
       </div>
+    </div>
+  </div>
+
+  <!-- SHARED STATEMENT OF ACCOUNT -->
+  <div class="modal-overlay" id="soaModal">
+    <div class="soa-modal">
+      <div class="soa-toolbar">
+        <button class="btn-close-soa" id="closeSoaModal">Close</button>
+        <button class="btn-do-print" id="doPrintSoa">Print SOA</button>
+      </div>
+      <div class="soa-document" id="soaDocument"></div>
     </div>
   </div>
 

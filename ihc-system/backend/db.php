@@ -31,7 +31,22 @@ try {
     $clientName = trim((string)($client['fullName'] ?? ''));
     $email = trim((string)($client['email'] ?? ''));
     $phone = trim((string)($client['phone'] ?? ''));
+    $clientAddress = trim((string)($client['address'] ?? ''));
     $propertyAddress = trim((string)($contract['propertyAddress'] ?? ''));
+    $projectName = trim((string)($contract['projectName'] ?? ''));
+    $projectPhase = trim((string)($contract['phase'] ?? ''));
+    $blockNo = trim((string)($contract['blockNo'] ?? ''));
+    $lotNo = trim((string)($contract['lotNo'] ?? ''));
+    $modelType = trim((string)($contract['modelType'] ?? ''));
+    $lotArea = trim((string)($contract['lotArea'] ?? ''));
+    $floorArea = trim((string)($contract['floorArea'] ?? ''));
+    $discountAmount = $contract['discountAmount'] ?? 0;
+    $loanableAmount = $contract['loanableAmount'] ?? null;
+    $approvedLoanAmount = $contract['approvedLoanAmount'] ?? null;
+    $earlyMoveInAmount = $contract['earlyMoveInAmount'] ?? 0;
+    $equityMonthlyRate = $contract['equityMonthlyRate'] ?? 0;
+    $equityPenaltyRate = $contract['equityPenaltyRate'] ?? null;
+    $loanTermYears = $contract['loanTermYears'] ?? null;
     $totalPrice = $contract['totalPrice'] ?? null;
     $downpayment = $contract['downpayment'] ?? null;
     $terms = $contract['terms'] ?? null;
@@ -48,6 +63,38 @@ try {
     if (!is_numeric($downpayment) || (float)$downpayment < 0) throw new RuntimeException('Invalid downpayment.');
     if ((float)$downpayment > (float)$totalPrice) throw new RuntimeException('Downpayment cannot exceed the total contract price.');
     if (!ctype_digit((string)$terms) || (int)$terms < 1) throw new RuntimeException('Installment terms must be a positive whole number.');
+
+    if ($discountAmount === '' || $discountAmount === null) $discountAmount = 0;
+    if (!is_numeric($discountAmount) || (float)$discountAmount < 0 || (float)$discountAmount > (float)$totalPrice) {
+        throw new RuntimeException('Discount must be between zero and the total contract price.');
+    }
+    $discountAmount = round((float)$discountAmount, 2);
+    $normalizeOptionalAmount = static function ($value, float $maximum, string $label): ?float {
+        if ($value === null || $value === '') return null;
+        if (!is_numeric($value) || (float)$value < 0 || (float)$value > $maximum) {
+            throw new RuntimeException($label . ' is outside the valid amount range.');
+        }
+        return round((float)$value, 2);
+    };
+    $loanableAmount = $normalizeOptionalAmount($loanableAmount, (float)$totalPrice, 'Loanable amount');
+    $approvedLoanAmount = $normalizeOptionalAmount($approvedLoanAmount, (float)$totalPrice, 'Approved loan amount');
+    $earlyMoveInAmount = $normalizeOptionalAmount($earlyMoveInAmount, (float)$totalPrice, 'Early move-in amount') ?? 0.0;
+    $equityMonthlyRate = $normalizeOptionalAmount($equityMonthlyRate, 100, 'Equity monthly interest rate') ?? 0.0;
+    $equityPenaltyRate = $normalizeOptionalAmount($equityPenaltyRate, 100, 'Equity penalty rate');
+    $loanTermYears = $normalizeOptionalAmount($loanTermYears, 120, 'Loan term in years');
+    foreach ([
+        'Client address' => [$clientAddress, 500],
+        'Project name' => [$projectName, 255],
+        'Project phase' => [$projectPhase, 120],
+        'Block number' => [$blockNo, 50],
+        'Lot number' => [$lotNo, 50],
+        'Model type' => [$modelType, 120],
+        'Lot area' => [$lotArea, 100],
+        'Floor area' => [$floorArea, 100],
+    ] as $label => [$value, $maxLength]) {
+        if (mb_strlen($value) > $maxLength) throw new RuntimeException($label . ' is too long.');
+    }
+
     $date = DateTime::createFromFormat('!Y-m-d', $startDate);
     if (!$date || $date->format('Y-m-d') !== $startDate) throw new RuntimeException('Invalid start date.');
 
@@ -93,6 +140,26 @@ try {
     if (!isset($columns['dp_terms'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN dp_terms INT NULL');
     if (!isset($columns['bank_name'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN bank_name VARCHAR(120) NULL');
     if (!isset($columns['annual_interest_rate'])) $pdo->exec('ALTER TABLE contracts ADD COLUMN annual_interest_rate DECIMAL(5,2) NULL');
+    $soaColumns = [
+        'discount_amount' => 'DECIMAL(15,2) NOT NULL DEFAULT 0',
+        'loanable_amount' => 'DECIMAL(15,2) NULL',
+        'approved_loan_amount' => 'DECIMAL(15,2) NULL',
+        'early_move_in_amount' => 'DECIMAL(15,2) NULL',
+        'project_name' => 'VARCHAR(255) NULL',
+        'project_phase' => 'VARCHAR(120) NULL',
+        'block_no' => 'VARCHAR(50) NULL',
+        'lot_no' => 'VARCHAR(50) NULL',
+        'model_type' => 'VARCHAR(120) NULL',
+        'lot_area' => 'VARCHAR(100) NULL',
+        'floor_area' => 'VARCHAR(100) NULL',
+        'client_address' => 'VARCHAR(500) NULL',
+        'equity_monthly_rate' => 'DECIMAL(7,4) NULL',
+        'equity_penalty_rate' => 'DECIMAL(7,4) NULL',
+        'loan_term_years' => 'DECIMAL(8,2) NULL',
+    ];
+    foreach ($soaColumns as $column => $definition) {
+        if (!isset($columns[$column])) $pdo->exec('ALTER TABLE contracts ADD COLUMN `' . $column . '` ' . $definition);
+    }
 
     // Client portal login accounts (one row per email, so a repeat buyer's
     // credentials are updated instead of duplicated). Passwords are stored as
@@ -115,14 +182,37 @@ try {
     // Contract and login account are written together: either both save or neither.
     $pdo->beginTransaction();
     try {
-        $sql = 'INSERT INTO contracts (client_name,email,cellphone_number,property_address,total_contract_price,downpayment,installment_terms,start_date,officer_id,dp_mode,dp_terms,bank_name,annual_interest_rate)
-                VALUES (:client_name,:email,:cellphone_number,:property_address,:total_contract_price,:downpayment,:installment_terms,:start_date,:officer_id,:dp_mode,:dp_terms,:bank_name,:annual_interest_rate)';
+        $sql = 'INSERT INTO contracts
+                    (client_name,email,cellphone_number,property_address,total_contract_price,downpayment,
+                     installment_terms,start_date,officer_id,dp_mode,dp_terms,bank_name,annual_interest_rate,
+                     discount_amount,loanable_amount,approved_loan_amount,early_move_in_amount,
+                     project_name,project_phase,block_no,lot_no,model_type,lot_area,floor_area,client_address,
+                     equity_monthly_rate,equity_penalty_rate,loan_term_years)
+                VALUES
+                    (:client_name,:email,:cellphone_number,:property_address,:total_contract_price,:downpayment,
+                     :installment_terms,:start_date,:officer_id,:dp_mode,:dp_terms,:bank_name,:annual_interest_rate,
+                     :discount_amount,:loanable_amount,:approved_loan_amount,:early_move_in_amount,
+                     :project_name,:project_phase,:block_no,:lot_no,:model_type,:lot_area,:floor_area,:client_address,
+                     :equity_monthly_rate,:equity_penalty_rate,:loan_term_years)';
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':client_name'=>$clientName, ':email'=>$email, ':cellphone_number'=>$phone, ':property_address'=>$propertyAddress,
             ':total_contract_price'=>(float)$totalPrice, ':downpayment'=>(float)$downpayment, ':installment_terms'=>(int)$terms,
             ':start_date'=>$startDate, ':officer_id'=>$officerId !== '' ? $officerId : null,
-            ':dp_mode'=>$dpMode, ':dp_terms'=>$dpTerms, ':bank_name'=>$bank, ':annual_interest_rate'=>$annualRate
+            ':dp_mode'=>$dpMode, ':dp_terms'=>$dpTerms, ':bank_name'=>$bank, ':annual_interest_rate'=>$annualRate,
+            ':discount_amount'=>$discountAmount, ':loanable_amount'=>$loanableAmount,
+            ':approved_loan_amount'=>$approvedLoanAmount, ':early_move_in_amount'=>$earlyMoveInAmount,
+            ':project_name'=>$projectName !== '' ? $projectName : null,
+            ':project_phase'=>$projectPhase !== '' ? $projectPhase : null,
+            ':block_no'=>$blockNo !== '' ? $blockNo : null,
+            ':lot_no'=>$lotNo !== '' ? $lotNo : null,
+            ':model_type'=>$modelType !== '' ? $modelType : null,
+            ':lot_area'=>$lotArea !== '' ? $lotArea : null,
+            ':floor_area'=>$floorArea !== '' ? $floorArea : null,
+            ':client_address'=>$clientAddress !== '' ? $clientAddress : null,
+            ':equity_monthly_rate'=>$equityMonthlyRate,
+            ':equity_penalty_rate'=>$equityPenaltyRate,
+            ':loan_term_years'=>$loanTermYears,
         ]);
 
         $contractId = (int)$pdo->lastInsertId();
@@ -193,7 +283,10 @@ try {
         'dpMode'=>$dpMode,
         'dpTerms'=>$dpTerms,
         'bank'=>$bank,
-        'annualRate'=>$annualRate
+        'annualRate'=>$annualRate,
+        'discountAmount'=>$discountAmount,
+        'loanableAmount'=>$loanableAmount,
+        'approvedLoanAmount'=>$approvedLoanAmount
     ]);
 } catch (Throwable $e) {
     http_response_code(400);

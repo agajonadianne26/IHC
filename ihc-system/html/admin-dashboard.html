@@ -1205,6 +1205,7 @@
       @page { margin: 15mm; }
     }
   </style>
+  <link rel="stylesheet" href="../css/soa.css?v=1">
 </head>
 <body>
 
@@ -1418,6 +1419,45 @@
           <div style="padding:0 24px 18px; display:flex; gap:10px;">
             <button class="btn-primary" id="saveRulesBtn" type="button">Save Rules</button>
             <span id="brStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
+          </div>
+        </section>
+
+        <!-- SOA SETTINGS + ADDITIONAL CHARGES -->
+        <section class="table-section" style="margin-bottom:24px;">
+          <div class="table-header">
+            <div class="table-header-left">
+              <h2>SOA Settings &amp; Additional Charges</h2>
+              <p>Configurable company details, important notes, signatory, rates, fees and other receivables</p>
+            </div>
+          </div>
+          <div style="padding:18px 24px; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
+            <label style="font-size:11px;font-weight:700;">Company Name<input id="soaCompanyName" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="font-size:11px;font-weight:700;">Company Address<input id="soaCompanyAddress" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="font-size:11px;font-weight:700;">Company Contact<input id="soaCompanyContact" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="font-size:11px;font-weight:700;">Penalty Rate (% / month)<input id="soaPenaltyRate" type="number" min="0" max="100" step="0.01" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="font-size:11px;font-weight:700;">SOA Validity (days)<input id="soaValidityDays" type="number" min="0" max="365" step="1" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="font-size:11px;font-weight:700;">Logo Path<input id="soaLogoPath" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="grid-column:1 / -1;font-size:11px;font-weight:700;">Important Notes<textarea id="soaImportantNotes" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:9px 10px;margin-top:6px;font:inherit;resize:vertical;"></textarea></label>
+            <label style="font-size:11px;font-weight:700;">Noted By Name<input id="soaNotedName" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="font-size:11px;font-weight:700;">Noted By Position<input id="soaNotedPosition" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            <label style="font-size:11px;font-weight:700;">Noted By Contact<input id="soaNotedContact" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+          </div>
+          <div style="padding:0 24px 18px;display:flex;gap:10px;align-items:center;">
+            <button class="btn-primary" id="saveSoaSettingsBtn" type="button">Save SOA Settings</button>
+            <span id="soaSettingsStatus" style="font-size:11px;color:var(--text-muted);"></span>
+          </div>
+          <div style="border-top:1px solid var(--border);padding:16px 24px;">
+            <h3 style="font-size:12px;margin-bottom:10px;">Add Additional Charge</h3>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">
+              <label style="font-size:11px;font-weight:700;">Contract<select id="soaChargeContract" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 9px;margin-top:6px;"></select></label>
+              <label style="font-size:11px;font-weight:700;">Charge Type<select id="soaChargeType" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 9px;margin-top:6px;"><option>Move-in</option><option>SRI</option><option>DOC. Stamp</option><option>FIRE</option><option>Interim SRI</option><option>PMD / Utilities / Construction Bond</option><option>Other</option></select></label>
+              <label style="font-size:11px;font-weight:700;">Amount<input id="soaChargeAmount" type="number" min="0.01" step="0.01" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Charge Date<input id="soaChargeDate" type="date" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 9px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Due Date<input id="soaChargeDueDate" type="date" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 9px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">OR / Reference (optional)<input id="soaChargeOr" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="grid-column:span 2;font-size:11px;font-weight:700;">Description<input id="soaChargeDescription" type="text" placeholder="Optional charge description" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;margin-top:12px;"><button class="btn-primary" id="saveSoaChargeBtn" type="button">Save Charge</button><span id="soaChargeStatus" style="font-size:11px;color:var(--text-muted);"></span></div>
           </div>
         </section>
 
@@ -1668,6 +1708,7 @@
   <!-- ============================================
        JAVASCRIPT
   ============================================= -->
+  <script src="../js/soa.js?v=1"></script>
   <script>
   'use strict';
 
@@ -1928,6 +1969,7 @@
       }
 
       tableBody.innerHTML = data.map((row, i) => {
+        const globalIdx = contracts.indexOf(row);
         const statusLabel = getStatusLabel(row);
         const notifLabel = getNotifLabel(row.notification);
         const dayDiff = daysDiff(row.dueDate, TODAY);
@@ -1956,10 +1998,10 @@
             <td class="clerk-cell">${row.clerk}</td>
             <td>
               <div class="action-btns">
-                <button class="btn-print" onclick="printSOA(${i})" title="Print Statement of Account">
+                <button class="btn-print" onclick="printSOA(${globalIdx})" title="Print Statement of Account">
                   Print SOA
                 </button>
-                <button class="btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${i})" title="Send/Resend Payment Reminder">
+                <button class="btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${globalIdx})" title="Send/Resend Payment Reminder">
                   Remind
                 </button>
               </div>
@@ -2058,72 +2100,19 @@
 
     window.printSOA = (index) => {
       const row = contracts[index];
-      const dueDateFormatted = formatDate(row.dueDate);
-      const statusLabel = getStatusLabel(row);
-
-      soaDocument.innerHTML = `
-        <div class="soa-doc-header">
-          <div class="soa-brand">
-            <img src="../img/ihc logo.png" alt="IHC">
-            <strong>Imperial Homes Corporation</strong>
-            <small>Imperial Homes Corporation &bull; Billing & Accounts Receivable</small>
-          </div>
-          <div class="soa-doc-title">
-            <h3>Statement of Account</h3>
-            <p>SOA-${row.id} &bull; Generated ${formatDate(TODAY)}</p>
-          </div>
-        </div>
-
-        <div class="soa-info-grid">
-          <div class="soa-info-group">
-            <label>Client Name</label>
-            <span>${row.client}</span>
-          </div>
-          <div class="soa-info-group">
-            <label>Contract / IHC Ref</label>
-            <span>${row.id}</span>
-          </div>
-          <div class="soa-info-group">
-            <label>Property</label>
-            <span>${row.property}</span>
-          </div>
-          <div class="soa-info-group">
-            <label>Assigned Clerk</label>
-            <span>${row.clerk}</span>
-          </div>
-        </div>
-
-        <table class="soa-table">
-          <thead>
-            <tr>
-              <th>Payment Type</th>
-              <th>Due Date</th>
-              <th>Amount Due</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>${row.paymentType}</td>
-              <td>${dueDateFormatted}</td>
-              <td style="font-weight:700;">${formatPHP(row.amount)}</td>
-              <td>${statusLabel}</td>
-            </tr>
-            <tr class="total-row">
-              <td colspan="2" style="text-align:right;">TOTAL DUE</td>
-              <td style="font-weight:800;">${formatPHP(row.outstanding != null ? row.outstanding : row.amount)}</td>
-              <td></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="soa-footer-note">
-          This is a system-generated Statement of Account from Imperial Homes Corporation.<br>
-          For concerns, contact Imperial Homes Corporation Billing Department.
-        </div>
-      `;
-
-      soaModal.classList.add('visible');
+      if (!row) {
+        showToast('Contract row not found.', 'info');
+        return;
+      }
+      window.IHCSoa.open({
+        apiBase: API_BASE,
+        modalId: 'soaModal',
+        documentId: 'soaDocument',
+        contractId: row.contractId || row.id,
+        actorId: currentUser.officerId || '',
+        actorEmail: currentUser.email || '',
+        onError: (err) => showToast(err.message || 'Could not generate the SOA.', 'info')
+      });
     };
 
     document.getElementById('closeSoaModal').addEventListener('click', () => {
@@ -2371,6 +2360,7 @@
         registerContracts = data.contracts || [];
         notificationsData = data.notifications || [];
         adminKpis = data.kpis || null;
+        refreshSoaChargeContracts();
 
         updateKPIs();
         applyCashFlow(data.cashFlow);
@@ -2491,6 +2481,107 @@
         setTimeout(()=> document.getElementById('brBankStatus').textContent='', 3000);
       }catch(e){ document.getElementById('brBankStatus').textContent='Error: '+e.message; }
     });
+    // SOA settings and additional charges — shared with Clerk/Admin SOA output.
+    function refreshSoaChargeContracts() {
+      const select = document.getElementById('soaChargeContract');
+      if (!select) return;
+      const previous = select.value;
+      select.innerHTML = '';
+      contracts.forEach((row) => {
+        const option = document.createElement('option');
+        option.value = row.contractId || row.id;
+        option.textContent = row.id + ' — ' + row.client;
+        select.appendChild(option);
+      });
+      if (previous && contracts.some((row) => String(row.contractId || row.id) === previous)) {
+        select.value = previous;
+      }
+      const dateInput = document.getElementById('soaChargeDate');
+      if (dateInput && !dateInput.value) {
+        const today = new Date();
+        dateInput.value = [today.getFullYear(), String(today.getMonth()+1).padStart(2,'0'), String(today.getDate()).padStart(2,'0')].join('-');
+      }
+    }
+
+    async function loadSoaSettings(){
+      const status = document.getElementById('soaSettingsStatus');
+      try{
+        const res = await fetch(API_BASE + '/php/api_soa.php?action=settings');
+        const data = await res.json();
+        if(!data.success) return;
+        const s = data.settings || {};
+        document.getElementById('soaCompanyName').value = s.company_name || 'Imperial Homes';
+        document.getElementById('soaCompanyAddress').value = s.company_address || '';
+        document.getElementById('soaCompanyContact').value = s.company_contact || '';
+        document.getElementById('soaPenaltyRate').value = Number(s.penalty_rate_percent || 0).toFixed(2);
+        document.getElementById('soaValidityDays').value = s.validity_days == null ? 7 : s.validity_days;
+        document.getElementById('soaLogoPath').value = s.logo_path || 'img/ihc logo.png';
+        document.getElementById('soaImportantNotes').value = s.important_notes || '';
+        document.getElementById('soaNotedName').value = s.noted_by_name || '';
+        document.getElementById('soaNotedPosition').value = s.noted_by_position || '';
+        document.getElementById('soaNotedContact').value = s.noted_by_contact || '';
+        if(status) status.textContent = '';
+      }catch(e){ if(status) status.textContent = 'Could not load SOA settings.'; }
+    }
+    loadSoaSettings();
+
+    document.getElementById('saveSoaSettingsBtn')?.addEventListener('click', async ()=>{
+      const status = document.getElementById('soaSettingsStatus');
+      if(status) status.textContent = 'Saving…';
+      const payload = {
+        companyName: document.getElementById('soaCompanyName').value,
+        companyAddress: document.getElementById('soaCompanyAddress').value,
+        companyContact: document.getElementById('soaCompanyContact').value,
+        logoPath: document.getElementById('soaLogoPath').value,
+        penaltyRate: document.getElementById('soaPenaltyRate').value,
+        validityDays: document.getElementById('soaValidityDays').value,
+        importantNotes: document.getElementById('soaImportantNotes').value,
+        notedByName: document.getElementById('soaNotedName').value,
+        notedByPosition: document.getElementById('soaNotedPosition').value,
+        notedByContact: document.getElementById('soaNotedContact').value,
+        updatedBy: currentUser.officerId || currentUser.email || ''
+      };
+      try{
+        const res = await fetch(API_BASE + '/php/api_soa.php?action=settings_update', {
+          method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(!res.ok || !data.success) throw new Error(data.message || 'Save failed');
+        if(status) status.textContent = 'Saved.';
+        showToast('SOA settings updated. New statements use these values immediately.','success');
+        setTimeout(()=>{ if(status) status.textContent=''; },3000);
+      }catch(e){ if(status) status.textContent = e.message; showToast(e.message,'info'); }
+    });
+
+    document.getElementById('saveSoaChargeBtn')?.addEventListener('click', async ()=>{
+      const status = document.getElementById('soaChargeStatus');
+      const payload = {
+        contractId: document.getElementById('soaChargeContract').value,
+        chargeType: document.getElementById('soaChargeType').value,
+        description: document.getElementById('soaChargeDescription').value,
+        amount: document.getElementById('soaChargeAmount').value,
+        chargeDate: document.getElementById('soaChargeDate').value,
+        dueDate: document.getElementById('soaChargeDueDate').value,
+        status: 'PENDING',
+        orNumber: document.getElementById('soaChargeOr').value,
+        createdBy: currentUser.officerId || currentUser.email || ''
+      };
+      if(status) status.textContent = 'Saving…';
+      try{
+        const res = await fetch(API_BASE + '/php/api_soa.php?action=charge_save', {
+          method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(!res.ok || !data.success) throw new Error(data.message || 'Save failed');
+        document.getElementById('soaChargeAmount').value = '';
+        document.getElementById('soaChargeDescription').value = '';
+        document.getElementById('soaChargeOr').value = '';
+        if(status) status.textContent = 'Saved.';
+        showToast('Additional charge saved and linked to the contract.','success');
+        setTimeout(()=>{ if(status) status.textContent=''; },3000);
+      }catch(e){ if(status) status.textContent = e.message; showToast(e.message,'info'); }
+    });
+
     // Unit lookup §13
     let lastLookedUpUnit = null;
     document.getElementById('lookupUnitBtn')?.addEventListener('click', async ()=>{

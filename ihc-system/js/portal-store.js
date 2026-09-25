@@ -135,8 +135,10 @@
      (0% interest, optional) followed by the house amortization with the
      chosen bank's annual interest applied to the financing amount. */
   function buildSchedules(client) {
-    const totalPrice = Number(client.totalPrice) || 0;
-    const downpayment = Number(client.downpayment) || 0;
+    const grossPrice = Number(client.totalPrice) || 0;
+    const discount = Math.min(grossPrice, Math.max(0, Number(client.discountAmount) || 0));
+    const totalPrice = Math.max(0, grossPrice - discount);
+    const downpayment = Math.min(totalPrice, Math.max(0, Number(client.downpayment) || 0));
     const financing = Math.max(0, totalPrice - downpayment);
     const terms = Number(client.terms) || 0;
     const dpMode = client.dpMode === 'monthly' ? 'monthly' : 'lump';

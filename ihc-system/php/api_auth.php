@@ -87,9 +87,9 @@ try {
             'email' => (string)$staff['email'],
             'avatar' => initialsOf($name, (string)$staff['email']),
         ];
-        if ($role === 'clerk') {
-            $user['officerId'] = (int)$staff['id']; // matches contracts.officer_id '2'
-        }
+        // Both roles originate from officers; keep the staff identity available
+        // for prepared-by fields such as the database-driven SOA.
+        $user['officerId'] = (int)$staff['id'];
         echo json_encode(['success' => true, 'user' => $user]);
         exit;
     }

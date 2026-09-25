@@ -13,6 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+require_once __DIR__ . '/installment-schedule.php';
+require_once __DIR__ . '/payment-or-number.php';
+require_once __DIR__ . '/soa-builder.php';
+
 try {
     $pdo = new PDO(
         'mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4',
@@ -24,17 +28,24 @@ try {
     $data = json_decode(file_get_contents('php://input') ?: '', true);
     if (!is_array($data)) throw new RuntimeException('Invalid JSON request.');
 
-    $contractId    = trim((string)($data['contractId'] ?? ''));
-    $method        = trim((string)($data['method'] ?? ''));
-    $dateCollected = trim((string)($data['dateCollected'] ?? ''));
-    $orNumber      = trim((string)($data['orNumber'] ?? ''));
-    $remarks       = trim((string)($data['remarks'] ?? ''));
-    $amount        = $data['amount'] ?? null;
-    $postedBy      = trim((string)($data['postedBy'] ?? ''));
+    $contractId        = trim((string)($data['contractId'] ?? ''));
+    $method            = trim((string)($data['method'] ?? ''));
+    $dateCollected     = trim((string)($data['dateCollected'] ?? ''));
+    $remarks           = trim((string)($data['remarks'] ?? ''));
+    $checkNumber       = trim((string)($data['checkNumber'] ?? ''));
+    $amount            = $data['amount'] ?? null;
+    $postedBy          = trim((string)($data['postedBy'] ?? ''));
+    $requestedKind     = strtolower(trim((string)($data['paymentKind'] ?? '')));
+    $expectedNoRaw     = $data['expectedInstallmentNo'] ?? null;
+    $expectedInstallmentNo = ($expectedNoRaw === null || $expectedNoRaw === '') ? null : (int)$expectedNoRaw;
+    if ($requestedKind === 'installment payment') $requestedKind = 'installment';
+    if ($requestedKind !== '' && !in_array($requestedKind, ['downpayment', 'installment'], true)) {
+        throw new RuntimeException('Invalid payment type.');
+    }
 
     if ($contractId === '') throw new RuntimeException('Missing contract reference.');
     if ($method === '') throw new RuntimeException('Payment method is required.');
-    if ($orNumber === '') throw new RuntimeException('OR / Reference number is required.');
+    if (mb_strlen($checkNumber) > 100) throw new RuntimeException('Check number must be 100 characters or fewer.');
     if ($amount === null || $amount === '' || !is_numeric($amount) || (float)$amount <= 0) {
         throw new RuntimeException('Invalid payment amount.');
     }
@@ -44,34 +55,147 @@ try {
         throw new RuntimeException('Invalid date collected.');
     }
 
-    // Kunin ang numeric id mula sa "CON-7" para ma-verify sa contracts table
+    // Kunin ang numeric id mula sa "CON-7" para ma-verify sa contracts table.
     $numericId = null;
     if (preg_match('/(\d+)\s*$/', $contractId, $m)) {
         $numericId = (int)$m[1];
     }
+    if ($numericId === null) {
+        throw new RuntimeException('Contract not found in database.');
+    }
 
-    $check = $pdo->prepare('SELECT id, client_name, email FROM contracts WHERE id = ?');
-    $check->execute([$numericId]);
-    $contract = $check->fetch();
-    if (!$contract) throw new RuntimeException('Contract not found in database.');
+    ihc_ensure_payment_or_counters($pdo);
+    soa_ensure_schema($pdo);
+    $pdo->beginTransaction();
 
-    // I-save ang payment sa payments table
-    $sql = 'INSERT INTO payments (contract_id, amount, payment_method, date_collected, or_number, remarks, posted_by)
-            VALUES (:contract_id, :amount, :payment_method, :date_collected, :or_number, :remarks, :posted_by)';
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ':contract_id'    => $contractId,
-        ':amount'         => (float)$amount,
-        ':payment_method' => $method,
-        ':date_collected' => $dateCollected,
-        ':or_number'      => $orNumber,
-        ':remarks'        => $remarks !== '' ? $remarks : null,
-        ':posted_by'      => $postedBy !== '' ? $postedBy : null,
-    ]);
+    try {
+        // Lock the contract while classifying the payment and allocating its OR.
+        $check = $pdo->prepare('SELECT * FROM contracts WHERE id = ? FOR UPDATE');
+        $check->execute([$numericId]);
+        $contract = $check->fetch();
+        if (!$contract) throw new RuntimeException('Contract not found in database.');
 
-    $paymentId = (int)$pdo->lastInsertId();
+        // Use the same schedule allocator as every dashboard so the server, not
+        // the browser, decides whether this transaction covers a downpayment or
+        // an installment. Prefix legacy CON-7 / IHC-14 IDs in PHP as elsewhere.
+        $existingPayments = [];
+        $paymentRows = $pdo->query(
+            'SELECT contract_id, amount, date_collected, or_number, payment_method
+             FROM payments ORDER BY date_collected, id'
+        );
+        foreach ($paymentRows as $payment) {
+            if (!preg_match('/(\d+)\s*$/', (string)$payment['contract_id'], $paymentMatch)) continue;
+            if ((int)$paymentMatch[1] !== $numericId) continue;
+            $existingPayments[] = [
+                'amount' => (float)$payment['amount'],
+                'date' => (string)$payment['date_collected'],
+                'orNumber' => $payment['or_number'] !== null ? (string)$payment['or_number'] : null,
+                'method' => $payment['payment_method'] !== null ? (string)$payment['payment_method'] : null,
+            ];
+        }
 
-    // Audit trail §17 — every payment insertion is logged (best-effort, never blocks ledger)
+        $schedule = ihc_schedule($contract, $existingPayments);
+        if ($schedule['next'] === null) {
+            throw new RuntimeException('This contract is already settled in full.');
+        }
+        $paymentKind = (string)$schedule['next']['kind'];
+        if ($requestedKind !== '' && $requestedKind !== $paymentKind) {
+            throw new RuntimeException('This payment queue changed. Refresh the dashboard before posting again.');
+        }
+        $currentInstallmentNo = $schedule['next']['no'] !== null ? (int)$schedule['next']['no'] : null;
+        if ($expectedInstallmentNo !== null && $expectedInstallmentNo !== $currentInstallmentNo) {
+            throw new RuntimeException('This installment was already paid by another transaction. Refresh the dashboard before posting again.');
+        }
+
+        $orNumber = ihc_allocate_payment_or_number($pdo, $paymentKind, (int)$date->format('Y'));
+
+        // Preserve the exact payment-to-installment allocation. A single cash
+        // transaction may cover several schedule rows, while any amount left
+        // after the net contract price is recorded as additional equity.
+        $remainingPayment = round((float)$amount, 2);
+        $allocations = [];
+        foreach ($schedule['installments'] as $installment) {
+            if ($remainingPayment <= 0.009) break;
+            $unpaid = max(0.0, (float)$installment['amount'] - (float)$installment['paidAmount']);
+            if ($unpaid <= 0.009) continue;
+            $allocated = round(min($remainingPayment, $unpaid), 2);
+            $remainingPayment = round($remainingPayment - $allocated, 2);
+            $allocations[] = [
+                'kind' => (string)$installment['kind'],
+                'no' => $installment['no'] !== null ? (int)$installment['no'] : null,
+                'amount' => $allocated,
+            ];
+        }
+
+        $primaryAllocation = $allocations[0] ?? [
+            'kind' => $paymentKind,
+            'no' => $schedule['next']['no'],
+            'amount' => round((float)$amount, 2),
+        ];
+        $sql = 'INSERT INTO payments
+                    (contract_id, amount, payment_method, date_collected, or_number,
+                     remarks, posted_by, check_number, invoice_number, installment_kind, installment_no)
+                VALUES
+                    (:contract_id, :amount, :payment_method, :date_collected, :or_number,
+                     :remarks, :posted_by, :check_number, :invoice_number, :installment_kind, :installment_no)';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':contract_id'      => $contractId,
+            ':amount'           => (float)$amount,
+            ':payment_method'   => $method,
+            ':date_collected'   => $dateCollected,
+            ':or_number'        => $orNumber,
+            ':remarks'          => $remarks !== '' ? $remarks : null,
+            ':posted_by'        => $postedBy !== '' ? $postedBy : null,
+            ':check_number'     => $checkNumber !== '' ? $checkNumber : null,
+            ':invoice_number'   => $orNumber,
+            ':installment_kind' => (string)$primaryAllocation['kind'],
+            ':installment_no'   => $primaryAllocation['no'],
+        ]);
+
+        $paymentId = (int)$pdo->lastInsertId();
+        $allocationStmt = $pdo->prepare(
+            'INSERT INTO payment_allocations
+                (payment_id, contract_id, installment_kind, installment_no,
+                 allocated_amount, principal_amount, interest_amount, penalty_amount)
+             VALUES (?,?,?,?,?,?,0,0)'
+        );
+        foreach ($allocations as $allocation) {
+            $allocationStmt->execute([
+                $paymentId,
+                $numericId,
+                $allocation['kind'],
+                $allocation['no'],
+                $allocation['amount'],
+                $allocation['amount'],
+            ]);
+        }
+        if ($remainingPayment > 0.009) {
+            $pdo->prepare(
+                'INSERT INTO additional_equity_payments
+                    (contract_id, payment_id, due_date, amount_due, amount_paid,
+                     payment_date, or_number, status, remarks, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)'
+            )->execute([
+                $numericId,
+                $paymentId,
+                $dateCollected,
+                $remainingPayment,
+                $remainingPayment,
+                $dateCollected,
+                $orNumber,
+                'PAID',
+                $remarks !== '' ? $remarks : 'Additional equity overpayment',
+                $postedBy !== '' ? $postedBy : null,
+            ]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+
+    // Audit trail §17 — every payment insertion is logged (best-effort, never blocks ledger).
     try{
         $pdo->exec("CREATE TABLE IF NOT EXISTS audit_logs (
           id INT AUTO_INCREMENT PRIMARY KEY, action VARCHAR(80) NOT NULL, contract_id INT NULL, holding_fee_id INT NULL, reservation_fee_id INT NULL,
@@ -84,10 +208,21 @@ try {
             $oSt=$pdo->prepare('SELECT full_name FROM officers WHERE id=? LIMIT 1');
             $oSt->execute([$postedBy]); $oRow=$oSt->fetch(); $actorName=$oRow ? $oRow['full_name'] : null;
         }
-        $auditDetails=json_encode(['contractId'=>$contractId,'amount'=>(float)$amount,'method'=>$method,'orNumber'=>$orNumber,'dateCollected'=>$dateCollected,'paymentId'=>$paymentId], JSON_UNESCAPED_UNICODE);
+        $auditDetails=json_encode([
+            'contractId'=>$contractId,
+            'amount'=>(float)$amount,
+            'method'=>$method,
+            'orNumber'=>$orNumber,
+            'paymentKind'=>$paymentKind,
+            'checkNumber'=>$checkNumber !== '' ? $checkNumber : null,
+            'allocations'=>$allocations,
+            'additionalEquityAmount'=>round($remainingPayment, 2),
+            'dateCollected'=>$dateCollected,
+            'paymentId'=>$paymentId
+        ], JSON_UNESCAPED_UNICODE);
         $pdo->prepare('INSERT INTO audit_logs (action,contract_id,actor_id,actor_name,details) VALUES (?,?,?,?,?)')
             ->execute(['payment.created', $numericId, $postedBy ?: null, $actorName, $auditDetails]);
-        // If this payment corresponds to a property/unit, log unit context as well
+        // If this payment corresponds to a property/unit, log unit context as well.
         try{
             $cRow=$pdo->prepare('SELECT property_address FROM contracts WHERE id=?'); $cRow->execute([$numericId]); $pAddr=$cRow->fetchColumn();
             if($pAddr){ $uSt=$pdo->prepare('SELECT id FROM property_units WHERE display_label=? LIMIT 1'); $uSt->execute([trim((string)$pAddr)]); $uId=$uSt->fetchColumn(); if($uId) $pdo->prepare('UPDATE audit_logs SET property_unit_id=? WHERE id=LAST_INSERT_ID()')->execute([$uId]); }
@@ -119,16 +254,24 @@ try {
     $receiptResult = is_string($receiptResponse) ? json_decode($receiptResponse, true) : null;
     $receiptEmailSent = is_array($receiptResult) && !empty($receiptResult['success']);
 
+    $message = 'Payment posted successfully. OR / Reference No. ' . $orNumber . '.';
+    $message .= $receiptEmailSent
+        ? ' Receipt emailed to the client.'
+        : ' The receipt email could not be sent.';
+
     echo json_encode([
         'success' => true,
-        'message' => $receiptEmailSent
-            ? 'Payment successfully posted and receipt emailed to the client.'
-            : 'Payment successfully posted to the ledger. The receipt email could not be sent.',
-        'id'      => $paymentId,
+        'message' => $message,
+        'id' => $paymentId,
+        'orNumber' => $orNumber,
+        'paymentKind' => $paymentKind,
+        'allocations' => $allocations,
         'receiptEmailSent' => $receiptEmailSent
     ]);
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     http_response_code(400);
     echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
 }
-?>

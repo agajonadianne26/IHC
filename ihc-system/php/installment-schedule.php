@@ -44,8 +44,10 @@ function ihc_due_status(string $dueDate, string $today): string {
  * Returns [ ['kind'=>'downpayment'|'installment', 'no'=>null|int, 'dueDate'=>'Y-m-d', 'amount'=>float], ... ]
  */
 function ihc_build_installments(array $contract): array {
-    $tcp    = (float)($contract['total_contract_price'] ?? 0);
-    $dp     = (float)($contract['downpayment'] ?? 0);
+    $grossTcp = (float)($contract['total_contract_price'] ?? 0);
+    $discount = min($grossTcp, max(0.0, (float)($contract['discount_amount'] ?? 0)));
+    $tcp      = max(0.0, $grossTcp - $discount);
+    $dp       = min($tcp, max(0.0, (float)($contract['downpayment'] ?? 0)));
     $terms  = max(1, (int)($contract['installment_terms'] ?? 1));
     $start  = (string)($contract['start_date'] ?? '');
     if ($start === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) $start = date('Y-m-d');
@@ -67,8 +69,8 @@ function ihc_build_installments(array $contract): array {
  * uncovered installment is the contract's `next` payment; when every
  * installment is covered the contract is `settled`.
  *
- * $contract: a row from `contracts` (total_contract_price, downpayment,
- *            installment_terms, start_date).
+ * $contract: a row from `contracts` (total_contract_price, discount_amount,
+ *            downpayment, installment_terms, start_date).
  * $payments: chronological rows —
  *            ['amount'=>float, 'date'=>'Y-m-d', 'orNumber'=>?string, 'method'=>?string]
  * $today:    'Y-m-d'; defaults to the server date.
@@ -79,7 +81,7 @@ function ihc_build_installments(array $contract): array {
  *   'next'         => first uncovered installment (amount = balance still due)
  *                     or null when the contract is fully paid
  *   'paid'         => total posted payments for the contract
- *   'outstanding'  => contract price still uncollected
+ *   'outstanding'  => net contract price (TCP less discount) still uncollected
  *   'settled'      => bool
  */
 function ihc_schedule(array $contract, array $payments = [], ?string $today = null): array {
@@ -138,7 +140,9 @@ function ihc_schedule(array $contract, array $payments = [], ?string $today = nu
     }
     unset($inst);
 
-    $tcp = (float)($contract['total_contract_price'] ?? 0);
+    $grossTcp = (float)($contract['total_contract_price'] ?? 0);
+    $discount = min($grossTcp, max(0.0, (float)($contract['discount_amount'] ?? 0)));
+    $tcp = max(0.0, $grossTcp - $discount);
 
     return [
         'installments' => $installments,

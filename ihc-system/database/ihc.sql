@@ -65,7 +65,22 @@ CREATE TABLE `contracts` (
   `dp_mode` varchar(10) DEFAULT NULL,
   `dp_terms` int(11) DEFAULT NULL,
   `bank_name` varchar(120) DEFAULT NULL,
-  `annual_interest_rate` decimal(5,2) DEFAULT NULL
+  `annual_interest_rate` decimal(5,2) DEFAULT NULL,
+  `discount_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `loanable_amount` decimal(15,2) DEFAULT NULL,
+  `approved_loan_amount` decimal(15,2) DEFAULT NULL,
+  `early_move_in_amount` decimal(15,2) DEFAULT NULL,
+  `project_name` varchar(255) DEFAULT NULL,
+  `project_phase` varchar(120) DEFAULT NULL,
+  `block_no` varchar(50) DEFAULT NULL,
+  `lot_no` varchar(50) DEFAULT NULL,
+  `model_type` varchar(120) DEFAULT NULL,
+  `lot_area` varchar(100) DEFAULT NULL,
+  `floor_area` varchar(100) DEFAULT NULL,
+  `client_address` varchar(500) DEFAULT NULL,
+  `equity_monthly_rate` decimal(7,4) DEFAULT NULL,
+  `equity_penalty_rate` decimal(7,4) DEFAULT NULL,
+  `loan_term_years` decimal(8,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -164,6 +179,118 @@ INSERT INTO `officers` (`id`, `full_name`, `role`, `email`, `password_hash`) VAL
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `payment_or_counters`
+--
+
+CREATE TABLE `payment_or_counters` (
+  `series_code` varchar(3) NOT NULL,
+  `series_year` smallint(5) unsigned NOT NULL,
+  `last_number` bigint(20) unsigned NOT NULL DEFAULT 0,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `soa_settings`
+--
+
+CREATE TABLE `soa_settings` (
+  `id` tinyint(3) unsigned NOT NULL,
+  `company_name` varchar(255) NOT NULL DEFAULT 'Imperial Homes',
+  `company_address` varchar(500) DEFAULT NULL,
+  `company_contact` varchar(255) DEFAULT NULL,
+  `logo_path` varchar(500) DEFAULT NULL,
+  `penalty_rate_percent` decimal(7,4) NOT NULL DEFAULT 0.0000,
+  `important_notes` mediumtext DEFAULT NULL,
+  `noted_by_name` varchar(255) DEFAULT NULL,
+  `noted_by_position` varchar(255) DEFAULT NULL,
+  `noted_by_contact` varchar(255) DEFAULT NULL,
+  `validity_days` smallint(5) unsigned NOT NULL DEFAULT 7,
+  `updated_by` varchar(100) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `soa_settings` (`id`,`company_name`,`company_address`,`company_contact`,`logo_path`,`penalty_rate_percent`,`important_notes`,`noted_by_name`,`noted_by_position`,`noted_by_contact`,`validity_days`) VALUES (1,'Imperial Homes','Imperial Homes Corporation','Contact the IHC Billing Office for assistance.','img/ihc logo.png',0.0000,'Please settle this Statement of Account on or before the due date. All amounts are computed from the current IHC ledger. Penalties and interest, when applicable, follow the configured company rate and the payment status shown in this document.','Authorized IHC Representative','Billing Manager','IHC Billing Office',7);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `additional_charges`
+--
+
+CREATE TABLE `additional_charges` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `contract_id` int(11) NOT NULL,
+  `charge_type` varchar(100) NOT NULL,
+  `description` varchar(500) DEFAULT NULL,
+  `amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `amount_paid` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `charge_date` date NOT NULL,
+  `due_date` date DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'PENDING',
+  `or_number` varchar(100) DEFAULT NULL,
+  `remarks` text DEFAULT NULL,
+  `created_by` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_additional_charge_contract` (`contract_id`,`status`,`due_date`),
+  KEY `idx_additional_charge_type` (`charge_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `additional_equity_payments`
+--
+
+CREATE TABLE `additional_equity_payments` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `contract_id` int(11) NOT NULL,
+  `payment_id` int(11) DEFAULT NULL,
+  `installment_no` int(11) DEFAULT NULL,
+  `due_date` date DEFAULT NULL,
+  `amount_due` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `amount_paid` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `payment_date` date DEFAULT NULL,
+  `or_number` varchar(100) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'UNPAID',
+  `remarks` text DEFAULT NULL,
+  `created_by` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_additional_equity_contract` (`contract_id`,`status`,`due_date`),
+  KEY `idx_additional_equity_payment` (`payment_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `payment_allocations`
+--
+
+CREATE TABLE `payment_allocations` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `payment_id` int(11) NOT NULL,
+  `contract_id` int(11) NOT NULL,
+  `installment_kind` varchar(20) NOT NULL,
+  `installment_no` int(11) DEFAULT NULL,
+  `allocated_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `principal_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `interest_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `penalty_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_payment_allocation` (`payment_id`,`installment_kind`,`installment_no`),
+  KEY `idx_payment_alloc_contract` (`contract_id`),
+  KEY `idx_payment_alloc_schedule` (`contract_id`,`installment_kind`,`installment_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `payments`
 --
 
@@ -176,7 +303,11 @@ CREATE TABLE `payments` (
   `or_number` varchar(100) NOT NULL,
   `remarks` text DEFAULT NULL,
   `posted_by` varchar(100) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `check_number` varchar(100) DEFAULT NULL,
+  `invoice_number` varchar(100) DEFAULT NULL,
+  `installment_kind` varchar(20) DEFAULT NULL,
+  `installment_no` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -241,6 +372,12 @@ ALTER TABLE `notifications_logs`
 ALTER TABLE `officers`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uq_officers_email` (`email`);
+
+--
+-- Indexes for table `payment_or_counters`
+--
+ALTER TABLE `payment_or_counters`
+  ADD PRIMARY KEY (`series_code`,`series_year`);
 
 --
 -- Indexes for table `payments`

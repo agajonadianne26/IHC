@@ -145,6 +145,8 @@ try {
     foreach ($contractRows as $c) {
         $id = (int)$c['id'];
         $tcp = (float)$c['total_contract_price'];
+        $discount = min($tcp, max(0.0, (float)($c['discount_amount'] ?? 0)));
+        $netTcp = max(0.0, $tcp - $discount);
         $dp = (float)$c['downpayment'];
         $start = (string)$c['start_date'];
 
@@ -181,6 +183,8 @@ try {
             'clerk' => $clerk,
             'paid' => $paid,
             'tcp' => $tcp,
+            'discount' => $discount,
+            'netTcp' => $netTcp,
             // Whole-contract balance (the SOA "TOTAL DUE"), which is distinct
             // from 'amount' = what is due on the next installment.
             'outstanding' => $outstanding,
@@ -191,6 +195,8 @@ try {
             'client' => (string)$c['client_name'],
             'property' => $property,
             'tcp' => $tcp,
+            'discount' => $discount,
+            'netTcp' => $netTcp,
             'downpayment' => $dp,
             'paid' => $paid,
             'outstanding' => $outstanding,
@@ -199,7 +205,7 @@ try {
             'clerk' => $clerk,
         ];
 
-        $expected += $tcp;
+        $expected += $netTcp;
         $emailToName[strtolower((string)$c['email'])] = (string)$c['client_name'];
         $idToName[$id] = (string)$c['client_name'];
     }
