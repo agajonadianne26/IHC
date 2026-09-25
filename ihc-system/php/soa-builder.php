@@ -254,6 +254,61 @@ function soa_status(float $amountDue, float $amountPaid, string $dueDate, string
     return 'UNPAID';
 }
 
+/**
+ * Whitelisted, compact SOA payload for payment-notification email/SMS.
+ * Full schedule rows, allocations, signatures, and detailed sections stay in
+ * the dashboard document and are never copied into an email.
+ */
+function soa_build_email_summary(array $document): array
+{
+    $contract = is_array($document['contract'] ?? null) ? $document['contract'] : [];
+    $summary = is_array($document['summary'] ?? null) ? $document['summary'] : [];
+    $due = is_array($document['amountDue'] ?? null) ? $document['amountDue'] : [];
+    $client = is_array($document['client'] ?? null) ? $document['client'] : [];
+    $project = is_array($document['project'] ?? null) ? $document['project'] : [];
+    $company = is_array($document['company'] ?? null) ? $document['company'] : [];
+    $next = is_array($summary['nextPayment'] ?? null) ? $summary['nextPayment'] : null;
+    $asOf = (string)($document['asOfDate'] ?? date('Y-m-d'));
+    $nextDueDate = $next !== null ? (string)($next['dueDate'] ?? $asOf) : $asOf;
+
+    return [
+        'soaNumber' => (string)($document['soaNumber'] ?? ''),
+        'asOfDate' => $asOf,
+        'validUntil' => (string)($document['validUntil'] ?? $asOf),
+        'companyName' => (string)($company['name'] ?? 'Imperial Homes'),
+        'companyContact' => (string)($company['contact'] ?? ''),
+        'clientName' => (string)($client['name'] ?? ''),
+        'contractReference' => (string)($contract['reference'] ?? ''),
+        'projectName' => (string)($project['projectName'] ?? ''),
+        'phase' => (string)($project['phase'] ?? ''),
+        'block' => (string)($project['block'] ?? ''),
+        'lot' => (string)($project['lot'] ?? ''),
+        'totalContractPrice' => soa_round($contract['grossPrice'] ?? 0),
+        'discount' => soa_round($contract['discount'] ?? 0),
+        'netContractPrice' => soa_round($contract['netPrice'] ?? 0),
+        'equity' => soa_round($contract['equity'] ?? 0),
+        'requiredDownpayment' => soa_round($contract['requiredDownpayment'] ?? 0),
+        'totalEquity' => soa_round($contract['totalEquity'] ?? 0),
+        'loanableAmount' => soa_round($contract['loanableAmount'] ?? 0),
+        'totalPaymentsMade' => soa_round($summary['paymentsMade'] ?? 0),
+        'remainingBalance' => soa_round($summary['remainingBalance'] ?? 0),
+        'nextPaymentType' => $next !== null ? (string)($next['label'] ?? 'Scheduled Payment') : 'Settled in Full',
+        'nextDueDate' => $nextDueDate,
+        'currentPaymentDue' => $next !== null ? soa_round($next['amount'] ?? 0) : 0.0,
+        'monthlyPayment' => soa_round($summary['monthlyPayment'] ?? 0),
+        'annualInterestRate' => (float)($summary['annualInterestRate'] ?? 0),
+        'interest' => soa_round($due['interest'] ?? 0),
+        'penalty' => soa_round($due['penalty'] ?? 0),
+        'reservationOutstanding' => soa_round($due['reservationOutstanding'] ?? 0),
+        'additionalCharges' => soa_round($due['additionalCharges'] ?? 0),
+        'additionalEquityOutstanding' => soa_round($due['additionalEquityOutstanding'] ?? 0),
+        'totalAmountDue' => soa_round($due['total'] ?? 0),
+        'status' => (float)($due['total'] ?? 0) <= 0.009
+            ? 'SETTLED'
+            : ($nextDueDate < $asOf ? 'OVERDUE' : 'DUE'),
+    ];
+}
+
 function soa_resolve_actor(PDO $pdo, string $actorId, array $contract, string $actorEmail = ''): array
 {
     $actor = null;

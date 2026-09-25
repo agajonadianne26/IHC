@@ -2729,11 +2729,10 @@
     /* ==========================================
        REMINDER TOAST
     ========================================== */
-    // Sends the RAW values — emailService.js's formatCurrency()/formatDate()
-    // already handle display formatting server-side. Sending pre-formatted
-    // strings here (e.g. "\u20B112,500.00") would make Number(amount) come out
-    // NaN on the backend, which is why reminders were breaking.
-    const buildSoaPayload = (row) => ({
+    // Sends raw current-payment values plus the API's compact SOA summary.
+    // emailService.js formats currency/date values; the full SOA document is
+    // intentionally never posted to the reminder service.
+    const buildReminderPayload = (row, soaSummary) => ({
       scenario: row.status === 'overdue' ? 'overdue' : 'due_soon',
       client: row.client,
       contractId: row.id,
@@ -2741,18 +2740,39 @@
       paymentType: row.paymentType,
       amount: row.amount,                                   // raw number
       dueDate: row.dueDate.toISOString().slice(0, 10),      // raw ISO date (YYYY-MM-DD)
-      recipientEmail: row.email || ''
+      recipientEmail: row.email || '',
+      recipientPhone: row.phone || '',
+      // Email/SMS receives this whitelist only — never the full SOA document.
+      soaSummary
     });
+
+    const fetchSoaReminderSummary = async (contractId) => {
+      const params = new URLSearchParams({
+        action: 'summary',
+        contractId: String(contractId || ''),
+        actorId: String(currentUser.officerId || ''),
+        actorEmail: String(currentUser.email || '')
+      });
+      const res = await fetch(API_BASE + '/php/api_soa.php?' + params.toString(), {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.summary) {
+        throw new Error((data && data.message) || 'The SOA summary could not be prepared.');
+      }
+      return data.summary;
+    };
 
     window.sendReminder = async (idx) => {
       const row = myContracts[idx];
       const btn = document.querySelector(`[onclick="sendReminder(${idx})"]`);
       if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
       try {
+        const soaSummary = await fetchSoaReminderSummary(row.contractId);
         const res = await fetch(NODE_API_BASE + '/api/contracts/' + encodeURIComponent(row.contractId) + '/send-reminder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildSoaPayload(row))
+          body: JSON.stringify(buildReminderPayload(row, soaSummary))
         });
         const data = await res.json();
         if (data.success) {
@@ -2768,7 +2788,8 @@
           showToast(data.message || 'Failed to send reminder', 'info');
         }
       } catch (err) {
-        showToast('Server unreachable. Reminder not sent.', 'info');
+        console.error('Payment reminder failed:', err);
+        showToast(err.message || 'The reminder service is unreachable. No email was sent.', 'info');
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Send Notif'; }
       }

@@ -5,7 +5,16 @@ const { sendPaymentReminderSms } = require('./smsService');
 
 router.post('/api/contracts/:id/send-reminder', async (req, res) => {
   const contractId = req.params.id;
-  const { client, amount, dueDate, recipientEmail, recipientPhone, reminderType } = req.body || {};
+  const {
+    client,
+    amount,
+    dueDate,
+    recipientEmail,
+    recipientPhone,
+    reminderType,
+    installmentId,
+    soaSummary
+  } = req.body || {};
 
   if (!client || amount == null || !dueDate) {
     return res.json({ success: false, message: 'Missing contract data — cannot build the reminder.' });
@@ -16,7 +25,15 @@ router.post('/api/contracts/:id/send-reminder', async (req, res) => {
 
   const msPerDay = 1000 * 60 * 60 * 24;
   const daysUntil = Math.ceil((new Date(dueDate) - new Date()) / msPerDay);
-  const options = { reminderType: reminderType || 'manual' };
+  const options = {
+    reminderType: reminderType || 'manual',
+    installmentId: installmentId || null,
+    // The Clerk sends only the API's whitelisted compact summary. Automated
+    // reminders may omit it and retain the smaller legacy reminder layout.
+    soaSummary: soaSummary && typeof soaSummary === 'object' && !Array.isArray(soaSummary)
+      ? soaSummary
+      : null
+  };
 
   // Each channel is best-effort: an SMS failure must not cancel the email
   // (and vice versa). Success below means at least one channel delivered.

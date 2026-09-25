@@ -62,6 +62,23 @@ try {
         exit;
     }
 
+    if ($method === 'GET' && $action === 'summary') {
+        $contractId = soa_normalize_contract_id($_GET['contractId'] ?? '');
+        if ($contractId === null) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'A valid contract reference is required.']);
+            exit;
+        }
+        $actorId = trim((string)($_GET['actorId'] ?? ''));
+        $actorEmail = trim((string)($_GET['actorEmail'] ?? ''));
+        $document = soa_build_document($pdo, $contractId, $actorId, null, $actorEmail);
+        echo json_encode([
+            'success' => true,
+            'summary' => soa_build_email_summary($document),
+        ]);
+        exit;
+    }
+
     if ($method === 'POST' && $action === 'settings_update') {
         $data = $requestData;
         $companyName = trim((string)($data['companyName'] ?? ''));
