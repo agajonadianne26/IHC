@@ -2515,6 +2515,15 @@
               <option value="pending">Pending</option>
             </select>
           </div>
+          <div class="form-group">
+        <label>Payment for</label>
+         <select id="hfPaymentMode">
+            <option value="">Select type&hellip;</option>
+            <option value="full">Mortgage</option>
+            <option value="partial">Downpayment</option>
+            <option value="installment">Installment</option>
+         </select>
+          </div>
           <div class="form-group full">
             <label>Reservation Validity</label>
             <div class="res-preview" id="hfValidityPreview">30-day reservation window from the payment date.</div>
@@ -3412,6 +3421,7 @@
             status: String(r.status||'pending').toLowerCase(),
             expirationDate: r.expirationDate || null,
             startDate: r.startDate || r.paymentDate,
+            paymentMode: r.paymentMode || '', 
             remarks: r.remarks || '', proof: r.proofPath ? { name: r.proofName||'proof', dataUrl: r.proofPath, isImage: !String(r.proofPath).endsWith('.pdf') } : null,
             createdAt: r.createdAt, serverRow: r
           }));
@@ -3729,7 +3739,7 @@
       if (subEl) subEl.textContent = 'Link the fee to a client and property/unit, then record the payment details.';
       const labelEl = document.getElementById('hfSubmitLabel');
       if (labelEl) labelEl.textContent = 'Save Holding Fee';
-      ['hfClientSelect', 'hfClientName', 'hfPropertyAddress', 'hfAmount', 'hfMethod', 'hfOR', 'hfRemarks'].forEach(id => {
+      ['hfClientSelect', 'hfClientName', 'hfPropertyAddress', 'hfAmount', 'hfMethod', 'hfOR', 'hfRemarks', 'hfPaymentMode'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
@@ -3775,6 +3785,7 @@
       document.getElementById('hfDate').value = fee.paymentDate || '';
       document.getElementById('hfOR').value = fee.orNumber || '';
       document.getElementById('hfStatus').value = fee.status === 'pending' ? 'pending' : 'paid';
+      document.getElementById('hfPaymentMode').value = fee.paymentMode || '';
       document.getElementById('hfRemarks').value = fee.remarks || '';
       if (hfProofInput) hfProofInput.value = '';
       hfProofData = fee.proof || null;
@@ -3935,6 +3946,7 @@
       fd.append('remarks', remarks);
       fd.append('propertyAddress', property || matched.property || '');
       fd.append('processedBy', String(currentUser.officerId || ''));
+      fd.append('paymentMode', document.getElementById('hfPaymentMode').value);
       if(isHoldingType){
         // Use JS-computed expiration; server will default to 30 days if omitted but we send explicit
         const exp = new Date(date); exp.setDate(exp.getDate()+30);
