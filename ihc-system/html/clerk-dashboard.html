@@ -1930,6 +1930,7 @@
                       <th>Client & Property</th>
                       <th>Amount</th>
                       <th>Payment Method</th>
+                      <th>Payment For</th>
                       <th>OR / Reference</th>
                       <th>Proof</th>
                       <th>Status</th>
@@ -3545,7 +3546,7 @@
         ? '<span style="font-size:11px;color:var(--text-muted);">Cancelled</span>'
         : '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
     };
-
+    const hfPaymentForLabel = (v) => ({ full: 'Mortgage', partial: 'Downpayment', installment: 'Installment' }[v] || '\u2014');
     const getProofMarkup = (fee) => {
       if (!fee.proof || !fee.proof.dataUrl) return '<span style="font-size:11px;color:var(--text-muted);">\u2014</span>';
       const prev = fee.proof.isImage
@@ -3597,7 +3598,7 @@
 
       if (holdingFeeBody) {
         if (!rows.length) {
-          holdingFeeBody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><i data-lucide="receipt" style="width:40px;height:40px;"></i><strong>No holding fee records</strong><small>Record your first holding fee using the button above.</small></div></td></tr>';
+          holdingFeeBody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><i data-lucide="receipt" style="width:40px;height:40px;"></i><strong>No holding fee records</strong><small>Record your first holding fee using the button above.</small></div></td></tr>';
         } else {
           holdingFeeBody.innerHTML = rows.map(f => {
             const meta = getHfDerived(f) || { label: String(f.status || 'pending'), cls: 'pending' };
@@ -3606,6 +3607,7 @@
               <td><div class="client-cell"><strong>${f.clientName}</strong><small>${f.propertyAddress || '\u2014'}</small></div></td>
               <td><span class="amount-due">${formatPHP(f.amount)}</span></td>
               <td style="font-size:12px;">${f.paymentMethod}</td>
+              <td style="font-size:12px;">${hfPaymentForLabel(f.paymentMode)}</td>  
               <td><span class="contract-id">${f.orNumber || '\u2014'}</span></td>
               <td>${getProofMarkup(f)}</td>
               <td><span class="status-badge ${meta.cls}"><span class="dot"></span>${meta.label}</span></td>

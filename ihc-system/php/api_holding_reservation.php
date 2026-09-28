@@ -83,6 +83,7 @@ function ensureHoldingTables(PDO $pdo): void {
         if(!isset($cols['processed_by'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN processed_by VARCHAR(100) NULL AFTER proof_name');
         if(!isset($cols['converted_to_reservation_id'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN converted_to_reservation_id INT NULL AFTER processed_by');
         if(!isset($cols['proof_path'])) $pdo->exec('ALTER TABLE holding_fees ADD COLUMN proof_path VARCHAR(500) NULL AFTER remarks');
+        if(!isset($cols['payment_mode'])) $pdo->exec("ALTER TABLE holding_fees ADD COLUMN payment_mode VARCHAR(20) NULL AFTER status");
         // Normalize lowercase statuses before ENUM conversion
         try{ $pdo->exec("UPDATE holding_fees SET status=UPPER(status) WHERE LOWER(status) IN ('pending','paid','cancelled')"); }catch(Throwable $e){}
         try{ $pdo->exec("UPDATE holding_fees SET status='PENDING' WHERE status NOT IN ('PENDING','PAID','EXPIRED','REFUNDED','FORFEITED','CONVERTED','CANCELLED')"); }catch(Throwable $e){}
@@ -292,7 +293,7 @@ try{
                     'unitStatus'=>$r['unit_status'],'amount'=>(float)$r['amount'],'paymentMethod'=>$r['payment_method'],
                     'paymentDate'=>$r['payment_date'],'referenceNumber'=>$r['reference_number'],'orNumber'=>$r['or_number'],
                     'startDate'=>$r['start_date'],'expirationDate'=>$r['expiration_date'],
-                    'status'=>$r['status'],'remarks'=>$r['remarks'],'proofPath'=>$r['proof_path'],'proofName'=>$r['proof_name'],
+                    'status'=>$r['status'],'paymentMode'=>$r['payment_mode'],'remarks'=>$r['remarks'],'proofPath'=>$r['proof_path'],'proofName'=>$r['proof_name'],
                     'processedBy'=>$r['processed_by'],'convertedToReservationId'=>$r['converted_to_reservation_id']? (int)$r['converted_to_reservation_id']:null,
                     'createdAt'=>$r['created_at'],'updatedAt'=>$r['updated_at']
                 ];
@@ -461,6 +462,12 @@ try{
             $refNumber = trim((string)($get($input,'referenceNumber','reference_number') ?? ''));
             if($status==='PAID' && $orNumber==='' && $refNumber==='') throw new RuntimeException('OR / Reference number is required for paid fees.');
             $remarks = trim((string)($get($input,'remarks') ?? ''));
+            $paymentMode = strtolower(trim((string)($get($input,'paymentMode','payment_mode') ?? '')));
+            if(!in_array($paymentMode, ['', 'full', 'partial', 'installment'], true)) throw new RuntimeException('Invalid payment mode.');
+            $paymentMode = $paymentMode !== '' ? $paymentMode : null;
+            if($isUpdate && !array_key_exists('paymentMode', $input) && !array_key_exists('payment_mode', $input)){
+             $paymentMode = $existing['payment_mode'] ?? null;
+}
             $processedBy = trim((string)($get($input,'processedBy','processed_by','postedBy') ?? ''));
             if($processedBy==='') $processedBy=null;
             $actorName = resolveOfficerName($pdo,$processedBy);
@@ -525,8 +532,8 @@ try{
                 $pdo->beginTransaction();
                 try{
                     if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
-                    $pdo->prepare('UPDATE holding_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, start_date=?, expiration_date=?, status=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, updated_at=NOW() WHERE id=?')
-                        ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$remarks?:null,$proofPath,$proofName,$processedBy,$holdingId]);
+                    $pdo->prepare('UPDATE holding_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, start_date=?, expiration_date=?, status=?, payment_mode=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, updated_at=NOW() WHERE id=?')
+                    ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$paymentMode,$remarks?:null,$proofPath,$proofName,$processedBy,$holdingId]);
                     audit($pdo,'holding_fee.updated',$contractId,$holdingId,null,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
                     if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
                         $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=?, current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$holdingId,$unitId]);
@@ -549,8 +556,8 @@ try{
                 $pdo->beginTransaction();
                 try{
                     if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
-                    $pdo->prepare('INSERT INTO holding_fees (contract_id,client_id,property_unit_id,amount,payment_method,payment_date,reference_number,or_number,start_date,expiration_date,status,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                        ->execute([$contractId,$clientId,$unitId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$remarks?:null,$proofPath,$proofName,$processedBy]);
+                    $pdo->prepare('INSERT INTO holding_fees (contract_id,client_id,property_unit_id,amount,payment_method,payment_date,reference_number,or_number,start_date,expiration_date,status,payment_mode,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                         ->execute([$contractId,$clientId,$unitId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$paymentMode,$remarks?:null,$proofPath,$proofName,$processedBy]);
                     $newId=(int)$pdo->lastInsertId();
                     audit($pdo,'holding_fee.created',$contractId,$newId,null,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
                     if($status==='PAID' && $unitId){
