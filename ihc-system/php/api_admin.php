@@ -17,7 +17,13 @@ header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+
+// This endpoint is read-only apart from one exception: `reassign`, which moves
+// a contract from one clerk to another (an admin ownership operation, not a
+// payment). Payments are only ever written by php/post-payment.php.
+if ($_SERVER['REQUEST_METHOD'] !== 'GET'
+    && !($_SERVER['REQUEST_METHOD'] === 'POST'
+        && (string)($_GET['action'] ?? '') === 'reassign')) {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed']);
     exit;
@@ -40,6 +46,12 @@ soa_ensure_schema($pdo);
 
 try {
     $action = isset($_GET['action']) ? (string)$_GET['action'] : 'overview';
+    $rawInput = file_get_contents('php://input') ?: '';
+    $jsonInput = json_decode($rawInput, true);
+    if (!is_array($jsonInput)) $jsonInput = [];
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['action'])) {
+        $action = isset($jsonInput['action']) ? (string)$jsonInput['action'] : '';
+    }
     $today = date('Y-m-d');
 
     // payments.contract_id stores prefixed strings ('CON-19', sometimes bare
@@ -101,6 +113,176 @@ try {
     // Status/type/due-date now all come from ihc_schedule() (see the overview
     // loop below) — the old start_date heuristic is gone so the admin ledger
     // and the clerk ledger describe the same next payment.
+
+    // ---- Audit log ----------------------------------------------------
+    if ($action === 'audit_logs') {
+        $limit = min(200, max(1, (int)($_GET['limit'] ?? 100)));
+        try {
+            $st = $pdo->prepare(
+                'SELECT id, action, contract_id, from_status, to_status, actor_id, actor_name, details, created_at
+                 FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT ' . (int)$limit
+            );
+            $st->execute();
+            $logs = $st->fetchAll();
+        } catch (Throwable $e) {
+            $logs = [];
+        }
+        echo json_encode(['success' => true, 'logs' => $logs]);
+        exit;
+    }
+
+    // ---- Team: every clerk and the clients they enrolled -------------
+    if ($action === 'team') {
+        $officerRows = $pdo->query(
+            "SELECT id, full_name, role, email FROM officers ORDER BY (role='admin') ASC, full_name ASC"
+        )->fetchAll();
+
+        // Group the contract rows (already fetched above with clerk_name) by
+        // their owning clerk. officer_id is VARCHAR and can be non-numeric
+        // (e.g. 'DEMO-001'), so group on the raw string rather than casting.
+        $byClerk = [];
+        foreach ($contractRows as $c) {
+            $byClerk[trim((string)($c['officer_id'] ?? ''))][] = $c;
+        }
+
+        $describe = function (array $c) use ($paysByContract, $today): array {
+            $cid = (int)$c['id'];
+            $schedule = ihc_schedule($c, $paysByContract[$cid] ?? []);
+            $next = $schedule['next'];
+            $total = (float)($c['total_contract_price'] ?? 0);
+            $paid = (float)$schedule['paid'];
+            $balance = max(0.0, $total - $paid);
+            $status = 'current';
+            if (!$next) $status = 'paid';
+            elseif ((string)$next['dueDate'] < $today) $status = 'overdue';
+            elseif ((string)$next['dueDate'] <= date('Y-m-d', strtotime('+3 days'))) $status = 'due-soon';
+            return [
+                'contractId'     => $cid,
+                'accountCode'    => 'CON-' . $cid,
+                'name'           => (string)$c['client_name'],
+                'email'          => (string)$c['email'],
+                'phone'          => (string)$c['cellphone_number'],
+                'propertyAddress'=> $c['property_address'] ?? null,
+                'totalPrice'     => $total,
+                'paid'           => $paid,
+                'balance'        => $balance,
+                'terms'          => max(1, (int)($c['installment_terms'] ?? 1)),
+                'nextDueDate'    => $next ? (string)$next['dueDate'] : null,
+                'nextAmount'     => $next ? (float)$next['amount'] : 0.0,
+                'nextType'       => $next ? (string)$next['kind'] : 'settled',
+                'status'         => $status,
+                'officerId'      => trim((string)($c['officer_id'] ?? '')),
+            ];
+        };
+
+        $clerks = [];
+        $matched = [];
+        foreach ($officerRows as $o) {
+            $oid = trim((string)$o['id']);
+            $matched[$oid] = true;
+            $rows = $byClerk[$oid] ?? [];
+            $clients = array_map($describe, $rows);
+
+            $portfolio = 0.0; $collected = 0.0; $overdue = 0;
+            foreach ($clients as $cl) {
+                $portfolio += $cl['totalPrice'];
+                $collected += $cl['paid'];
+                if ($cl['status'] === 'overdue') $overdue++;
+            }
+            $clerks[] = [
+                'officerId'      => $oid,
+                'name'           => (string)$o['full_name'],
+                'email'          => (string)$o['email'],
+                'role'           => (string)$o['role'],
+                'clientCount'    => count($clients),
+                'portfolio'      => round($portfolio, 2),
+                'collected'      => round($collected, 2),
+                'outstanding'    => round(max(0.0, $portfolio - $collected), 2),
+                'collectionRate' => $portfolio > 0 ? round(($collected / $portfolio) * 100, 1) : 0.0,
+                'overdueCount'   => $overdue,
+                'clients'        => $clients,
+            ];
+        }
+
+        // Contracts whose officer_id is empty or points at a deleted officer.
+        // Surfaced explicitly so a client can never silently vanish from the
+        // admin's view.
+        $unassignedRows = [];
+        foreach ($byClerk as $oid => $rows) {
+            if ($oid === '' || !isset($matched[$oid])) $unassignedRows = array_merge($unassignedRows, $rows);
+        }
+        $unassigned = array_map($describe, $unassignedRows);
+
+        echo json_encode([
+            'success'    => true,
+            'clerks'     => $clerks,
+            'unassigned' => $unassigned,
+        ]);
+        exit;
+    }
+
+    // ---- Reassign a contract to another clerk ------------------------
+    if ($action === 'reassign') {
+        $contractId = (int)($jsonInput['contractId'] ?? 0);
+        $toOfficer = trim((string)($jsonInput['officerId'] ?? ''));
+        $actorId   = trim((string)($jsonInput['actorId'] ?? ''));
+        $actorName = trim((string)($jsonInput['actorName'] ?? ''));
+
+        if ($contractId <= 0 || $toOfficer === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'contractId and officerId are required']);
+            exit;
+        }
+        $target = $pdo->prepare('SELECT id, full_name FROM officers WHERE id = ? LIMIT 1');
+        $target->execute([$toOfficer]);
+        $targetOfficer = $target->fetch();
+        if (!$targetOfficer) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'That clerk does not exist']);
+            exit;
+        }
+        $cur = $pdo->prepare('SELECT id, client_name, officer_id FROM contracts WHERE id = ? LIMIT 1');
+        $cur->execute([$contractId]);
+        $contract = $cur->fetch();
+        if (!$contract) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Contract not found']);
+            exit;
+        }
+        $fromOfficer = trim((string)($contract['officer_id'] ?? ''));
+
+        $pdo->beginTransaction();
+        try {
+            $upd = $pdo->prepare('UPDATE contracts SET officer_id = ? WHERE id = ?');
+            $upd->execute([$toOfficer, $contractId]);
+            $pdo->prepare(
+                'INSERT INTO audit_logs (action, contract_id, from_status, to_status, actor_id, actor_name, details)
+                 VALUES (?,?,?,?,?,?,?)'
+            )->execute([
+                'contract.reassigned',
+                $contractId,
+                $fromOfficer !== '' ? $fromOfficer : null,
+                $toOfficer,
+                $actorId !== '' ? $actorId : null,
+                $actorName !== '' ? $actorName : null,
+                json_encode([
+                    'client'  => (string)$contract['client_name'],
+                    'from'    => $fromOfficer,
+                    'to'      => (string)$targetOfficer['full_name'],
+                ]),
+            ]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => (string)$contract['client_name'] . ' is now assigned to ' . (string)$targetOfficer['full_name'] . '.',
+        ]);
+        exit;
+    }
 
     if ($action === 'schedule') {
         // ---- Installment schedule for one contract --------------------
@@ -193,6 +375,10 @@ try {
             'contractId' => $id,
             'client' => (string)$c['client_name'],
             'property' => $property,
+            // Contact details so the admin can send the same payment reminder
+            // the clerk sends — the Node route needs a recipient to deliver to.
+            'email' => $c['email'] !== null ? (string)$c['email'] : '',
+            'phone' => $c['cellphone_number'] !== null ? (string)$c['cellphone_number'] : '',
             'paymentType' => $paymentType,
             'amount' => $amountDue,
             'dueDate' => $dueDate,

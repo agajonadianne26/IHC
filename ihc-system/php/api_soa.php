@@ -245,6 +245,23 @@ try {
             $updatedBy !== '' ? $updatedBy : null,
         ]);
 
+        // Best-effort audit trail — a missing audit_logs table must never block
+        // a settings save.
+        try {
+            $pdo->prepare(
+                'INSERT INTO audit_logs (action, actor_id, actor_name, details) VALUES (?,?,?,?)'
+            )->execute([
+                'soa_settings.updated',
+                $updatedBy !== '' ? $updatedBy : null,
+                trim((string)($data['updatedByName'] ?? '')) ?: null,
+                json_encode([
+                    'companyName'  => $companyName,
+                    'penaltyRate'  => round((float)$penaltyRate, 4),
+                    'validityDays' => (int)$validityDays,
+                ]),
+            ]);
+        } catch (Throwable $ignored) { /* audit is advisory */ }
+
         echo json_encode(['success' => true, 'message' => 'SOA settings updated.']);
         exit;
     }

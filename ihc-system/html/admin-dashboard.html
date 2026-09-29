@@ -1238,6 +1238,10 @@
           <i data-lucide="calendar-clock"></i>
           <span>Payment Schedules</span>
         </a>
+        <a class="sidebar-link" href="#" data-page="clerks">
+          <i data-lucide="users"></i>
+          <span>Clerks &amp; Clients</span>
+        </a>
 
         <div class="sidebar-section-label">Management</div>
 
@@ -1249,6 +1253,13 @@
         <a class="sidebar-link" href="#" data-page="reports">
           <i data-lucide="bar-chart-3"></i>
           <span>Reports</span>
+        </a>
+
+        <div class="sidebar-section-label">System</div>
+
+        <a class="sidebar-link" href="#" data-page="settings">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
         </a>
       </nav>
 
@@ -1400,54 +1411,15 @@
           </div>
         </section>
 
-        <!-- BUSINESS RULES §19 (admin-only configurable) -->
+        <!-- ADDITIONAL CHARGES (per-contract receivables) -->
         <section class="table-section" style="margin-bottom:24px;">
           <div class="table-header">
             <div class="table-header-left">
-              <h2>Business Rules</h2>
-              <p>Configurable policy — changes are audited</p>
+              <h2>Additional Charges</h2>
+              <p>Record other receivables against a contract — included in the SOA total due</p>
             </div>
           </div>
-          <div style="padding:18px 24px; display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
-            <label style="font-size:11px; font-weight:700;">Default hold window (days) <input id="brDefaultDays" type="number" min="1" max="365" style="width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;"></label>
-            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brExpireMakesAvail" type="checkbox"> EXPIRED → AVAILABLE</label>
-            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brConvertOnRes" type="checkbox"> Reservation PAID → CONVERT holding</label>
-            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brHoldingRefundable" type="checkbox"> Holding refundable</label>
-            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brReservationRefundable" type="checkbox"> Reservation refundable</label>
-            <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brAllowDirectRes" type="checkbox"> Allow direct reservation (no hold)</label>
-          </div>
-          <div style="padding:0 24px 18px; display:flex; gap:10px;">
-            <button class="btn-primary" id="saveRulesBtn" type="button">Save Rules</button>
-            <span id="brStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
-          </div>
-        </section>
-
-        <!-- SOA SETTINGS + ADDITIONAL CHARGES -->
-        <section class="table-section" style="margin-bottom:24px;">
-          <div class="table-header">
-            <div class="table-header-left">
-              <h2>SOA Settings &amp; Additional Charges</h2>
-              <p>Configurable company details, important notes, signatory, rates, fees and other receivables</p>
-            </div>
-          </div>
-          <div style="padding:18px 24px; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
-            <label style="font-size:11px;font-weight:700;">Company Name<input id="soaCompanyName" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="font-size:11px;font-weight:700;">Company Address<input id="soaCompanyAddress" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="font-size:11px;font-weight:700;">Company Contact<input id="soaCompanyContact" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="font-size:11px;font-weight:700;">Penalty Rate (% / month)<input id="soaPenaltyRate" type="number" min="0" max="100" step="0.01" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="font-size:11px;font-weight:700;">SOA Validity (days)<input id="soaValidityDays" type="number" min="0" max="365" step="1" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="font-size:11px;font-weight:700;">Logo Path<input id="soaLogoPath" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="grid-column:1 / -1;font-size:11px;font-weight:700;">Important Notes<textarea id="soaImportantNotes" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:9px 10px;margin-top:6px;font:inherit;resize:vertical;"></textarea></label>
-            <label style="font-size:11px;font-weight:700;">Noted By Name<input id="soaNotedName" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="font-size:11px;font-weight:700;">Noted By Position<input id="soaNotedPosition" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-            <label style="font-size:11px;font-weight:700;">Noted By Contact<input id="soaNotedContact" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
-          </div>
-          <div style="padding:0 24px 18px;display:flex;gap:10px;align-items:center;">
-            <button class="btn-primary" id="saveSoaSettingsBtn" type="button">Save SOA Settings</button>
-            <span id="soaSettingsStatus" style="font-size:11px;color:var(--text-muted);"></span>
-          </div>
-          <div style="border-top:1px solid var(--border);padding:16px 24px;">
-            <h3 style="font-size:12px;margin-bottom:10px;">Add Additional Charge</h3>
+          <div style="padding:18px 24px;">
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">
               <label style="font-size:11px;font-weight:700;">Contract<select id="soaChargeContract" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 9px;margin-top:6px;"></select></label>
               <label style="font-size:11px;font-weight:700;">Charge Type<select id="soaChargeType" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 9px;margin-top:6px;"><option>Move-in</option><option>SRI</option><option>DOC. Stamp</option><option>FIRE</option><option>Interim SRI</option><option>PMD / Utilities / Construction Bond</option><option>Other</option></select></label>
@@ -1458,23 +1430,6 @@
               <label style="grid-column:span 2;font-size:11px;font-weight:700;">Description<input id="soaChargeDescription" type="text" placeholder="Optional charge description" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
             </div>
             <div style="display:flex;gap:10px;align-items:center;margin-top:12px;"><button class="btn-primary" id="saveSoaChargeBtn" type="button">Save Charge</button><span id="soaChargeStatus" style="font-size:11px;color:var(--text-muted);"></span></div>
-          </div>
-        </section>
-
-        <!-- FINANCING BANKS §20 (admin-configurable default annual interest) -->
-        <section class="table-section" style="margin-bottom:24px;">
-          <div class="table-header">
-            <div class="table-header-left">
-              <h2>Financing Banks</h2>
-              <p>Default annual interest per bank — applies to new contracts only</p>
-            </div>
-          </div>
-          <div style="padding:18px 24px;" id="bankRatesList">
-            <p style="font-size:11px; color:var(--text-muted);">Loading bank rates…</p>
-          </div>
-          <div style="padding:0 24px 18px; display:flex; gap:10px;">
-            <button class="btn-primary" id="saveBankRatesBtn" type="button">Save Bank Rates</button>
-            <span id="brBankStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
           </div>
         </section>
 
@@ -1682,9 +1637,150 @@
               <div class="rp-icon rose"><i data-lucide="alert-triangle" style="width:20px;height:20px;"></i></div>
               <h3>Due &amp; Overdue Register</h3>
               <p>List of accounts due within 3 days and all overdue accounts.</p>
-              <button class="btn-primary" data-report="Due & Overdue Register">Generate</button>
+              <button class="btn-primary" data-report="Due &amp; Overdue Register">Generate</button>
             </div>
           </div>
+        </section>
+
+        <!-- ============================
+             VIEW: CLERKS & CLIENTS
+        ============================= -->
+        <section class="view" data-view="clerks">
+          <div class="subhead">
+            <div>
+              <h2>Clerks &amp; Clients</h2>
+              <p>Every staff account with the clients they enrolled. Expand a clerk to see that clerk's contracts.</p>
+            </div>
+            <button class="btn-secondary" id="refreshTeamBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Refresh</button>
+          </div>
+
+          <div class="table-section" style="margin-bottom:24px;">
+            <div class="table-scroll">
+              <table class="data-table" id="teamTable">
+                <thead>
+                  <tr>
+                    <th scope="col">Clerk</th>
+                    <th scope="col">Clients</th>
+                    <th scope="col">Portfolio (TCP)</th>
+                    <th scope="col">Collected</th>
+                    <th scope="col">Outstanding</th>
+                    <th scope="col">Rate</th>
+                    <th scope="col">Overdue</th>
+                  </tr>
+                </thead>
+                <tbody id="teamBody">
+                  <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: SETTINGS
+        ============================= -->
+        <section class="view" data-view="settings">
+          <div class="subhead">
+            <div>
+              <h2>System Settings</h2>
+              <p>Business rules, SOA letterhead and financing defaults. Every change is written to the audit log below.</p>
+            </div>
+          </div>
+
+          <!-- BUSINESS RULES §19 (admin-only configurable) -->
+          <section class="table-section" style="margin-bottom:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h2>Business Rules</h2>
+                <p>Configurable policy — changes are audited</p>
+              </div>
+            </div>
+            <div style="padding:18px 24px; display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+              <label style="font-size:11px; font-weight:700;">Default hold window (days) <input id="brDefaultDays" type="number" min="1" max="365" style="width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;"></label>
+              <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brExpireMakesAvail" type="checkbox"> EXPIRED → AVAILABLE</label>
+              <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brConvertOnRes" type="checkbox"> Reservation PAID → CONVERT holding</label>
+              <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brHoldingRefundable" type="checkbox"> Holding refundable</label>
+              <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brReservationRefundable" type="checkbox"> Reservation refundable</label>
+              <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brAllowDirectRes" type="checkbox"> Allow direct reservation (no hold)</label>
+            </div>
+            <div style="padding:0 24px 18px; display:flex; gap:10px;">
+              <button class="btn-primary" id="saveRulesBtn" type="button">Save Rules</button>
+              <span id="brStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
+            </div>
+          </section>
+
+          <!-- SOA SETTINGS -->
+          <section class="table-section" style="margin-bottom:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h2>SOA Settings</h2>
+                <p>Configurable company details, important notes, signatory and rates</p>
+              </div>
+            </div>
+            <div style="padding:18px 24px; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
+              <label style="font-size:11px;font-weight:700;">Company Name<input id="soaCompanyName" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Company Address<input id="soaCompanyAddress" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Company Contact<input id="soaCompanyContact" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Penalty Rate (% / month)<input id="soaPenaltyRate" type="number" min="0" max="100" step="0.01" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">SOA Validity (days)<input id="soaValidityDays" type="number" min="0" max="365" step="1" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Logo Path<input id="soaLogoPath" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="grid-column:1 / -1;font-size:11px;font-weight:700;">Important Notes<textarea id="soaImportantNotes" rows="4" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:9px 10px;margin-top:6px;font:inherit;resize:vertical;"></textarea></label>
+              <label style="font-size:11px;font-weight:700;">Noted By Name<input id="soaNotedName" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Noted By Position<input id="soaNotedPosition" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+              <label style="font-size:11px;font-weight:700;">Noted By Contact<input id="soaNotedContact" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
+            </div>
+            <div style="padding:0 24px 18px;display:flex;gap:10px;align-items:center;">
+              <button class="btn-primary" id="saveSoaSettingsBtn" type="button">Save SOA Settings</button>
+              <span id="soaSettingsStatus" style="font-size:11px;color:var(--text-muted);"></span>
+            </div>
+          </section>
+
+          <!-- FINANCING BANKS §20 (admin-configurable default annual interest) -->
+          <section class="table-section" style="margin-bottom:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h2>Financing Banks</h2>
+                <p>Default annual interest per bank — applies to new contracts only</p>
+              </div>
+            </div>
+            <div style="padding:18px 24px;" id="bankRatesList">
+              <p style="font-size:11px; color:var(--text-muted);">Loading bank rates…</p>
+            </div>
+            <div style="padding:0 24px 18px; display:flex; gap:10px;">
+              <button class="btn-primary" id="saveBankRatesBtn" type="button">Save Bank Rates</button>
+              <span id="brBankStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
+            </div>
+          </section>
+
+          <!-- AUDIT LOG -->
+          <section class="table-section" style="margin-bottom:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h2>Audit Log</h2>
+                <p>Most recent 100 changes to settings, payments, holds and reservations</p>
+              </div>
+              <div class="table-header-right">
+                <button class="btn-secondary" id="refreshAuditLogBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Refresh</button>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table" id="auditLogTable">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Action</th>
+                    <th scope="col">Actor</th>
+                    <th scope="col">Contract</th>
+                    <th scope="col">Status Change</th>
+                    <th scope="col">Details</th>
+                  </tr>
+                </thead>
+                <tbody id="auditLogBody">
+                  <tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Loading audit log…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </section>
 
       </div>
@@ -2071,12 +2167,68 @@
       }, 3500);
     }
 
+    // Mirrors the clerk flow: build the compact SOA summary from the server
+    // first, then hand that to the Node reminder route. Posting with no body
+    // (the old behaviour) made the route answer "Missing contract data".
+    const buildReminderPayload = (row, soaSummary, paymentId = null) => {
+      const transaction = soaSummary && soaSummary.paymentTransaction;
+      const sourceAmount = transaction ? transaction.amount : row.amount;
+      const sourceDate = transaction
+        ? transaction.dateCollected
+        : String(row.dueDate).slice(0, 10);
+      return {
+        scenario: row.status === 'overdue' ? 'overdue' : 'due_soon',
+        client: row.client,
+        contractId: row.contractId,
+        property: row.property,
+        paymentType: transaction
+          ? `${transaction.paymentType}${transaction.installmentNumber != null ? ' #' + transaction.installmentNumber : ''}`
+          : row.paymentType,
+        paymentId: paymentId || null,
+        payment_id: paymentId || null,
+        notificationType: paymentId ? 'payment_posted' : 'payment_reminder',
+        amount: sourceAmount,
+        dueDate: sourceDate,
+        recipientEmail: row.email || '',
+        recipientPhone: row.phone || '',
+        // Email/SMS receives this whitelist only — never the full SOA document.
+        soaSummary
+      };
+    };
+
+    const fetchSoaReminderSummary = async (contractId) => {
+      const params = new URLSearchParams({
+        action: 'summary',
+        contractId: String(contractId || ''),
+        actorId: String(currentUser.officerId || ''),
+        actorEmail: String(currentUser.email || ''),
+        _: String(Date.now())
+      });
+      const res = await fetch(API_BASE + '/php/api_soa.php?' + params.toString(), {
+        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.summary) {
+        throw new Error((data && data.message) || 'The SOA summary could not be prepared.');
+      }
+      return data.summary;
+    };
+
     window.sendReminder = async (index) => {
       const row = contracts[index];
+      if (!row) return;
       const btn = document.querySelector(`[onclick="sendReminder(${index})"]`);
       if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
       try {
-        const res = await fetch('http://localhost:3000/api/contracts/' + row.id + '/send-reminder', { method: 'POST' });
+        if (!row.email && !row.phone) {
+          throw new Error('No email or phone on file for this client — cannot send a reminder.');
+        }
+        const soaSummary = await fetchSoaReminderSummary(row.contractId);
+        const res = await fetch('http://localhost:3000/api/contracts/' + encodeURIComponent(row.contractId) + '/send-reminder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildReminderPayload(row, soaSummary))
+        });
         const data = await res.json();
         if (data.success) {
           row.notification = 'sent';
@@ -2086,7 +2238,7 @@
           showToast(data.message || 'Failed to send reminder', 'info');
         }
       } catch (err) {
-        showToast('Server unreachable. Reminder not sent.', 'info');
+        showToast(err.message || 'Server unreachable. Reminder not sent.', 'info');
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Remind'; }
       }
@@ -2134,8 +2286,10 @@
       dashboard:     ['Payment Monitoring & Analytics', 'Admin Console \u2022 Fiscal Year 2026'],
       contracts:     ['Contracts', 'Contract Portfolio \u2022 Management & Reconciliation'],
       schedules:     ['Payment Schedules', 'Installment & Dowpayment Schedules Per Contract'],
+      clerks:        ['Clerks & Clients', 'Sales Team Portfolio \u2022 Clients Enrolled by Each Clerk'],
       notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
-      reports:       ['Reports', 'Generate & Export Collection Reports']
+      reports:       ['Reports', 'Generate & Export Collection Reports'],
+      settings:      ['Settings', 'System Configuration \u2022 Business Rules, SOA & Bank Rates']
     };
 
     function showView(name) {
@@ -2157,7 +2311,9 @@
 
       if (name === 'contracts') renderContracts();
       if (name === 'schedules') renderScheduleSelect();
+      if (name === 'clerks') loadTeam();
       if (name === 'notifications') renderNotifications();
+      if (name === 'settings') loadAuditLog();
 
       sidebar.classList.remove('open');
       overlay.classList.remove('visible');
@@ -2440,10 +2596,15 @@
       };
       document.getElementById('brStatus').textContent='Saving…';
       try{
-        const res=await fetch(API_BASE+'/php/api_holding_reservation.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'business_rules_update', rules})});
+        const res=await fetch(API_BASE+'/php/api_holding_reservation.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+          action:'business_rules_update',
+          rules,
+          actorId: currentUser.officerId || '',
+          actorName: currentUser.name || currentUser.email || ''
+        })});
         const d=await res.json();
         document.getElementById('brStatus').textContent=d.success?'Saved.':'Failed: '+(d.message||'error');
-        if(d.success) showToast('Business rules updated.','success');
+        if(d.success){ showToast('Business rules updated.','success'); loadAuditLog(); }
         setTimeout(()=> document.getElementById('brStatus').textContent='', 3000);
       }catch(e){ document.getElementById('brStatus').textContent='Error: '+e.message; }
     });
@@ -2474,10 +2635,14 @@
       if(!rates.length) return;
       document.getElementById('brBankStatus').textContent='Saving…';
       try{
-        const res=await fetch(API_BASE+'/php/api_bank_rates.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'update', rates})});
+        const res=await fetch(API_BASE+'/php/api_bank_rates.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+          action:'update', rates,
+          actorId: currentUser.officerId || '',
+          actorName: currentUser.name || currentUser.email || ''
+        })});
         const d=await res.json();
         document.getElementById('brBankStatus').textContent=d.success?'Saved.':'Failed: '+(d.message||'error');
-        if(d.success){ showToast('Bank interest rates updated.','success'); loadBankRates(); }
+        if(d.success){ showToast('Bank interest rates updated.','success'); loadBankRates(); loadAuditLog(); }
         setTimeout(()=> document.getElementById('brBankStatus').textContent='', 3000);
       }catch(e){ document.getElementById('brBankStatus').textContent='Error: '+e.message; }
     });
@@ -2550,8 +2715,227 @@
         if(status) status.textContent = 'Saved.';
         showToast('SOA settings updated. New statements use these values immediately.','success');
         setTimeout(()=>{ if(status) status.textContent=''; },3000);
+        loadAuditLog();
       }catch(e){ if(status) status.textContent = e.message; showToast(e.message,'info'); }
     });
+
+    /* ==========================================
+       AUDIT LOG (Settings view)
+    ========================================== */
+    const auditEsc = (s)=>String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    // The `details` column is a free-form JSON blob written by several different
+    // endpoints, so it is untrusted text and must be escaped before rendering.
+    function auditDetail(details){
+      if(!details) return '<span style="color:var(--text-muted);">—</span>';
+      let text = String(details);
+      try{
+        const parsed = JSON.parse(text);
+        if(parsed && typeof parsed === 'object'){
+          text = Object.keys(parsed).map(k=>k+': '+
+            (typeof parsed[k]==='object' ? JSON.stringify(parsed[k]) : parsed[k])).join('  •  ');
+        }
+      }catch(e){ /* not JSON — show the raw string */ }
+      return auditEsc(text);
+    }
+
+    function auditActionLabel(action){
+      const a = String(action || '');
+      const map = {
+        'business_rules.updated':'Business rules updated',
+        'soa_settings.updated':'SOA settings updated',
+        'bank_rates.updated':'Bank rates updated',
+        'contract.reassigned':'Client reassigned'
+      };
+      return map[a] || a.replace(/[._]/g,' ');
+    }
+
+    async function loadAuditLog(){
+      const body = document.getElementById('auditLogBody');
+      if(!body) return;
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Loading audit log…</td></tr>';
+      try{
+        const res = await fetch(API_BASE + '/php/api_admin.php?action=audit_logs&limit=100');
+        const data = await res.json();
+        if(!res.ok || !data.success) throw new Error(data.message || 'Could not load audit log');
+        const logs = data.logs || [];
+        if(!logs.length){
+          body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No changes recorded yet. Save a setting above and it will appear here.</td></tr>';
+          return;
+        }
+        body.innerHTML = logs.map(r=>{
+          const transition = (r.from_status || r.to_status)
+            ? auditEsc(String(r.from_status || '—') + ' → ' + String(r.to_status || '—')) : '';
+          const actor = auditEsc(r.actor_name || r.actor_id || 'System');
+          const contract = r.contract_id ? auditEsc('CON-'+r.contract_id) : '<span style="color:var(--text-muted);">—</span>';
+          return '<tr>'
+            + '<td style="white-space:nowrap;">'+auditEsc(r.created_at)+'</td>'
+            + '<td><strong>'+auditEsc(auditActionLabel(r.action))+'</strong></td>'
+            + '<td>'+actor+'</td>'
+            + '<td>'+contract+'</td>'
+            + '<td>'+(transition || '<span style="color:var(--text-muted);">—</span>')+'</td>'
+            + '<td style="font-size:11px; color:var(--text-secondary);">'+auditDetail(r.details)+'</td>'
+            + '</tr>';
+        }).join('');
+      }catch(err){
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#b91c1c;">'+auditEsc(err.message)+'</td></tr>';
+      }
+    }
+    document.getElementById('refreshAuditLogBtn')?.addEventListener('click', loadAuditLog);
+
+    /* ==========================================
+       CLERKS & CLIENTS (admin portfolio view)
+    ========================================== */
+    const teamEsc = (s)=>String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    let teamData = null;
+
+    const STATUS_LABEL = { paid:'Settled', current:'Current', 'due-soon':'Due Soon', overdue:'Overdue' };
+    const STATUS_CLASS  = { paid:'ok', current:'ok', 'due-soon':'warn', overdue:'danger' };
+
+    function clientRows(clerk, clients){
+      if(!clients.length){
+        return '<tr><td colspan="9" style="text-align:center; padding:18px; color:var(--text-muted);">No clients enrolled by this clerk yet.</td></tr>';
+      }
+      const options = (teamData?.clerks || [])
+        .map(o=>'<option value="'+teamEsc(o.officerId)+'"'+(String(o.officerId)===String(clerk)?' selected':'')+'>'+teamEsc(o.name)+'</option>')
+        .join('');
+      return clients.map(c=>{
+        const cls = STATUS_CLASS[c.status] || 'ok';
+        const label = STATUS_LABEL[c.status] || c.status;
+        const due = c.nextDueDate ? formatDate(c.nextDueDate) : '<span style="color:var(--text-muted);">—</span>';
+        const prop = c.propertyAddress ? teamEsc(c.propertyAddress) : '<span style="color:var(--text-muted);">—</span>';
+        return '<tr>'
+          + '<td><strong>'+teamEsc(c.name)+'</strong><br><span style="font-size:10px;color:var(--text-muted);">'+teamEsc(c.email)+'</span></td>'
+          + '<td style="font-size:11px;">'+prop+'</td>'
+          + '<td style="font-size:11px;">'+teamEsc(c.accountCode)+'</td>'
+          + '<td style="white-space:nowrap;">'+formatPHP(c.totalPrice)+'</td>'
+          + '<td style="white-space:nowrap;">'+formatPHP(c.paid)+'</td>'
+          + '<td style="white-space:nowrap; font-weight:600;">'+formatPHP(c.balance)+'</td>'
+          + '<td style="white-space:nowrap; font-size:11px;">'+due+'</td>'
+          + '<td><span class="row-status '+cls+'"><span class="dot"></span>'+label+'</span></td>'
+          + '<td><select class="reassign-select" data-contract="'+c.contractId+'" style="height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:11px;">'+options+'</select></td>'
+          + '</tr>';
+      }).join('');
+    }
+
+    function renderTeam(){
+      const body = document.getElementById('teamBody');
+      if(!body || !teamData) return;
+      const groups = teamData.clerks.slice();
+      const unassigned = teamData.unassigned || [];
+
+      if(!groups.length && !unassigned.length){
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No staff accounts found.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = groups.map(g=>{
+        const initials = teamEsc(g.name.split(/\s+/).map(p=>p[0]||'').join('').slice(0,2).toUpperCase());
+        const rateCls = g.collectionRate >= 50 ? 'ok' : (g.collectionRate >= 20 ? 'warn' : 'danger');
+        const roleTag = g.role === 'admin'
+          ? '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:#e0e7ff;color:#3730a3;margin-left:6px;">ADMIN</span>' : '';
+        const chevron = g.clientCount
+          ? '<i data-lucide="chevron-down" class="team-chevron" style="width:15px;height:15px;color:var(--text-muted);"></i>'
+          : '';
+        return '<tr class="team-head-row" data-clerk="'+teamEsc(g.officerId)+'" style="cursor:'+(g.clientCount?'pointer':'default')+';">'
+          + '<td><div style="display:flex;align-items:center;gap:9px;">'
+            + '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">'+initials+'</div>'
+            + '<div><strong>'+teamEsc(g.name)+'</strong>'+roleTag+'<br><span style="font-size:10px;color:var(--text-muted);">'+teamEsc(g.email)+'</span></div>'
+          + '</div></td>'
+          + '<td>'+g.clientCount+'</td>'
+          + '<td style="white-space:nowrap;">'+formatPHP(g.portfolio)+'</td>'
+          + '<td style="white-space:nowrap;">'+formatPHP(g.collected)+'</td>'
+          + '<td style="white-space:nowrap; font-weight:600;">'+formatPHP(g.outstanding)+'</td>'
+          + '<td><span class="row-status '+rateCls+'"><span class="dot"></span>'+g.collectionRate+'%</span></td>'
+          + '<td>'+(g.overdueCount ? '<span class="row-status danger"><span class="dot"></span>'+g.overdueCount+'</span>' : '<span style="color:var(--text-muted);">0</span>')+'</td>'
+          + '</tr>'
+          + '<tr class="team-detail-row" data-detail="'+teamEsc(g.officerId)+'" style="display:none;">'
+            + '<td colspan="7" style="background:#f8fafc; padding:0;">'
+              + '<div style="padding:14px 18px; border-left:3px solid var(--accent-blue);">'
+                + '<table class="data-table" style="min-width:0;"><thead><tr>'
+                  + '<th scope="col">Client</th><th scope="col">Property</th><th scope="col">Contract</th>'
+                  + '<th scope="col">TCP</th><th scope="col">Paid</th><th scope="col">Balance</th>'
+                  + '<th scope="col">Next Due</th><th scope="col">Status</th><th scope="col">Reassign</th>'
+                + '</tr></thead><tbody>'+clientRows(g, g.clients)+'</tbody></table>'
+              + '</div>'
+            + '</td>'
+          + '</tr>';
+      }).join('')
+      + (unassigned.length
+        ? '<tr class="team-head-row" data-clerk="__unassigned__" style="cursor:pointer;">'
+            + '<td colspan="1"><strong>Unassigned</strong><br><span style="font-size:10px;color:#b45309;">No clerk owns these contracts</span></td>'
+            + '<td>'+unassigned.length+'</td><td colspan="5"><span style="font-size:11px;color:var(--text-muted);">Included here so they are never invisible</span></td>'
+          + '</tr>'
+          + '<tr class="team-detail-row" data-detail="__unassigned__" style="display:none;"><td colspan="7" style="background:#f8fafc;padding:0;">'
+            + '<div style="padding:14px 18px; border-left:3px solid var(--accent-amber);">'
+            + '<table class="data-table" style="min-width:0;"><thead><tr>'
+              + '<th scope="col">Client</th><th scope="col">Property</th><th scope="col">Contract</th>'
+              + '<th scope="col">TCP</th><th scope="col">Paid</th><th scope="col">Balance</th>'
+              + '<th scope="col">Next Due</th><th scope="col">Status</th><th scope="col">Reassign</th>'
+            + '</tr></thead><tbody>'+clientRows('', unassigned)+'</tbody></table>'
+            + '</div></td></tr>'
+        : '');
+
+      // Expand / collapse
+      body.querySelectorAll('.team-head-row').forEach(row=>{
+        row.addEventListener('click',(e)=>{
+          if(e.target.closest('.reassign-select')) return;
+          const detail = body.querySelector('.team-detail-row[data-detail="'+row.dataset.clerk+'"]');
+          if(!detail) return;
+          const opening = detail.style.display === 'none';
+          detail.style.display = opening ? 'table-row' : 'none';
+          const icon = row.querySelector('.team-chevron');
+          if(icon) icon.style.transform = opening ? 'rotate(180deg)' : '';
+        });
+      });
+
+      // Reassign
+      body.querySelectorAll('.reassign-select').forEach(sel=>{
+        sel.addEventListener('change', async ()=>{
+          const contractId = sel.getAttribute('data-contract');
+          const officerId = sel.value;
+          const previous = sel.getAttribute('data-prev') || sel.options[0].value;
+          sel.disabled = true;
+          try{
+            const res = await fetch(API_BASE+'/php/api_admin.php?action=reassign', {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({
+                action:'reassign', contractId: Number(contractId), officerId,
+                actorId: currentUser.officerId || '', actorName: currentUser.name || currentUser.email || ''
+              })
+            });
+            const data = await res.json();
+            if(!res.ok || !data.success) throw new Error(data.message || 'Reassign failed');
+            showToast(data.message,'success');
+            await loadTeam();
+            loadAuditLog();
+          }catch(err){
+            showToast(err.message,'info');
+            sel.value = previous;
+            sel.disabled = false;
+          }
+        });
+        sel.setAttribute('data-prev', sel.value);
+      });
+
+      lucide.createIcons();
+    }
+
+    async function loadTeam(){
+      const body = document.getElementById('teamBody');
+      if(!body) return;
+      body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>';
+      try{
+        const res = await fetch(API_BASE + '/php/api_admin.php?action=team');
+        const data = await res.json();
+        if(!res.ok || !data.success) throw new Error(data.message || 'Could not load team');
+        teamData = data;
+        renderTeam();
+      }catch(err){
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:#b91c1c;">'+teamEsc(err.message)+'</td></tr>';
+      }
+    }
+    document.getElementById('refreshTeamBtn')?.addEventListener('click', loadTeam);
 
     document.getElementById('saveSoaChargeBtn')?.addEventListener('click', async ()=>{
       const status = document.getElementById('soaChargeStatus');

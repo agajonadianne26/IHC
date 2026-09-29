@@ -156,6 +156,19 @@ try {
         $order++;
     }
 
+    // Best-effort audit trail — a missing audit_logs table must never block a
+    // rate save.
+    try {
+        $pdo->prepare(
+            'INSERT INTO audit_logs (action, actor_id, actor_name, details) VALUES (?,?,?,?)'
+        )->execute([
+            'bank_rates.updated',
+            trim((string)($data['actorId'] ?? '')) ?: null,
+            trim((string)($data['actorName'] ?? '')) ?: null,
+            json_encode(['banks' => count($rates)]),
+        ]);
+    } catch (Throwable $ignored) { /* audit is advisory */ }
+
     echo json_encode(['success' => true, 'rates' => listBankRates($pdo)]);
     exit;
 } catch (Throwable $e) {

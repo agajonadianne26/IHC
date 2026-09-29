@@ -804,7 +804,7 @@ try{
                 if(!in_array($k,$ruleKeys,true)) continue; // whitelist only known policy keys
                 $pdo->prepare('INSERT INTO business_rules (rule_key,rule_value) VALUES (?,?) ON DUPLICATE KEY UPDATE rule_value=VALUES(rule_value)')->execute([$k,(string)$v]);
             }
-            audit($pdo,'business_rules.updated',null,null,null,null,null,null, $get($input,'actorId','processedBy')?:null, null, ['rules'=>$rules]);
+            audit($pdo,'business_rules.updated',null,null,null,null,null,null, $get($input,'actorId','processedBy')?:null, $get($input,'actorName')?:null, ['rules'=>$rules]);
             echo json_encode(['success'=>true,'message'=>'Business rules updated.']);
             exit;
         }
