@@ -629,6 +629,32 @@
       margin-top: 3px;
     }
 
+    /* Collapsible Settings sections. The header is the toggle; the body stays
+       hidden until .open is set, so the view opens as a compact list. */
+    .settings-section > .table-header {
+      cursor: pointer;
+      user-select: none;
+    }
+    .settings-section > .table-header:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: -2px;
+    }
+    .settings-section > .table-header .table-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .settings-body { display: none; }
+    .settings-section.open > .settings-body { display: block; }
+    .settings-chevron {
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+      flex: 0 0 auto;
+      transition: transform .18s ease;
+    }
+    .settings-section.open .settings-chevron { transform: rotate(180deg); }
+
     .filter-tabs {
       display: flex;
       gap: 4px;
@@ -1688,13 +1714,17 @@
           </div>
 
           <!-- BUSINESS RULES §19 (admin-only configurable) -->
-          <section class="table-section" style="margin-bottom:24px;">
-            <div class="table-header">
+          <section class="table-section settings-section" data-section="business-rules" style="margin-bottom:24px;">
+            <div class="table-header" role="button" tabindex="0" aria-expanded="false">
               <div class="table-header-left">
-                <h2>Business Rules</h2>
-                <p>Configurable policy — changes are audited</p>
+                <i data-lucide="chevron-down" class="settings-chevron"></i>
+                <div>
+                  <h2>Business Rules</h2>
+                  <p>Configurable policy — changes are audited</p>
+                </div>
               </div>
             </div>
+            <div class="settings-body">
             <div style="padding:18px 24px; display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
               <label style="font-size:11px; font-weight:700;">Default hold window (days) <input id="brDefaultDays" type="number" min="1" max="365" style="width:100%; height:36px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;"></label>
               <label style="font-size:11px; font-weight:700; display:flex; align-items:center; gap:8px; margin-top:22px;"><input id="brExpireMakesAvail" type="checkbox"> EXPIRED → AVAILABLE</label>
@@ -1707,16 +1737,21 @@
               <button class="btn-primary" id="saveRulesBtn" type="button">Save Rules</button>
               <span id="brStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
             </div>
+            </div>
           </section>
 
           <!-- SOA SETTINGS -->
-          <section class="table-section" style="margin-bottom:24px;">
-            <div class="table-header">
+          <section class="table-section settings-section" data-section="soa" style="margin-bottom:24px;">
+            <div class="table-header" role="button" tabindex="0" aria-expanded="false">
               <div class="table-header-left">
-                <h2>SOA Settings</h2>
-                <p>Configurable company details, important notes, signatory and rates</p>
+                <i data-lucide="chevron-down" class="settings-chevron"></i>
+                <div>
+                  <h2>SOA Settings</h2>
+                  <p>Configurable company details, important notes, signatory and rates</p>
+                </div>
               </div>
             </div>
+            <div class="settings-body">
             <div style="padding:18px 24px; display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
               <label style="font-size:11px;font-weight:700;">Company Name<input id="soaCompanyName" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
               <label style="font-size:11px;font-weight:700;">Company Address<input id="soaCompanyAddress" type="text" style="width:100%;height:36px;border:1px solid var(--border);border-radius:6px;padding:0 10px;margin-top:6px;"></label>
@@ -1733,16 +1768,21 @@
               <button class="btn-primary" id="saveSoaSettingsBtn" type="button">Save SOA Settings</button>
               <span id="soaSettingsStatus" style="font-size:11px;color:var(--text-muted);"></span>
             </div>
+            </div>
           </section>
 
           <!-- FINANCING BANKS §20 (admin-configurable default annual interest) -->
-          <section class="table-section" style="margin-bottom:24px;">
-            <div class="table-header">
+          <section class="table-section settings-section" data-section="banks" style="margin-bottom:24px;">
+            <div class="table-header" role="button" tabindex="0" aria-expanded="false">
               <div class="table-header-left">
-                <h2>Financing Banks</h2>
-                <p>Default annual interest per bank — applies to new contracts only</p>
+                <i data-lucide="chevron-down" class="settings-chevron"></i>
+                <div>
+                  <h2>Financing Banks</h2>
+                  <p>Default annual interest per bank — applies to new contracts only</p>
+                </div>
               </div>
             </div>
+            <div class="settings-body">
             <div style="padding:18px 24px;" id="bankRatesList">
               <p style="font-size:11px; color:var(--text-muted);">Loading bank rates…</p>
             </div>
@@ -1750,19 +1790,24 @@
               <button class="btn-primary" id="saveBankRatesBtn" type="button">Save Bank Rates</button>
               <span id="brBankStatus" style="font-size:11px; color:var(--text-muted); align-self:center;"></span>
             </div>
+            </div>
           </section>
 
           <!-- AUDIT LOG -->
-          <section class="table-section" style="margin-bottom:24px;">
-            <div class="table-header">
+          <section class="table-section settings-section" data-section="audit" style="margin-bottom:24px;">
+            <div class="table-header" role="button" tabindex="0" aria-expanded="false">
               <div class="table-header-left">
-                <h2>Audit Log</h2>
-                <p>Most recent 100 changes to settings, payments, holds and reservations</p>
+                <i data-lucide="chevron-down" class="settings-chevron"></i>
+                <div>
+                  <h2>Audit Log</h2>
+                  <p>Most recent 100 changes to settings, payments, holds and reservations</p>
+                </div>
               </div>
               <div class="table-header-right">
                 <button class="btn-secondary" id="refreshAuditLogBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Refresh</button>
               </div>
             </div>
+            <div class="settings-body">
             <div class="table-scroll">
               <table class="data-table" id="auditLogTable">
                 <thead>
@@ -1779,6 +1824,7 @@
                   <tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Loading audit log…</td></tr>
                 </tbody>
               </table>
+            </div>
             </div>
           </section>
         </section>
@@ -2317,7 +2363,6 @@
       if (name === 'schedules') renderScheduleSelect();
       if (name === 'clerks') loadTeam();
       if (name === 'notifications') renderNotifications();
-      if (name === 'settings') loadAuditLog();
 
       sidebar.classList.remove('open');
       overlay.classList.remove('visible');
@@ -2588,7 +2633,6 @@
         }
       }catch(e){}
     }
-    loadBusinessRules();
     document.getElementById('saveRulesBtn')?.addEventListener('click', async ()=>{
       const rules={
         'holding_fee.default_days': document.getElementById('brDefaultDays').value,
@@ -2627,7 +2671,6 @@
           '</div>';
       }catch(e){}
     }
-    loadBankRates();
     document.getElementById('saveBankRatesBtn')?.addEventListener('click', async ()=>{
       const inputs=document.querySelectorAll('#bankRatesList .br-rate-input');
       const rates=[];
@@ -2692,7 +2735,6 @@
         if(status) status.textContent = '';
       }catch(e){ if(status) status.textContent = 'Could not load SOA settings.'; }
     }
-    loadSoaSettings();
 
     document.getElementById('saveSoaSettingsBtn')?.addEventListener('click', async ()=>{
       const status = document.getElementById('soaSettingsStatus');
@@ -2785,7 +2827,82 @@
         body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#b91c1c;">'+auditEsc(err.message)+'</td></tr>';
       }
     }
-    document.getElementById('refreshAuditLogBtn')?.addEventListener('click', loadAuditLog);
+    document.getElementById('refreshAuditLogBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      loadSettingsSection('audit');
+      loadAuditLog();
+    });
+
+    /* ==========================================
+       COLLAPSIBLE SETTINGS SECTIONS
+       The Settings view opens as a compact list of headers. A section fetches
+       its data the first time it is expanded, and which sections are left open
+       is remembered so repeat visits don't start from scratch.
+    ========================================== */
+    const SETTINGS_SECTION_LOADERS = {
+      'business-rules': loadBusinessRules,
+      'soa':             loadSoaSettings,
+      'banks':           loadBankRates,
+      'audit':           loadAuditLog
+    };
+    const SETTINGS_OPEN_KEY = 'IHC_ADMIN_SETTINGS_OPEN';
+
+    let settingsLoaded = {};   // in-memory, guards a double-fetch per page load
+    let settingsOpenState = {};
+    try {
+      settingsOpenState = JSON.parse(localStorage.getItem(SETTINGS_OPEN_KEY)) || {};
+    } catch (e) { settingsOpenState = {}; }
+
+    function loadSettingsSection(name) {
+      if (settingsLoaded[name]) return;
+      const loader = SETTINGS_SECTION_LOADERS[name];
+      if (!loader) return;
+      settingsLoaded[name] = true;   // set first: these are fire-and-forget fetches
+      loader();
+    }
+
+    function applySettingsSectionState(name) {
+      const root = document.querySelector('.settings-section[data-section="' + name + '"]');
+      if (!root) return;
+      const isOpen = !!settingsOpenState[name];
+      root.classList.toggle('open', isOpen);
+      const header = root.querySelector('.table-header');
+      if (header) header.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      const chevron = root.querySelector('.settings-chevron');
+      if (chevron) chevron.style.transform = isOpen ? 'rotate(180deg)' : '';
+      // Restore a remembered-open section without the user having to click it.
+      if (isOpen) loadSettingsSection(name);
+    }
+
+    function toggleSettingsSection(name) {
+      settingsOpenState[name] = !settingsOpenState[name];
+      try {
+        localStorage.setItem(SETTINGS_OPEN_KEY, JSON.stringify(settingsOpenState));
+      } catch (e) { /* private mode — the toggle still works for this page */ }
+      applySettingsSectionState(name);
+    }
+
+    const settingsView = document.querySelector('.view[data-view="settings"]');
+    if (settingsView) {
+      settingsView.addEventListener('click', (e) => {
+        // The Audit Log header carries a Refresh button; clicking it must not
+        // also collapse the section the user is trying to refresh.
+        if (e.target.closest('.table-header-right')) return;
+        const header = e.target.closest('.settings-section > .table-header');
+        if (!header) return;
+        toggleSettingsSection(header.parentElement.dataset.section);
+      });
+      settingsView.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+        const header = e.target.closest('.settings-section > .table-header');
+        if (!header) return;
+        e.preventDefault();
+        toggleSettingsSection(header.parentElement.dataset.section);
+      });
+      // Apply remembered state, then draw the chevrons.
+      Object.keys(SETTINGS_SECTION_LOADERS).forEach(applySettingsSectionState);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
 
     /* ==========================================
        CLERKS & CLIENTS (admin portfolio view)
