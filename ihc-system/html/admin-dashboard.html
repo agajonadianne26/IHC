@@ -1866,7 +1866,11 @@
     };
 
     const formatDate = (d) => {
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      // Endpoints return nextDueDate/dueDate as plain 'YYYY-MM-DD' strings
+      // (api_admin.php casts it that way), and a string has no
+      // toLocaleDateString. Coerce here so no caller has to remember to.
+      const date = d instanceof Date ? d : parseLocalDate(d);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
     const daysDiff = (d1, d2) => {
