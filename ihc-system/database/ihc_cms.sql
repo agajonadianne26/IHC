@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 22, 2026 at 06:38 AM
+-- Generation Time: Sep 29, 2026 at 03:36 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -88,16 +88,6 @@ CREATE TABLE `notification_logs` (
   `sent_at` datetime DEFAULT current_timestamp(),
   `error_message` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `notification_logs`
---
-
-INSERT INTO `notification_logs` (`id`, `contract_id`, `installment_id`, `client_email`, `channel`, `subject`, `status`, `sent_at`, `error_message`) VALUES
-(1, 'CON-7', NULL, 'agajonadianne@gmail.com', 'email', 'Reminder: Payment of ₱1,000,000.00 for CON-7 due in 1 day(s)', 'sent', '2026-09-16 08:18:10', NULL),
-(2, '7', NULL, 'agajonadianne@gmail.com', 'email', 'Reminder: Payment of ₱1,000,000.00 for 7 due in 1 day(s)', 'sent', '2026-09-16 09:24:50', NULL),
-(3, '7', NULL, 'agajonadianne@gmail.com', 'email', 'Reminder: Payment of ₱1,000,000.00 for 7 due in 1 day(s)', 'sent', '2026-09-16 09:29:50', NULL),
-(4, '7', NULL, 'agajonadianne@gmail.com', 'email', 'Reminder: Payment of ₱1,000,000.00 for 7 due in 1 day(s)', 'sent', '2026-09-16 09:34:59', NULL);
 
 -- --------------------------------------------------------
 
