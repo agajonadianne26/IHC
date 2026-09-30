@@ -29,6 +29,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .pw-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px}
+        .pw-overlay.visible{display:flex}
+        .pw-card{background:#fff;width:100%;max-width:420px;border-radius:14px;padding:26px;box-shadow:0 10px 25px rgba(0,0,0,.2);font-family:'Inter',system-ui,sans-serif}
+        .pw-card h3{font-size:17px;margin-bottom:6px}
+        .pw-card p{font-size:12px;color:#64748b;line-height:1.5}
+        .pw-card label{display:block;font-size:11px;font-weight:700;color:#475569;margin:12px 0 6px}
+        .pw-card input{width:100%;height:42px;border:1px solid #d1d5db;border-radius:8px;padding:0 12px;font-size:14px;font-family:inherit}
+        .pw-msg{margin-top:12px;font-size:12px;min-height:16px}
+        .pw-msg.err{color:#dc2626}.pw-msg.ok{color:#059669}
+        .pw-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+        .pw-actions button{height:40px;padding:0 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;border:1px solid #e2e8f0;background:#fff;color:#475569}
+        .pw-actions .pw-primary{background:#10b981;border-color:#10b981;color:#fff}
+        .pw-actions button:disabled{opacity:.6;cursor:not-allowed}
+    </style>
 </head>
 <body>
     <div class="login-container">
@@ -113,5 +128,98 @@
     </div>
 </div>
     </div>
+    <div class="pw-overlay" id="forgotModal">
+  <div class="pw-card">
+    <h3>Forgot password?</h3>
+    <p>For staff accounts (admin and clerk). Enter your email and your request will be sent to the administrator, who will give you a temporary password. Clients should ask their billing clerk instead.</p>
+    <label for="fpEmail">Email Address</label>
+    <input type="email" id="fpEmail" placeholder="name@company.com">
+    <div class="pw-msg" id="fpMsg"></div>
+    <div class="pw-actions">
+      <button type="button" id="fpCancel">Close</button>
+      <button type="button" class="pw-primary" id="fpSend">Send Request</button>
+    </div>
+  </div>
+</div>
+
+<div class="pw-overlay" id="changeModal">
+  <div class="pw-card">
+    <h3>Set a new password</h3>
+    <p>You signed in with a temporary password. Choose a new password (at least 8 characters) to continue.</p>
+    <label for="cpNew">New Password</label>
+    <input type="password" id="cpNew" autocomplete="new-password">
+    <label for="cpConfirm">Confirm New Password</label>
+    <input type="password" id="cpConfirm" autocomplete="new-password">
+    <div class="pw-msg" id="cpMsg"></div>
+    <div class="pw-actions">
+      <button type="button" id="cpCancel">Cancel</button>
+      <button type="button" class="pw-primary" id="cpSave">Save &amp; Sign In</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const PW_API = 'http://localhost/ihc-system/php/api_password.php';
+  let pending = null, changeResolve = null;
+
+  const setMsg = (el, text, cls) => { el.textContent = text; el.className = 'pw-msg ' + (cls || ''); };
+  const post = async (body) => {
+    const res = await fetch(PW_API, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({ message: 'Server error (HTTP ' + res.status + '). Check that php/api_password.php exists and has no PHP errors.' }));
+    return { ok: res.ok && data.success, data };
+  };
+
+  /* Forgot password */
+  document.querySelector('.forgot-password').addEventListener('click', (e) => {
+    e.preventDefault();
+    $('fpEmail').value = $('email').value.trim();
+    setMsg($('fpMsg'), '');
+    $('fpSend').disabled = false;
+    $('forgotModal').classList.add('visible');
+  });
+  $('fpCancel').addEventListener('click', () => $('forgotModal').classList.remove('visible'));
+  $('fpSend').addEventListener('click', async () => {
+    const email = $('fpEmail').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg($('fpMsg'), 'Enter a valid email address.', 'err'); return; }
+    $('fpSend').disabled = true; setMsg($('fpMsg'), 'Sending…');
+    try {
+      const r = await post({ action: 'request_reset', email });
+      if (!r.ok) throw new Error(r.data.message || 'Could not send the request.');
+      setMsg($('fpMsg'), r.data.message, 'ok');
+    } catch (err) { setMsg($('fpMsg'), err.message, 'err'); $('fpSend').disabled = false; }
+  });
+
+  /* Forced change — called by log in.js. Resolves with the new password, or null if cancelled. */
+  window.ihcRequirePasswordChange = (email, tempPassword) => new Promise((resolve) => {
+    pending = { email, tempPassword };
+    changeResolve = resolve;
+    $('cpNew').value = ''; $('cpConfirm').value = ''; setMsg($('cpMsg'), '');
+    $('cpSave').disabled = false;
+    $('changeModal').classList.add('visible');
+    $('cpNew').focus();
+  });
+  function closeChange(result) {
+    $('changeModal').classList.remove('visible');
+    const done = changeResolve;
+    changeResolve = null; pending = null;
+    if (done) done(result);
+  }
+  $('cpCancel').addEventListener('click', () => closeChange(null));
+  $('cpSave').addEventListener('click', async () => {
+    const a = $('cpNew').value.trim(), b = $('cpConfirm').value.trim();
+    if (a.length < 8) { setMsg($('cpMsg'), 'Use at least 8 characters.', 'err'); return; }
+    if (a !== b) { setMsg($('cpMsg'), 'Passwords do not match.', 'err'); return; }
+    if (a === pending.tempPassword) { setMsg($('cpMsg'), 'Choose a password different from the temporary one.', 'err'); return; }
+    $('cpSave').disabled = true; setMsg($('cpMsg'), 'Saving…');
+    try {
+      const r = await post({ action: 'change_password', email: pending.email, currentPassword: pending.tempPassword, newPassword: a });
+      if (!r.ok) throw new Error(r.data.message || 'Could not change the password.');
+      closeChange(a);
+    } catch (err) { setMsg($('cpMsg'), err.message, 'err'); $('cpSave').disabled = false; }
+  });
+})();
+</script>
 </body>
 </html>

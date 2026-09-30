@@ -101,6 +101,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (authResult.ok) {
         const u = authResult.user;
+         if (u.mustChangePassword && u.role !== 'client') {
+          const newPassword = await window.ihcRequirePasswordChange(email, password);
+          if (!newPassword) {
+            passwordInput.value = '';
+            showError('You must set a new password before you can sign in.');
+            return;
+          }
+          passwordInput.value = newPassword;
+          errorMessage.classList.add('hidden');
+          setTimeout(() => loginForm.requestSubmit(), 0); // normal sign-in with the new password
+          return;
+        }
         const session = {
           role: u.role,
           name: u.name,
