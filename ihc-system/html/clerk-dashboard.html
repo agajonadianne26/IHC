@@ -1853,6 +1853,7 @@
                   <th>Client & Property</th>
                   <th>Contract ID</th>
                   <th>Payment Type</th>
+                  <th>Outstanding Balance</th>
                   <th>Amount Due</th>
                   <th>Due Date</th>
                   <th>Status</th>
@@ -2711,7 +2712,7 @@
     const renderTable = (data) => {
       if (!data.length) {
         tableBody.innerHTML = `
-          <tr><td colspan="8">
+          <tr><td colspan="9">
             <div class="empty-state">
               <i data-lucide="search-x" style="width:40px;height:40px;"></i>
               <strong>No matching records</strong>
@@ -2732,6 +2733,7 @@
             <td><div class="client-cell"><strong>${row.client}</strong><small>${row.property}</small></div></td>
             <td><span class="contract-id">${row.id}</span></td>
             <td style="font-size:12px;">${row.paymentType}</td>
+            <td><span class="amount-due" style="color:#065f46;">${row.outstanding != null ? formatPHP(row.outstanding) : '\u2014'}</span></td>
             <td><span class="amount-due">${formatPHP(row.amount)}</span></td>
             <td style="white-space:nowrap;font-size:12px;">${formatDate(row.dueDate)}</td>
             <td><span class="status-badge ${row.status}"><span class="dot"></span>${statusLabel}</span></td>
@@ -2740,7 +2742,7 @@
               <div class="action-btns">
                 <button class="btn-action btn-print" onclick="printSOA(${globalIdx})">Print SOA</button>
                 <button class="btn-action btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${globalIdx})">Send Notif</button>
-                ${balanceChipMarkup(row)}
+
                 <button class="btn-action btn-portal" onclick="openPortalModal(${globalIdx})" title="Create or reset this client's Client Portal password">Portal Access</button>
               </div>
             </td>
