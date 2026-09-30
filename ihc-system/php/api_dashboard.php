@@ -116,6 +116,13 @@ foreach ($clients as $c) {
 
     $schedule = ihc_schedule($c, $paidByContract[$cid] ?? []);
     $next = $schedule['next'];
+    $discount = isset($c['discount_amount']) ? (float)$c['discount_amount'] : 0.0;
+    $netPrice = isset($c['total_contract_price'])
+        ? max(0.0, (float)$c['total_contract_price'] - $discount)
+        : null;
+    $outstanding = $netPrice !== null
+        ? max(0.0, round($netPrice - (float)$schedule['paid'], 2))
+        : null;
 
     $formattedClients[] = [
         'accountCode'     => 'CON-' . $c['id'],          // Using the primary key 'id'
@@ -127,6 +134,7 @@ foreach ($clients as $c) {
         'totalPrice'      => isset($c['total_contract_price']) ? (float)$c['total_contract_price'] : null,
         'terms'           => $terms,
         'amountPaid'      => $schedule['paid'],
+        'outstandingBalance' => $outstanding,
         'nextDueDate'     => $next ? $next['dueDate'] : (string)$c['start_date'],
         'nextAmount'      => $next ? $next['amount'] : 0,
         'nextStatus'      => $next ? 'Pending Payment' : 'Paid',

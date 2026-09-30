@@ -702,7 +702,23 @@
       color: #fff;
     }
     .btn-post:hover { background: #059669; }
-
+    .balance-chip {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 110px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 5px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    line-height: 1.1;
+    }
+.balance-chip small { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); }
+.balance-chip strong { font-size: 11px; font-weight: 800; color: #065f46; }
+.balance-chip.loading strong { color: var(--text-muted); font-weight: 600; }
+.balance-chip.zero { background: var(--bg-main); border-color: var(--border); }
+    
     .btn-portal {
       background: #f5f3ff;
       border-color: #8b5cf6;
@@ -2667,7 +2683,14 @@
       if (n === 'pending') return 'Pending';
       return 'Failed';
     };
-
+    const balanceChipMarkup = (row) => {
+      if (row.outstanding == null) {
+    const text = row.balanceError ? '\u2014' : 'Loading\u2026';
+      return `<span class="balance-chip loading" title="Outstanding balance per current SOA"><small>Outstanding</small><strong>${text}</strong></span>`;
+      }
+  const zero = row.outstanding <= 0.009;
+  return `<span class="balance-chip ${zero ? 'zero' : ''}" title="Outstanding balance per current SOA"><small>Outstanding</small><strong>${formatPHP(row.outstanding)}</strong></span>`;
+};
     /* ==========================================
        KPIs
     ========================================== */
@@ -2717,7 +2740,7 @@
               <div class="action-btns">
                 <button class="btn-action btn-print" onclick="printSOA(${globalIdx})">Print SOA</button>
                 <button class="btn-action btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${globalIdx})">Send Notif</button>
-                <button class="btn-action btn-post ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="openPaymentModal(${globalIdx})">Post Payment</button>
+                ${balanceChipMarkup(row)}
                 <button class="btn-action btn-portal" onclick="openPortalModal(${globalIdx})" title="Create or reset this client's Client Portal password">Portal Access</button>
               </div>
             </td>
@@ -2793,6 +2816,7 @@
         latestPaymentNo: c.latestPaymentNo,
         latestPaymentType: c.latestPaymentType,
         amount: Number(c.nextAmount) || 0,
+        outstanding: c.outstandingBalance != null ? Number(c.outstandingBalance) : null,
         // Always the date the endpoint reported (start_date once settled) so
         // this row matches the admin ledger and the client schedule exactly.
         dueDate: c.nextDueDate ? new Date(c.nextDueDate) : TODAY,
