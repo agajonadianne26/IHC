@@ -33,7 +33,8 @@ try {
 function ensureHoldingTables(PDO $pdo): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS property_units (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      project VARCHAR(255) NULL, building VARCHAR(255) NULL, unit_number VARCHAR(100) NULL,
+      project VARCHAR(255) NULL, phase VARCHAR(120) NULL, building VARCHAR(255) NULL, unit_number VARCHAR(100) NULL,
+      model_type VARCHAR(120) NULL, lot_area VARCHAR(100) NULL, floor_area VARCHAR(100) NULL,
       display_label VARCHAR(255) NOT NULL, status ENUM('AVAILABLE','ON HOLD','RESERVED','SOLD') NOT NULL DEFAULT 'AVAILABLE',
       current_client_id INT NULL, current_contract_id INT NULL, current_holding_fee_id INT NULL, current_reservation_fee_id INT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -70,8 +71,54 @@ function ensureHoldingTables(PDO $pdo): void {
       ('holding_fee.default_days','30','Default hold window'),('holding_fee.expire_makes_available','1','1=EXPIRED->AVAILABLE'),
       ('holding_fee.convert_on_reservation','1','1=reservation PAID marks holding CONVERTED'),('holding_fee.refundable','0',''),('reservation_fee.refundable','1',''),
       ('holding_fee.allow_direct_reservation','0','1=allow reservation without prior active hold'),('business_rules.version','6','Migration marker')");
+    // Self-heal property_units descriptive columns (added for address<->phase/block/lot autofill)
+    try {
+        $cols=[]; foreach($pdo->query('SHOW COLUMNS FROM property_units') as $c) $cols[strtolower($c['Field'])]=true;
+        if(!isset($cols['phase']))         $pdo->exec('ALTER TABLE property_units ADD COLUMN phase VARCHAR(120) NULL AFTER project');
+        if(!isset($cols['model_type']))   $pdo->exec('ALTER TABLE property_units ADD COLUMN model_type VARCHAR(120) NULL AFTER unit_number');
+        if(!isset($cols['lot_area']))     $pdo->exec('ALTER TABLE property_units ADD COLUMN lot_area VARCHAR(100) NULL AFTER model_type');
+        if(!isset($cols['floor_area']))   $pdo->exec('ALTER TABLE property_units ADD COLUMN floor_area VARCHAR(100) NULL AFTER lot_area');
+    } catch(Throwable $e){ /* self-heal must not block */ }
     // Backfill property_units from existing contracts (idempotent)
     try { $pdo->exec("INSERT IGNORE INTO property_units (display_label, status, current_contract_id) SELECT DISTINCT TRIM(property_address), 'AVAILABLE', id FROM contracts WHERE property_address IS NOT NULL AND TRIM(property_address) <> ''"); } catch(Throwable $e){}
+    // One-time fill of the descriptive columns from the matching contract row,
+    // so the New Contract autofill has project/phase/block/lot to work with.
+    // Gated by business_rules so it runs exactly once: afterwards these columns
+    // belong to the Property Inventory editor, not to whatever a contract says.
+    try {
+        $done=$pdo->prepare('SELECT rule_value FROM business_rules WHERE rule_key=?');
+        $done->execute(['property_units.descriptive_backfill']);
+        $row=$done->fetch();
+        if(!$row){
+            $st=$pdo->prepare("SELECT u.id, u.display_label, u.project, u.phase, u.building, u.unit_number,
+                                      c.project_name, c.project_phase, c.block_no, c.lot_no,
+                                      c.model_type, c.lot_area, c.floor_area
+                               FROM property_units u
+                               LEFT JOIN contracts c
+                                 ON c.id = u.current_contract_id
+                                 OR (u.current_contract_id IS NULL AND TRIM(c.property_address) = u.display_label)
+                              GROUP BY u.id, u.display_label, u.project, u.phase, u.building, u.unit_number,
+                                       c.project_name, c.project_phase, c.block_no, c.lot_no,
+                                       c.model_type, c.lot_area, c.floor_area");
+            $st->execute();
+            $upd=$pdo->prepare('UPDATE property_units SET project=?, phase=?, building=?, unit_number=?, model_type=?, lot_area=?, floor_area=? WHERE id=?');
+            foreach($st as $r){
+                // contract columns win, then parse whatever is embedded in the label
+                $label=(string)$r['display_label'];
+                $upd->execute([
+                    $r['project'] ?: ($r['project_name'] ?: null),
+                    $r['phase'] ?: ($r['project_phase'] ?: property_label_part($label, 'phase')),
+                    $r['building'] ?: ($r['block_no'] ?: property_label_part($label, 'block')),
+                    $r['unit_number'] ?: ($r['lot_no'] ?: property_label_part($label, 'lot')),
+                    $r['model_type'] ?: null,
+                    $r['lot_area'] ?: null,
+                    $r['floor_area'] ?: null,
+                    (int)$r['id'],
+                ]);
+            }
+            $pdo->prepare("INSERT INTO business_rules (rule_key,rule_value,description) VALUES ('property_units.descriptive_backfill','1','One-time fill of project/phase/block/lot from contracts') ON DUPLICATE KEY UPDATE rule_value='1'")->execute();
+        }
+    } catch(Throwable $e){ /* descriptive backfill is best-effort */ }
     // Upgrade legacy holding_fees table (officer_id, proof_data_url, varchar status) to new schema if needed
     try {
         $cols=[]; foreach($pdo->query('SHOW COLUMNS FROM holding_fees') as $c) $cols[strtolower($c['Field'])]=true;
@@ -146,6 +193,55 @@ function getOrCreateUnit(PDO $pdo, string $label, ?int $contractId): ?array {
         $id=(int)$pdo->lastInsertId();
         $st=$pdo->prepare('SELECT * FROM property_units WHERE id=?'); $st->execute([$id]); return $st->fetch() ?: null;
     }catch(Throwable $e){ $st=$pdo->prepare('SELECT * FROM property_units WHERE display_label=? LIMIT 1'); $st->execute([$label]); return $st->fetch() ?: null; }
+}
+function property_label_part(string $label, string $part): ?string {
+    if(preg_match('/\b'.preg_quote($part,'/').'\s*([A-Za-z0-9_-]+)/i', $label, $m)) return trim($m[1]);
+    return null;
+}
+function property_search_shape(array $r): array {
+    return [
+        'id'          => (int)$r['id'],
+        'displayLabel'=> $r['display_label'],
+        'project'     => $r['project'] ?: null,
+        'phase'       => $r['phase'] ?: null,
+        'block'       => $r['building'] ?: null,
+        'lot'         => $r['unit_number'] ?: null,
+        'modelType'   => $r['model_type'] ?: null,
+        'lotArea'     => $r['lot_area'] ?: null,
+        'floorArea'   => $r['floor_area'] ?: null,
+        'status'      => $r['status'],
+        'contractId'  => isset($r['current_contract_id']) ? (int)$r['current_contract_id'] : null,
+        'createdAt'   => $r['created_at'] ?? null,
+        'updatedAt'   => $r['updated_at'] ?? null,
+    ];
+}
+
+// Normalizes the descriptive fields shared by every unit write. Returns
+// [display_label, project, phase, building, unit_number, model, lot, floor].
+// An omitted key keeps the value from $base (partial update); a key present
+// but empty clears the column.
+function property_unit_fields(array $src, array $base = []): array {
+    $specs = [
+        [['displayLabel','display_label'], 'display_label', 255],
+        [['project','project_name'],      'project',       255],
+        [['phase','project_phase'],       'phase',         120],
+        [['block','building'],            'building',      255],
+        [['lot','unit_number'],           'unit_number',   100],
+        [['modelType','model_type'],      'model_type',    120],
+        [['lotArea','lot_area'],          'lot_area',      100],
+        [['floorArea','floor_area'],      'floor_area',    100],
+    ];
+    $out = [];
+    foreach($specs as list($keys, $column, $max)){
+        $found = false; $val = '';
+        foreach($keys as $k){
+            if(array_key_exists($k, $src)){ $val = $src[$k]; $found = true; break; }
+        }
+        if(!$found && array_key_exists($column, $base)) $val = $base[$column];
+        $val = is_string($val) ? trim($val) : '';
+        $out[] = $val === '' ? null : mb_substr($val, 0, $max);
+    }
+    return $out;
 }
 function getUnitById(PDO $pdo, int $id): ?array {
     $st=$pdo->prepare('SELECT * FROM property_units WHERE id=?'); $st->execute([$id]); $r=$st->fetch(); return $r?:null;
@@ -371,6 +467,77 @@ try{
             echo json_encode(['success'=>true,'contract'=>['id'=>$cid,'client'=>$contract['client_name'],'property'=>$contract['property_address'],'unit'=>$unit],'holdingFees'=>$holdingFees,'reservationFees'=>$reservationFees,'payments'=>$payments,'history'=>$history,'totalPaid'=>round($totalPaid,2)]);
             exit;
         }
+        if($action==='property_units'){
+            // Full inventory for the admin Property Inventory editor.
+            $q = trim((string)($_GET['q'] ?? ''));
+            $status = strtoupper(trim((string)($_GET['status'] ?? '')));
+            $limit = min(500, max(1, (int)($_GET['limit'] ?? 200)));
+            $where=[]; $params=[];
+            if($q!==''){
+                $like='%'.$q.'%';
+                $where[]='(display_label LIKE ? OR project LIKE ? OR phase LIKE ? OR building LIKE ? OR unit_number LIKE ?)';
+                array_push($params,$like,$like,$like,$like,$like);
+            }
+            if(in_array($status,['AVAILABLE','ON HOLD','RESERVED','SOLD'],true)){ $where[]='status = ?'; $params[]=$status; }
+            $sql="SELECT id,project,phase,building,unit_number,model_type,lot_area,floor_area,display_label,status,
+                         current_contract_id,current_client_id,current_holding_fee_id,current_reservation_fee_id,created_at,updated_at
+                  FROM property_units";
+            if($where) $sql.=' WHERE '.implode(' AND ',$where);
+            $sql.=' ORDER BY display_label LIMIT '.$limit;
+            $st=$pdo->prepare($sql); $st->execute($params); $rows=$st->fetchAll();
+            $counts=['AVAILABLE'=>0,'ON HOLD'=>0,'RESERVED'=>0,'SOLD'=>0];
+            foreach($pdo->query('SELECT status, COUNT(*) AS n FROM property_units GROUP BY status') as $cr){
+                $counts[$cr['status']]=(int)$cr['n'];
+            }
+            echo json_encode(['success'=>true,'units'=>array_map('property_search_shape',$rows),'counts'=>$counts]);
+            exit;
+        }
+        if($action==='property_search'){
+            // Typeahead for the New Contract property fields. Returns unit
+            // rows whose label/project/phase/block/lot match the query so the
+            // clerk dashboard can fill address <-> phase/block/lot both ways.
+            $q = trim((string)($_GET['q'] ?? ''));
+            $limit = min(50, max(1, (int)($_GET['limit'] ?? 20)));
+            if($q===''){
+                $rows=$pdo->query('SELECT id,project,phase,building,unit_number,model_type,lot_area,floor_area,display_label,status,current_contract_id FROM property_units ORDER BY display_label LIMIT '.$limit)->fetchAll();
+                echo json_encode(['success'=>true,'results'=>array_map('property_search_shape',$rows)]);
+                exit;
+            }
+            $like = '%'.$q.'%';
+            $st=$pdo->prepare("SELECT id,project,phase,building,unit_number,model_type,lot_area,floor_area,display_label,status,current_contract_id
+                               FROM property_units
+                               WHERE display_label LIKE ? OR project LIKE ? OR phase LIKE ?
+                                  OR building LIKE ? OR unit_number LIKE ?
+                                  OR CONCAT(building,' ',unit_number) LIKE ?
+                                  OR CONCAT(building,' Lot ',unit_number) LIKE ?
+                               ORDER BY (display_label LIKE ?) DESC, display_label
+                               LIMIT ".$limit);
+            $st->execute([$like,$like,$like,$like,$like,$like,$like,$q.'%']);
+            echo json_encode(['success'=>true,'results'=>array_map('property_search_shape',$st->fetchAll())]);
+            exit;
+        }
+        if($action==='property_resolve'){
+            // Reverse lookup: exact phase/block/lot (+ optional project) -> canonical address.
+            $phase=trim((string)($_GET['phase'] ?? ''));
+            $block=trim((string)($_GET['block'] ?? ''));
+            $lot=trim((string)($_GET['lot'] ?? ''));
+            $project=trim((string)($_GET['project'] ?? ''));
+            if($block==='' && $lot===''){
+                echo json_encode(['success'=>true,'match'=>null]); exit;
+            }
+            // Compare normalized (lowercased, "block"/"lot" prefix stripped,
+            // trimmed) so "1"/"Block 1"/"BLOCK 1" all resolve to the same unit.
+            $norm = function(string $v, string $word): string { return strtolower(trim(preg_replace('/^\s*'.$word.'\s*/i', '', trim($v)))); };
+            $where=[]; $params=[];
+            if($block!==''){ $where[]='(TRIM(REPLACE(REPLACE(LOWER(building),"block",""),"lot","")) = ?)'; $params[]=$norm($block,'block'); }
+            if($lot!=='')  { $where[]='(TRIM(REPLACE(REPLACE(LOWER(unit_number),"lot",""),"block","")) = ?)'; $params[]=$norm($lot,'lot'); }
+            if($phase!==''){ $where[]='LOWER(TRIM(phase)) = ?'; $params[]=strtolower(trim($phase)); }
+            if($project!==''){ $where[]='LOWER(TRIM(project)) = ?'; $params[]=strtolower(trim($project)); }
+            $sql='SELECT id,project,phase,building,unit_number,model_type,lot_area,floor_area,display_label,status,current_contract_id FROM property_units WHERE '.implode(' AND ',$where).' ORDER BY display_label LIMIT 1';
+            $st=$pdo->prepare($sql); $st->execute($params); $row=$st->fetch();
+            echo json_encode(['success'=>true,'match'=>$row?property_search_shape($row):null]);
+            exit;
+        }
         if($action==='property_unit'){
             $unitId = isset($_GET['unitId']) ? (int)$_GET['unitId'] : null;
             $contractId = isset($_GET['contractId']) ? normalizeContractId($_GET['contractId']) : null;
@@ -425,6 +592,78 @@ try{
             foreach($keys as $k){ if(isset($src[$k]) && $src[$k]!=='' ) return $src[$k]; }
             return null;
         };
+
+        if($action==='create_unit' || $action==='update_unit'){
+            $isUpdate = $action==='update_unit';
+            $unitId = $isUpdate ? (int)($get($input,'id','unitId','propertyUnitId') ?? 0) : 0;
+            $actorId   = trim((string)($get($input,'actorId','actor_id') ?? '')) ?: null;
+            $actorName = trim((string)($get($input,'actorName','actor_name') ?? '')) ?: null;
+
+            $pdo->beginTransaction();
+            try {
+                if($isUpdate){
+                    $st=$pdo->prepare('SELECT * FROM property_units WHERE id=? FOR UPDATE'); $st->execute([$unitId]); $unit=$st->fetch();
+                    if(!$unit) throw new RuntimeException('Property/unit not found.');
+                    // Omitted fields keep their stored value; only what the form
+                    // actually sends is rewritten.
+                    [$label,$project,$phase,$building,$unitNumber,$model,$lotArea,$floorArea] = property_unit_fields($input, $unit);
+                    if($label===null || $label==='') throw new RuntimeException('Property address (display label) is required.');
+                    $clash=$pdo->prepare('SELECT id FROM property_units WHERE display_label=? AND id<>? LIMIT 1');
+                    $clash->execute([$label,$unitId]);
+                    if($clash->fetch()) throw new RuntimeException('Another property already uses the address "'.$label.'".');
+                    $pdo->prepare('UPDATE property_units SET display_label=?, project=?, phase=?, building=?, unit_number=?, model_type=?, lot_area=?, floor_area=? WHERE id=?')
+                        ->execute([$label,$project,$phase,$building,$unitNumber,$model,$lotArea,$floorArea,$unitId]);
+                    audit($pdo,'update_unit',normalizeContractId($unit['current_contract_id']),null,null,$unitId,null,null,$actorId,$actorName,
+                        ['displayLabel'=>$label,'project'=>$project,'phase'=>$phase,'block'=>$building,'lot'=>$unitNumber]);
+                    $pdo->commit();
+                    $fresh=getUnitById($pdo,$unitId);
+                    echo json_encode(['success'=>true,'message'=>'Property updated.','unit'=>$fresh?property_search_shape($fresh):null]);
+                    exit;
+                }
+                [$label,$project,$phase,$building,$unitNumber,$model,$lotArea,$floorArea] = property_unit_fields($input);
+                if($label===null || $label==='') throw new RuntimeException('Property address (display label) is required.');
+                $clash=$pdo->prepare('SELECT id FROM property_units WHERE display_label=? LIMIT 1'); $clash->execute([$label]);
+                if($clash->fetch()) throw new RuntimeException('A property with the address "'.$label.'" already exists. Edit it instead.');
+                $pdo->prepare('INSERT INTO property_units (display_label,project,phase,building,unit_number,model_type,lot_area,floor_area,status)
+                               VALUES (?,?,?,?,?,?,?,?,"AVAILABLE")')
+                    ->execute([$label,$project,$phase,$building,$unitNumber,$model,$lotArea,$floorArea]);
+                $newId=(int)$pdo->lastInsertId();
+                audit($pdo,'create_unit',null,null,null,$newId,null,'AVAILABLE',$actorId,$actorName,
+                    ['displayLabel'=>$label,'project'=>$project,'phase'=>$phase,'block'=>$building,'lot'=>$unitNumber]);
+                $pdo->commit();
+                $fresh=getUnitById($pdo,$newId);
+                echo json_encode(['success'=>true,'message'=>'Property added to inventory.','unit'=>$fresh?property_search_shape($fresh):null]);
+                exit;
+            } catch(Throwable $e) {
+                if($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+        }
+
+        if($action==='delete_unit'){
+            $unitId = (int)($get($input,'id','unitId','propertyUnitId') ?? 0);
+            $actorId   = trim((string)($get($input,'actorId','actor_id') ?? '')) ?: null;
+            $actorName = trim((string)($get($input,'actorName','actor_name') ?? '')) ?: null;
+            if($unitId<=0) throw new RuntimeException('Property/unit not found.');
+
+            $pdo->beginTransaction();
+            try {
+                $st=$pdo->prepare('SELECT * FROM property_units WHERE id=? FOR UPDATE'); $st->execute([$unitId]); $unit=$st->fetch();
+                if(!$unit) throw new RuntimeException('Property/unit not found.');
+                if($unit['current_contract_id']) throw new RuntimeException('This property is linked to a contract and cannot be deleted. Change its details instead.');
+                $hf=$pdo->prepare('SELECT COUNT(*) FROM holding_fees WHERE property_unit_id=?'); $hf->execute([$unitId]);
+                $rf=$pdo->prepare('SELECT COUNT(*) FROM reservation_fees WHERE property_unit_id=?'); $rf->execute([$unitId]);
+                if((int)$hf->fetchColumn()>0 || (int)$rf->fetchColumn()>0) throw new RuntimeException('This property has holding or reservation fees and cannot be deleted. Change its details instead.');
+                $pdo->prepare('DELETE FROM property_units WHERE id=?')->execute([$unitId]);
+                audit($pdo,'delete_unit',null,null,null,$unitId,$unit['status'],null,$actorId,$actorName,['displayLabel'=>$unit['display_label']]);
+                $pdo->commit();
+                echo json_encode(['success'=>true,'message'=>'Property deleted.']);
+                exit;
+            } catch(Throwable $e) {
+                if($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+        }
 
         if($action==='create_holding_fee' || $action==='update_holding_fee'){
             $isUpdate = $action==='update_holding_fee';

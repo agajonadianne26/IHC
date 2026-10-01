@@ -17,8 +17,12 @@ USE ihc;
 CREATE TABLE IF NOT EXISTS property_units (
   id INT AUTO_INCREMENT PRIMARY KEY,
   project VARCHAR(255) NULL,
+  phase VARCHAR(120) NULL,
   building VARCHAR(255) NULL,
   unit_number VARCHAR(100) NULL,
+  model_type VARCHAR(120) NULL,
+  lot_area VARCHAR(100) NULL,
+  floor_area VARCHAR(100) NULL,
   display_label VARCHAR(255) NOT NULL,
   status ENUM('AVAILABLE','ON HOLD','RESERVED','SOLD') NOT NULL DEFAULT 'AVAILABLE',
   current_client_id INT NULL,
@@ -36,6 +40,21 @@ INSERT IGNORE INTO property_units (display_label, status, current_contract_id)
 SELECT DISTINCT TRIM(property_address), 'AVAILABLE', id
 FROM contracts
 WHERE property_address IS NOT NULL AND TRIM(property_address) <> '';
+
+-- Fill the descriptive columns from the linked contract so the clerk New
+-- Contract form can autofill address <-> phase/block/lot both ways.
+-- Display label is parsed as a fallback for legacy rows with blank parts.
+UPDATE property_units u
+JOIN contracts c
+  ON c.id = u.current_contract_id
+  OR (u.current_contract_id IS NULL AND TRIM(c.property_address) = u.display_label)
+SET u.project     = COALESCE(u.project, c.project_name),
+    u.phase       = COALESCE(u.phase, c.project_phase),
+    u.building    = COALESCE(u.building, c.block_no),
+    u.unit_number = COALESCE(u.unit_number, c.lot_no),
+    u.model_type  = COALESCE(u.model_type, c.model_type),
+    u.lot_area    = COALESCE(u.lot_area, c.lot_area),
+    u.floor_area  = COALESCE(u.floor_area, c.floor_area);
 
 -- ------------------------------------------------------------
 -- 2) Holding Fees  (spec §3-§5)

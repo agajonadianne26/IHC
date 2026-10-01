@@ -904,6 +904,173 @@
       pointer-events: none;
     }
 
+    /* ==========================================
+       PROPERTY INVENTORY (form + modal)
+    ========================================== */
+    .modal-overlay { overflow-y: auto; }
+
+    .inv-modal {
+      background: #fff;
+      width: 100%;
+      max-width: 560px;
+      max-height: calc(100vh - 40px);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow-y: auto;
+      transform: scale(0.95);
+      transition: transform 0.25s;
+    }
+
+    .modal-overlay.visible .inv-modal { transform: scale(1); }
+
+    .inv-modal-head {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .inv-modal-head h3 { font-size: 16px; font-weight: 700; }
+    .inv-modal-head p { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+
+    .inv-modal-close {
+      border: none;
+      background: none;
+      font-size: 22px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .inv-modal-close:hover { background: var(--bg-main); }
+
+    .inv-modal-body { padding: 20px 24px; }
+
+    .inv-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .inv-form-group { display: flex; flex-direction: column; }
+    .inv-form-group.full { grid-column: 1 / -1; }
+
+    .inv-form-group label {
+      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .inv-form-group input {
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid #d1d5db;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .inv-form-group input:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
+    .inv-hint {
+      margin-top: 5px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .inv-modal-foot {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn-cancel-inv {
+      height: 38px;
+      padding: 0 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #fff;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .btn-cancel-inv:hover { background: var(--bg-main); }
+
+    .btn-save-inv {
+      height: 38px;
+      padding: 0 18px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--accent-emerald, #059669);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .btn-save-inv:hover { background: #047857; }
+    .btn-save-inv:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .inv-link {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-blue, #2563eb);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .inv-link:hover { text-decoration: underline; }
+
+    .inv-link.danger { color: #dc2626; }
+
+    .inv-muted { color: var(--text-muted); }
+
+    .inv-counts {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .inv-count {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .inv-count.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
+
+    @media (max-width: 560px) {
+      .inv-form-grid { grid-template-columns: 1fr; }
+    }
+
     /* Table empty state */
     .empty-state {
       text-align: center;
@@ -1276,6 +1443,10 @@
           <span>Notifications Log</span>
           <span class="nav-badge">3</span>
         </a>
+        <a class="sidebar-link" href="#" data-page="properties">
+          <i data-lucide="building-2"></i>
+          <span>Property Inventory</span>
+        </a>
         <a class="sidebar-link" href="#" data-page="reports">
           <i data-lucide="bar-chart-3"></i>
           <span>Reports</span>
@@ -1631,6 +1802,49 @@
         </section>
 
         <!-- ============================
+             VIEW: PROPERTY INVENTORY
+        ============================= -->
+        <section class="view" data-view="properties">
+          <div class="subhead">
+            <div>
+              <h2>Property Inventory</h2>
+              <p>Master list of every property. Clerks see these as suggestions when they type a property address on the New Contract form.</p>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input id="invSearch" type="text" placeholder="Search address, project, phase, block, lot"
+                     style="height:38px; min-width:260px; border:1px solid var(--border); border-radius:6px; padding:0 12px; font-family:inherit; font-size:12px;">
+              <button class="btn-primary" id="invAddBtn" type="button">
+                <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Property
+              </button>
+            </div>
+          </div>
+
+          <div class="inv-counts" id="invCounts" style="margin-bottom:14px;"></div>
+
+          <div class="table-section" style="margin-bottom:24px;">
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Property Address</th>
+                    <th scope="col">Project</th>
+                    <th scope="col">Phase</th>
+                    <th scope="col">Block</th>
+                    <th scope="col">Lot</th>
+                    <th scope="col">Model / Areas</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="invBody">
+                  <tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Loading properties&hellip;</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================
              VIEW: REPORTS
         ============================= -->
         <section class="view" data-view="reports">
@@ -1847,6 +2061,61 @@
     </div>
   </div>
 
+  <!-- PROPERTY INVENTORY MODAL -->
+  <div class="modal-overlay" id="invModal">
+    <div class="inv-modal">
+      <div class="inv-modal-head">
+        <div>
+          <h3 id="invModalTitle">Add Property</h3>
+          <p>Phase, block and lot here power the New Contract autofill.</p>
+        </div>
+        <button class="inv-modal-close" id="invModalClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="inv-modal-body">
+        <div class="inv-form-grid">
+          <div class="inv-form-group full">
+            <label for="invLabel">Property Address <span style="color:#dc2626;">*</span></label>
+            <input type="text" id="invLabel" placeholder="e.g., Block 1 Lot 2, Sample Subdivision, City" autocomplete="off">
+            <small class="inv-hint">Must be unique. This exact text is what clerks see in the New Contract suggestions.</small>
+          </div>
+          <div class="inv-form-group">
+            <label for="invProject">Project Name</label>
+            <input type="text" id="invProject" placeholder="e.g., Sample Subdivision" autocomplete="off">
+          </div>
+          <div class="inv-form-group">
+            <label for="invPhase">Phase</label>
+            <input type="text" id="invPhase" placeholder="e.g., Phase 1" autocomplete="off">
+          </div>
+          <div class="inv-form-group">
+            <label for="invBlock">Block</label>
+            <input type="text" id="invBlock" placeholder="e.g., Block 1" autocomplete="off">
+          </div>
+          <div class="inv-form-group">
+            <label for="invLot">Lot</label>
+            <input type="text" id="invLot" placeholder="e.g., Lot 2" autocomplete="off">
+          </div>
+          <div class="inv-form-group">
+            <label for="invModel">Model Type</label>
+            <input type="text" id="invModel" placeholder="e.g., 2-storey" autocomplete="off">
+          </div>
+          <div class="inv-form-group">
+            <label for="invLotArea">Lot Area</label>
+            <input type="text" id="invLotArea" placeholder="e.g., 150 sqm" autocomplete="off">
+          </div>
+          <div class="inv-form-group full">
+            <label for="invFloorArea">Floor Area</label>
+            <input type="text" id="invFloorArea" placeholder="e.g., 120 sqm" autocomplete="off">
+          </div>
+        </div>
+        <div class="inv-hint" id="invFormStatus" style="margin-top:12px;"></div>
+      </div>
+      <div class="inv-modal-foot">
+        <button class="btn-cancel-inv" id="invCancelBtn" type="button">Cancel</button>
+        <button class="btn-save-inv" id="invSaveBtn" type="button">Save Property</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============================================
        JAVASCRIPT
   ============================================= -->
@@ -1894,6 +2163,7 @@
        loadAdminData() below fills these asynchronously.
     ========================================== */
     const API_BASE = 'http://localhost/ihc-system';
+    const HOLDING_API = API_BASE + '/php/api_holding_reservation.php';
     const TODAY = new Date();
     TODAY.setHours(0, 0, 0, 0);
 
@@ -2338,6 +2608,7 @@
       schedules:     ['Payment Schedules', 'Installment & Dowpayment Schedules Per Contract'],
       clerks:        ['Clerks & Clients', 'Sales Team Portfolio \u2022 Clients Enrolled by Each Clerk'],
       notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
+      properties:    ['Property Inventory', 'Master Property List • New Contract Autofill'],
       reports:       ['Reports', 'Generate & Export Collection Reports'],
       settings:      ['Settings', 'System Configuration \u2022 Business Rules, SOA & Bank Rates']
     };
@@ -2363,6 +2634,7 @@
       if (name === 'schedules') renderScheduleSelect();
       if (name === 'clerks') loadTeam();
       if (name === 'notifications') renderNotifications();
+      if (name === 'properties') loadPropertyUnits();
 
       sidebar.classList.remove('open');
       overlay.classList.remove('visible');
@@ -3057,6 +3329,252 @@
       }
     }
     document.getElementById('refreshTeamBtn')?.addEventListener('click', loadTeam);
+
+    /* ==========================================
+       PROPERTY INVENTORY — master list backing
+       the clerk New Contract address <-> phase /
+       block / lot autofill.
+    ========================================== */
+    const invBody = document.getElementById('invBody');
+    const invCountsBox = document.getElementById('invCounts');
+    const invSearch = document.getElementById('invSearch');
+    const invModal = document.getElementById('invModal');
+    const invSaveBtn = document.getElementById('invSaveBtn');
+    const invFormStatus = document.getElementById('invFormStatus');
+    const invFields = {
+      displayLabel: document.getElementById('invLabel'),
+      project:     document.getElementById('invProject'),
+      phase:       document.getElementById('invPhase'),
+      block:       document.getElementById('invBlock'),
+      lot:         document.getElementById('invLot'),
+      modelType:   document.getElementById('invModel'),
+      lotArea:     document.getElementById('invLotArea'),
+      floorArea:   document.getElementById('invFloorArea')
+    };
+    let invEditId = null;
+    let invStatusFilter = '';
+    let invRows = [];
+    let invTimer = null;
+
+    const invEsc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const invDash = (v) => (v == null || v === '' ? '<span class="inv-muted">&mdash;</span>' : invEsc(v));
+
+    function invStatusClass(status) {
+      if (status === 'AVAILABLE') return 'ok';
+      if (status === 'ON HOLD' || status === 'RESERVED') return 'warn';
+      return 'danger';
+    }
+
+    async function loadPropertyUnits() {
+      if (!invBody) return;
+      invBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Loading properties&hellip;</td></tr>';
+      const params = new URLSearchParams({ action: 'property_units' });
+      if (invStatusFilter) params.set('status', invStatusFilter);
+      const q = (invSearch?.value || '').trim();
+      if (q) params.set('q', q);
+      try {
+        const res = await fetch(HOLDING_API + '?' + params.toString());
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Could not load properties');
+        invRows = Array.isArray(data.units) ? data.units : [];
+        renderPropertyUnits(data.counts || {});
+      } catch (err) {
+        invRows = [];
+        invBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:#b91c1c;">' + invEsc(err.message) + '</td></tr>';
+      }
+    }
+
+    function renderPropertyUnits(counts) {
+      // Status filter chips
+      if (invCountsBox) {
+        const chips = [['', 'All']].concat(
+          ['AVAILABLE', 'ON HOLD', 'RESERVED', 'SOLD'].map((s) => [s, s])
+        );
+        invCountsBox.innerHTML = chips.map(([value, label]) => {
+          const n = value === '' ? Object.values(counts).reduce((a, b) => a + (Number(b) || 0), 0) : Number(counts[value] || 0);
+          const active = invStatusFilter === value ? ' active' : '';
+          return '<button type="button" class="inv-count' + active + '" data-status="' + invEsc(value) + '">' +
+            invEsc(label) + ' (' + n + ')</button>';
+        }).join('');
+        invCountsBox.querySelectorAll('.inv-count').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            invStatusFilter = btn.getAttribute('data-status') || '';
+            loadPropertyUnits();
+          });
+        });
+      }
+
+      if (!invRows.length) {
+        invBody.innerHTML = '<tr><td colspan="8">' +
+          '<div class="empty-state"><i data-lucide="building-2"></i>' +
+          '<strong>No properties yet</strong>' +
+          '<small>Add one so clerks get Phase / Block / Lot filled in automatically.</small></div></td></tr>';
+        lucide.createIcons();
+        return;
+      }
+
+      invBody.innerHTML = invRows.map((u) => {
+        const modelBits = [
+          u.modelType ? invEsc(u.modelType) : '',
+          u.lotArea ? 'Lot ' + invEsc(u.lotArea) : '',
+          u.floorArea ? 'Floor ' + invEsc(u.floorArea) : ''
+        ].filter(Boolean).join(' &bull; ');
+        const linked = u.contractId ? ' <span class="inv-muted">#' + invEsc(u.contractId) + '</span>' : '';
+        return '<tr>' +
+          '<td><div class="client-cell"><strong>' + invEsc(u.displayLabel) + linked + '</strong></div></td>' +
+          '<td>' + invDash(u.project) + '</td>' +
+          '<td>' + invDash(u.phase) + '</td>' +
+          '<td>' + invDash(u.block) + '</td>' +
+          '<td>' + invDash(u.lot) + '</td>' +
+          '<td>' + (modelBits || '<span class="inv-muted">&mdash;</span>') + '</td>' +
+          '<td><span class="row-status ' + invStatusClass(u.status) + '"><span class="dot"></span>' + invEsc(u.status) + '</span></td>' +
+          '<td><div class="action-btns">' +
+            '<button class="inv-link" onclick="window.editPropertyUnit(' + Number(u.id) + ')">Edit</button>' +
+            (u.status !== 'SOLD'
+              ? '<button class="inv-link" onclick="window.markPropertySold(' + Number(u.id) + ')">Mark SOLD</button>'
+              : '') +
+            '<button class="inv-link danger" onclick="window.deletePropertyUnit(' + Number(u.id) + ')">Delete</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function resetInvForm() {
+      Object.values(invFields).forEach((el) => { el.value = ''; });
+      invFormStatus.textContent = '';
+      invFormStatus.style.color = '';
+    }
+
+    function openInvModal(unit) {
+      invEditId = unit ? Number(unit.id) : null;
+      document.getElementById('invModalTitle').textContent = unit ? 'Edit Property' : 'Add Property';
+      invSaveBtn.textContent = unit ? 'Save Changes' : 'Save Property';
+      resetInvForm();
+      if (unit) {
+        invFields.displayLabel.value = unit.displayLabel || '';
+        invFields.project.value     = unit.project || '';
+        invFields.phase.value       = unit.phase || '';
+        invFields.block.value       = unit.block || '';
+        invFields.lot.value         = unit.lot || '';
+        invFields.modelType.value   = unit.modelType || '';
+        invFields.lotArea.value     = unit.lotArea || '';
+        invFields.floorArea.value   = unit.floorArea || '';
+      }
+      invModal.classList.add('visible');
+      invFields.displayLabel.focus();
+    }
+
+    function closeInvModal() {
+      invModal.classList.remove('visible');
+      invEditId = null;
+    }
+
+    window.editPropertyUnit = (id) => {
+      const unit = invRows.find((u) => Number(u.id) === Number(id));
+      if (unit) openInvModal(unit);
+    };
+
+    window.markPropertySold = async (id) => {
+      const unit = invRows.find((u) => Number(u.id) === Number(id));
+      if (!unit) return;
+      if (!confirm('Mark "' + unit.displayLabel + '" as SOLD? This finalizes the unit and cannot be reverted.')) return;
+      try {
+        const res = await fetch(HOLDING_API, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'unit_status_update', unitId: unit.id, status: 'SOLD',
+            unitLabel: unit.displayLabel, reason: 'Marked SOLD from Property Inventory',
+            actorId: currentUser.officerId || '', actorName: currentUser.name || currentUser.email || ''
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Failed');
+        showToast(data.message, 'success');
+        await loadPropertyUnits();
+        loadAuditLog();
+      } catch (err) {
+        showToast(err.message, 'info');
+      }
+    };
+
+    window.deletePropertyUnit = async (id) => {
+      const unit = invRows.find((u) => Number(u.id) === Number(id));
+      if (!unit) return;
+      if (!confirm('Delete "' + unit.displayLabel + '" from the inventory? This cannot be undone.')) return;
+      try {
+        const res = await fetch(HOLDING_API, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'delete_unit', id: unit.id,
+            actorId: currentUser.officerId || '', actorName: currentUser.name || currentUser.email || ''
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || 'Failed');
+        showToast(data.message, 'success');
+        await loadPropertyUnits();
+        loadAuditLog();
+      } catch (err) {
+        showToast(err.message, 'info');
+      }
+    };
+
+    document.getElementById('invAddBtn')?.addEventListener('click', () => openInvModal(null));
+    document.getElementById('invModalClose')?.addEventListener('click', closeInvModal);
+    document.getElementById('invCancelBtn')?.addEventListener('click', closeInvModal);
+    invModal?.addEventListener('click', (e) => { if (e.target === invModal) closeInvModal(); });
+
+    invSearch?.addEventListener('input', () => {
+      clearTimeout(invTimer);
+      invTimer = setTimeout(loadPropertyUnits, 280);
+    });
+
+    invSaveBtn?.addEventListener('click', async () => {
+      const displayLabel = invFields.displayLabel.value.trim();
+      if (!displayLabel) {
+        invFormStatus.textContent = 'Property address is required.';
+        invFormStatus.style.color = '#dc2626';
+        invFields.displayLabel.focus();
+        return;
+      }
+      const payload = {
+        action: invEditId != null ? 'update_unit' : 'create_unit',
+        displayLabel,
+        project:  invFields.project.value.trim(),
+        phase:    invFields.phase.value.trim(),
+        block:    invFields.block.value.trim(),
+        lot:      invFields.lot.value.trim(),
+        modelType: invFields.modelType.value.trim(),
+        lotArea:  invFields.lotArea.value.trim(),
+        floorArea: invFields.floorArea.value.trim(),
+        actorId: currentUser.officerId || '',
+        actorName: currentUser.name || currentUser.email || ''
+      };
+      if (invEditId != null) payload.id = invEditId;
+
+      invSaveBtn.disabled = true;
+      invFormStatus.textContent = 'Saving…';
+      invFormStatus.style.color = '';
+      try {
+        const res = await fetch(HOLDING_API, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Save failed');
+        showToast(data.message, 'success');
+        closeInvModal();
+        await loadPropertyUnits();
+        loadAuditLog();
+      } catch (err) {
+        invFormStatus.textContent = err.message;
+        invFormStatus.style.color = '#dc2626';
+      } finally {
+        invSaveBtn.disabled = false;
+      }
+    });
 
     document.getElementById('saveSoaChargeBtn')?.addEventListener('click', async ()=>{
       const status = document.getElementById('soaChargeStatus');

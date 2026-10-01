@@ -1058,6 +1058,58 @@
     .nc-hint.ok { color: #059669; font-weight: 600; }
     .nc-hint.err { color: #dc2626; font-weight: 600; }
 
+    /* PROPERTY ADDRESS / PHASE-BLOCK-LOT LINKAGE */
+    .nc-field { position: relative; }
+
+    .nc-ac-wrap { position: relative; }
+
+    .nc-ac {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 40;
+      max-height: 240px;
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid var(--border-color, #e2e8f0);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+      display: none;
+    }
+
+    .nc-ac.open { display: block; }
+
+    .nc-ac-item {
+      padding: 9px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .nc-ac-item:last-child { border-bottom: none; }
+    .nc-ac-item:hover,
+    .nc-ac-item.active { background: #f1f5f9; }
+
+    .nc-ac-item .t { font-weight: 600; display: block; }
+
+    .nc-ac-item .m {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .nc-ac-item .m b { color: var(--text-secondary); font-weight: 600; }
+
+    .nc-field.from-link { animation: ncLinkFlash 900ms ease-out; }
+
+    @keyframes ncLinkFlash {
+      0%   { background-color: #d1fae5; }
+      100% { background-color: transparent; }
+    }
+
     .nc-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
     .nc-actions .btn-cancel {
@@ -2122,16 +2174,19 @@
                   </div>
                   <div class="nc-field full">
                     <label>Property Address <span class="req">*</span></label>
-                    <input type="text" id="ncPropertyAddress" placeholder="e.g., Block 1 Lot 2, Sample Subdivision, City">
+                    <div class="nc-ac-wrap">
+                      <input type="text" id="ncPropertyAddress" autocomplete="off" placeholder="e.g., Block 1 Lot 2, Sample Subdivision, City">
+                      <div class="nc-ac" id="ncAddressAc"></div>
+                    </div>
                     <small class="nc-hint" id="hintAddress"></small>
                   </div>
-                  <div class="nc-field"><label>Project Name</label><input type="text" id="ncProjectName" placeholder="e.g., Imperial Homes"></div>
                   <div class="nc-field"><label>Phase</label><input type="text" id="ncProjectPhase" placeholder="e.g., Phase 1"></div>
                   <div class="nc-field"><label>Block</label><input type="text" id="ncBlockNo" placeholder="e.g., Block 1"></div>
                   <div class="nc-field"><label>Lot</label><input type="text" id="ncLotNo" placeholder="e.g., Lot 2"></div>
                   <div class="nc-field"><label>Model Type</label><input type="text" id="ncModelType" placeholder="e.g., 2-storey"></div>
                   <div class="nc-field"><label>Lot Area</label><input type="text" id="ncLotArea" placeholder="e.g., 150 sqm"></div>
                   <div class="nc-field"><label>Floor Area</label><input type="text" id="ncFloorArea" placeholder="e.g., 120 sqm"></div>
+                  <div class="nc-field full"><label>Project Name</label><input type="text" id="ncProjectName" placeholder="e.g., Sample Subdivision"></div>
                 </div>
               </div>
 
@@ -4533,6 +4588,209 @@
       validateForm();
     });
 
+    /* ==========================================
+       PROPERTY ADDRESS <-> PHASE / BLOCK / LOT
+       Selecting a known property fills the parts;
+       entering Phase+Block+Lot builds the address.
+    ========================================== */
+    const PROPERTY_API = API_BASE + '/php/api_holding_reservation.php';
+    const ncAddressAc = document.getElementById('ncAddressAc');
+    let acTimer = null;
+    let acItems = [];
+    let acIndex = -1;
+    let acSeq = 0;
+    let linkedAt = 0;
+
+    function closeAddressAc() {
+      ncAddressAc.classList.remove('open');
+      ncAddressAc.innerHTML = '';
+      acItems = [];
+      acIndex = -1;
+    }
+
+    function highlightAc() {
+      Array.from(ncAddressAc.children).forEach((el, i) => el.classList.toggle('active', i === acIndex));
+    }
+
+    function unitMetaLabel(unit) {
+      const bits = [];
+      if (unit.phase) bits.push(unit.phase);
+      if (unit.block) bits.push('Block ' + String(unit.block).replace(/^\s*block\s*/i, ''));
+      if (unit.lot) bits.push('Lot ' + String(unit.lot).replace(/^\s*lot\s*/i, ''));
+      if (unit.modelType) bits.push(unit.modelType);
+      if (unit.lotArea || unit.floorArea) {
+        bits.push((unit.lotArea ? 'Lot ' + unit.lotArea : '') + (unit.lotArea && unit.floorArea ? ' / ' : '') + (unit.floorArea ? 'Floor ' + unit.floorArea : ''));
+      }
+      return bits.join(' \u2022 ');
+    }
+
+    function renderAc(results) {
+      if (!results.length) { closeAddressAc(); return; }
+      ncAddressAc.innerHTML = results.map((u, i) => {
+        const meta = unitMetaLabel(u);
+        return '<div class="nc-ac-item" data-i="' + i + '">' +
+          '<span class="t">' + escapeHtml(u.displayLabel) + '</span>' +
+          (meta ? '<span class="m">' + escapeHtml(meta) + (u.status !== 'AVAILABLE' ? ' \u2022 <b>' + escapeHtml(u.status) + '</b>' : '') + '</span>' : '') +
+          '</div>';
+      }).join('');
+      ncAddressAc.classList.add('open');
+      acItems = results;
+      acIndex = 0;
+      highlightAc();
+    }
+
+    function escapeHtml(str) {
+      return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function searchProperties(q) {
+      const seq = ++acSeq;
+      try {
+        const res = await fetch(PROPERTY_API + '?action=property_search&limit=12&q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (seq !== acSeq) return;
+        if (!data.success || !Array.isArray(data.results)) { closeAddressAc(); return; }
+        // Reflect the best match straight into Phase/Block/Lot while typing,
+        // without waiting for a click. The dropdown stays for picking between
+        // several similar units or choosing deliberately.
+        const top = data.results[0];
+        if (top) liveFillFromUnit(top, false);
+        renderAc(data.results);
+      } catch (e) { closeAddressAc(); }
+    }
+
+    // Writes a unit's parts into Phase/Block/Lot (+ model/areas/project) and
+    // flashes the fields. `overwrite` is true when the clerk picked the unit
+    // deliberately and false when we're just reflecting a live suggestion.
+    function liveFillFromUnit(unit, overwrite) {
+      const hasParts = !!(unit.phase || unit.block || unit.lot);
+      if (!hasParts) return;
+      const partsChanged = [ncFields.phase.value, ncFields.blockNo.value, ncFields.lotNo.value].join('|') !== (unit.phase || '') + '|' + (unit.block || '') + '|' + (unit.lot || '');
+      if (!partsChanged && !overwrite) return;
+      // Don't stomp on fields the clerk is actively editing.
+      const editing = [ncFields.phase, ncFields.blockNo, ncFields.lotNo].some((el) => document.activeElement === el);
+      if (editing && !overwrite) return;
+      linkedAt = Date.now();
+      const set = (el, val) => { if (val !== null && val !== undefined && val !== '') el.value = val; };
+      set(ncFields.projectName, unit.project);
+      set(ncFields.phase, unit.phase);
+      set(ncFields.blockNo, unit.block);
+      set(ncFields.lotNo, unit.lot);
+      set(ncFields.modelType, unit.modelType);
+      set(ncFields.lotArea, unit.lotArea);
+      set(ncFields.floorArea, unit.floorArea);
+      [ncFields.projectName, ncFields.phase, ncFields.blockNo, ncFields.lotNo, ncFields.modelType, ncFields.lotArea, ncFields.floorArea].forEach((el) => {
+        const field = el.closest('.nc-field');
+        if (!field) return;
+        field.classList.remove('from-link');
+        void field.offsetWidth;
+        field.classList.add('from-link');
+      });
+      validateForm();
+    }
+
+    // Address -> Phase/Block/Lot. Picking a suggestion also snaps the address
+    // text to the canonical label.
+    function applyPropertyUnit(unit) {
+      ncFields.address.value = unit.displayLabel || '';
+      liveFillFromUnit(unit, true);
+    }
+
+    function pickAcItem(i) {
+      const unit = acItems[i];
+      if (!unit) return;
+      closeAddressAc();
+      applyPropertyUnit(unit);
+    }
+
+    ncAddressAc.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('.nc-ac-item');
+      if (!item) return;
+      e.preventDefault();
+      pickAcItem(Number(item.dataset.i));
+    });
+
+    ncFields.address.addEventListener('input', () => {
+      const q = ncFields.address.value.trim();
+      validateForm();
+      clearTimeout(acTimer);
+      if (q.length < 2) { closeAddressAc(); return; }
+      ncAddressAc.classList.add('open');
+      acTimer = setTimeout(() => searchProperties(q), 280);
+    });
+
+    ncFields.address.addEventListener('keydown', (e) => {
+      if (!ncAddressAc.classList.contains('open') || !acItems.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); acIndex = (acIndex + 1) % acItems.length; highlightAc(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); acIndex = (acIndex - 1 + acItems.length) % acItems.length; highlightAc(); }
+      else if (e.key === 'Enter' && acIndex >= 0) { e.preventDefault(); pickAcItem(acIndex); }
+      else if (e.key === 'Escape') { closeAddressAc(); }
+    });
+
+    // An exact typed address that already exists gets its parts filled in and
+    // the text snapped to the canonical label.
+    ncFields.address.addEventListener('blur', async () => {
+      clearTimeout(acTimer);
+      const q = ncFields.address.value.trim();
+      if (q.length < 2) { closeAddressAc(); return; }
+      try {
+        const res = await fetch(PROPERTY_API + '?action=property_search&limit=1&q=' + encodeURIComponent(q));
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.results) || !data.results.length) return;
+        const unit = data.results[0];
+        if (String(unit.displayLabel || '').trim().toLowerCase() !== q.toLowerCase()) return;
+        applyPropertyUnit(unit);
+      } catch (e) { /* offline: keep free text */ }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.nc-ac-wrap')) closeAddressAc();
+    });
+
+    // Phase/Block/Lot -> Property Address (reverse lookup, then composed fallback)
+    let resolveTimer = null;
+    async function resolveAddressFromParts() {
+      // Don't bounce an address the clerk just picked from the dropdown.
+      if (Date.now() - linkedAt < 2500) return;
+      const phase = ncFields.phase.value.trim();
+      const block = ncFields.blockNo.value.trim();
+      const lot = ncFields.lotNo.value.trim();
+      const project = ncFields.projectName.value.trim();
+      if (!block && !lot) return;
+
+      try {
+        const url = PROPERTY_API + '?action=property_resolve'
+          + '&phase=' + encodeURIComponent(phase)
+          + '&block=' + encodeURIComponent(block)
+          + '&lot=' + encodeURIComponent(lot)
+          + (project ? '&project=' + encodeURIComponent(project) : '');
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success && data.match && data.match.displayLabel) {
+          ncFields.address.value = data.match.displayLabel;
+        } else {
+          const parts = [];
+          if (block || lot) parts.push('Block ' + block.replace(/^\s*block\s*/i, '') + ' Lot ' + lot.replace(/^\s*lot\s*/i, ''));
+          if (phase) parts.push(phase);
+          if (project) parts.push(project);
+          if (parts.length) ncFields.address.value = parts.join(', ');
+        }
+        validateForm();
+      } catch (e) { /* offline: leave the address as typed */ }
+    }
+
+    [ncFields.phase, ncFields.blockNo, ncFields.lotNo].forEach((el) => {
+      el.addEventListener('input', () => {
+        validateForm();
+        clearTimeout(resolveTimer);
+        resolveTimer = setTimeout(resolveAddressFromParts, 500);
+      });
+    });
+    ncFields.projectName.addEventListener('blur', () => {
+      clearTimeout(resolveTimer);
+      resolveTimer = setTimeout(resolveAddressFromParts, 200);
+    });
+
     // Rebuild the Financing Bank dropdown from the editable defaults. Keeps the
     // clerk's current selection (and re-applies its rate) when it still exists,
     // otherwise falls back to In-House — matching the reset-form default.
@@ -4629,7 +4887,9 @@
         const h = document.getElementById(id);
         if (h) { h.className = 'nc-hint'; h.textContent = id === 'ncEmailStatus' ? 'A working email is required so we can send payment reminders and SOA.' : (id === 'hintPassword' ? 'At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.' : (id === 'hintDpMode' ? 'Lump Sum is paid upfront. Monthly spreads the downpayment over a deposit term.' : (id === 'hintDpTerms' ? 'The downpayment is divided equally over these months at 0% interest.' : (id === 'hintBank' ? "The bank's annual interest rate is applied to the house amortization." : (id === 'hintInterest' ? 'Auto-filled when a bank is selected. Editable before saving.' : ''))))); }
       });
-      Object.keys(ncFields).forEach(k => ncFields[k].classList.remove('valid', 'invalid'));
+      Object.keys(ncFields).forEach(k => { if (ncFields[k]) ncFields[k].classList.remove('valid', 'invalid'); });
+      document.querySelectorAll('.nc-field.from-link').forEach(f => f.classList.remove('from-link'));
+      if (typeof closeAddressAc === 'function') { clearTimeout(acTimer); clearTimeout(resolveTimer); closeAddressAc(); }
       emailValid = false;
       emailChecking = false;
       updateSummary();

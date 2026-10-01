@@ -161,6 +161,46 @@ try {
         if (!isset($columns[$column])) $pdo->exec('ALTER TABLE contracts ADD COLUMN `' . $column . '` ' . $definition);
     }
 
+    // Property inventory (property_units) powers the New Contract
+    // address <-> phase/block/lot autofill and the admin Property Inventory
+    // editor. A first-time address is inserted here so the next clerk finds
+    // it; a known address only gets its contract link refreshed. DDL must
+    // stay outside the transaction below — MySQL commits implicitly on DDL.
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS property_units (
+            id INT NOT NULL AUTO_INCREMENT,
+            project VARCHAR(255) NULL,
+            phase VARCHAR(120) NULL,
+            building VARCHAR(255) NULL,
+            unit_number VARCHAR(100) NULL,
+            model_type VARCHAR(120) NULL,
+            lot_area VARCHAR(100) NULL,
+            floor_area VARCHAR(100) NULL,
+            display_label VARCHAR(255) NOT NULL,
+            status ENUM('AVAILABLE','ON HOLD','RESERVED','SOLD') NOT NULL DEFAULT 'AVAILABLE',
+            current_client_id INT NULL,
+            current_contract_id INT NULL,
+            current_holding_fee_id INT NULL,
+            current_reservation_fee_id INT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_property_units_label (display_label),
+            KEY idx_property_units_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+    );
+    $unitColumns = [];
+    foreach ($pdo->query('SHOW COLUMNS FROM property_units') as $column) $unitColumns[strtolower($column['Field'])] = true;
+    $unitAlter = [
+        'phase' => 'VARCHAR(120) NULL',
+        'model_type' => 'VARCHAR(120) NULL',
+        'lot_area' => 'VARCHAR(100) NULL',
+        'floor_area' => 'VARCHAR(100) NULL',
+    ];
+    foreach ($unitAlter as $column => $definition) {
+        if (!isset($unitColumns[$column])) $pdo->exec('ALTER TABLE property_units ADD COLUMN `' . $column . '` ' . $definition);
+    }
+
     // Client portal login accounts (one row per email, so a repeat buyer's
     // credentials are updated instead of duplicated). Passwords are stored as
     // bcrypt hashes and verified by php/api_client.php at login. DDL must stay
@@ -216,6 +256,58 @@ try {
         ]);
 
         $contractId = (int)$pdo->lastInsertId();
+
+        // Register the property so the New Contract autofill and the admin
+        // Property Inventory editor can find it next time. A brand-new
+        // address is inserted with the clerk's phase/block/lot; an address
+        // that already exists keeps its curated details and only gains the
+        // contract link (plus any part the clerk actually supplied).
+        $unitLabel = mb_substr(trim($propertyAddress), 0, 255);
+        $unitLookup = $pdo->prepare('SELECT * FROM property_units WHERE display_label=? LIMIT 1');
+        $unitLookup->execute([$unitLabel]);
+        $existingUnit = $unitLookup->fetch();
+        $propertyCreated = false;
+        if ($existingUnit) {
+            $pdo->prepare(
+                'UPDATE property_units SET
+                    current_contract_id = :contract_id,
+                    project     = COALESCE(:project, project),
+                    phase       = COALESCE(:phase, phase),
+                    building    = COALESCE(:building, building),
+                    unit_number = COALESCE(:unit_number, unit_number),
+                    model_type  = COALESCE(:model_type, model_type),
+                    lot_area    = COALESCE(:lot_area, lot_area),
+                    floor_area  = COALESCE(:floor_area, floor_area)
+                 WHERE id = :id'
+            )->execute([
+                ':contract_id'=>$contractId,
+                ':project'    =>$projectName    !== '' ? mb_substr($projectName, 0, 255) : null,
+                ':phase'      =>$projectPhase  !== '' ? mb_substr($projectPhase, 0, 120) : null,
+                ':building'   =>$blockNo       !== '' ? mb_substr($blockNo, 0, 255) : null,
+                ':unit_number'=>$lotNo         !== '' ? mb_substr($lotNo, 0, 100) : null,
+                ':model_type' =>$modelType     !== '' ? mb_substr($modelType, 0, 120) : null,
+                ':lot_area'   =>$lotArea       !== '' ? mb_substr($lotArea, 0, 100) : null,
+                ':floor_area' =>$floorArea     !== '' ? mb_substr($floorArea, 0, 100) : null,
+                ':id'         =>(int)$existingUnit['id'],
+            ]);
+        } else {
+            $pdo->prepare(
+                'INSERT INTO property_units
+                    (display_label,project,phase,building,unit_number,model_type,lot_area,floor_area,status,current_contract_id)
+                 VALUES (?,?,?,?,?,?,?,?,\'AVAILABLE\',?)'
+            )->execute([
+                $unitLabel,
+                $projectName   !== '' ? mb_substr($projectName, 0, 255) : null,
+                $projectPhase  !== '' ? mb_substr($projectPhase, 0, 120) : null,
+                $blockNo       !== '' ? mb_substr($blockNo, 0, 255) : null,
+                $lotNo         !== '' ? mb_substr($lotNo, 0, 100) : null,
+                $modelType     !== '' ? mb_substr($modelType, 0, 120) : null,
+                $lotArea       !== '' ? mb_substr($lotArea, 0, 100) : null,
+                $floorArea     !== '' ? mb_substr($floorArea, 0, 100) : null,
+                $contractId,
+            ]);
+            $propertyCreated = true;
+        }
 
         // Create the buyer's portal account, or update the existing one when
         // this email has signed up before (new password/name/phone win).
@@ -278,6 +370,7 @@ try {
         'message'=>'Contract created and saved to the IHC database.',
         'id'=>$contractId,
         'accountAction'=>$accountAction,
+        'propertyCreated'=>$propertyCreated,
         'reminderQueued'=>$reminderQueued,
         // Echo the stored terms so the clerk's local mirror matches the row.
         'dpMode'=>$dpMode,
