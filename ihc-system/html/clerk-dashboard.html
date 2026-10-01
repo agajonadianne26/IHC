@@ -73,6 +73,7 @@
     }
 
     .main-area {
+      min-width: 0;
       flex: 1;
       margin-left: var(--sidebar-width);
       display: flex;
@@ -82,6 +83,7 @@
     }
 
     .content {
+      min-width: 0;
       flex: 1;
       padding: 28px 32px 48px;
       max-width: 1400px;
@@ -578,11 +580,16 @@
       overflow-x: auto;
     }
 
+    .table-scroll::-webkit-scrollbar { height: 10px; }
+    .table-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+    .table-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 6px; }
+    .table-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
     .data-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
-      min-width: 1040px;
+      min-width: 1240px;
     }
 
     .data-table th {
