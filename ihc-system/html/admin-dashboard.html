@@ -1451,6 +1451,10 @@
           <i data-lucide="bar-chart-3"></i>
           <span>Reports</span>
         </a>
+        <a class="sidebar-link" href="#" data-page="audit">
+          <i data-lucide="clipboard-list"></i>
+          <span>Audit Logs</span>
+        </a>
 
         <div class="sidebar-section-label">System</div>
 
@@ -1887,6 +1891,37 @@
           <div class="table-section" style="margin-top:24px;">
             <div class="table-header">
               <div class="table-header-left">
+                <h3>Cash Flow Forecast</h3>
+                <p>Last 6 months posted vs. next 12 months of unpaid installments.</p>
+              </div>
+            </div>
+            <canvas id="forecastChart" height="110"></canvas>
+          </div>
+
+          <div class="table-section" style="margin-top:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h3>Cashier Reconciliation</h3>
+                <p>OR series continuity, duplicate ORs, and PDC collections missing their check number.</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr><th>Series / Year</th><th>Issued</th><th>Highest #</th><th>Gaps</th></tr></thead>
+                <tbody id="reconGapsBody"></tbody>
+              </table>
+            </div>
+            <div class="table-scroll" style="margin-top:12px;">
+              <table class="data-table">
+                <thead><tr><th>PDC payment</th><th>Contract</th><th>Amount</th><th>Date</th><th>OR</th></tr></thead>
+                <tbody id="reconPdcBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-section" style="margin-top:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
                 <h3>Officer Remittances</h3>
                 <p>Collections posted per officer, all time.</p>
               </div>
@@ -1931,6 +1966,25 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: AUDIT LOGS
+        ============================= -->
+        <section class="view" data-view="audit">
+          <div class="subhead">
+            <div>
+              <h2>Audit Logs</h2>
+              <p>Every posting, status transition, and policy change with actor and timestamp.</p>
+            </div>
+            <button class="btn-secondary" id="refreshAuditBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Refresh</button>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>When</th><th>Action</th><th>Contract</th><th>Client</th><th>Actor</th><th>Transition</th></tr></thead>
+              <tbody id="auditBody"></tbody>
+            </table>
           </div>
         </section>
 
@@ -2628,6 +2682,7 @@
       notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
       properties:    ['Property Inventory', 'Master Property List • New Contract Autofill'],
       reports:       ['Reports', 'Generate & Export Collection Reports'],
+      audit:         ['Audit Logs', 'Every posting and status change, with actor and timestamp'],
       settings:      ['Settings', 'System Configuration \u2022 Business Rules, SOA & Bank Rates']
     };
 
@@ -2653,7 +2708,8 @@
       if (name === 'clerks') loadTeam();
       if (name === 'notifications') renderNotifications();
       if (name === 'properties') loadPropertyUnits();
-      if (name === 'reports') loadRemittances();
+      if (name === 'reports') { loadRemittances(); loadReconciliation(); loadForecast(); }
+      if (name === 'audit') loadAuditLogs();
 
       sidebar.classList.remove('open');
       overlay.classList.remove('visible');
@@ -2818,6 +2874,80 @@
     /* ==========================================
        NOTIFICATIONS LOG VIEW
     ========================================== */
+    let forecastChartInstance = null;
+    async function loadForecast() {
+      const canvas = document.getElementById('forecastChart');
+      if (!canvas || typeof Chart === 'undefined') return;
+      try {
+        const res = await fetch(API_BASE + '/php/api_forecast.php', { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Forecast unavailable');
+        if (forecastChartInstance) forecastChartInstance.destroy();
+        forecastChartInstance = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: data.months,
+            datasets: [
+              { label: 'Collected (actual)', data: data.actual, backgroundColor: '#10b981' },
+              { label: 'Expected (unpaid due)', data: data.expected, backgroundColor: '#3b82f6' }
+            ]
+          },
+          options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+        });
+      } catch (err) { console.error('Forecast load failed:', err); }
+    }
+
+    async function loadReconciliation() {
+      const gapsBody = document.getElementById('reconGapsBody');
+      const pdcBody = document.getElementById('reconPdcBody');
+      if (!gapsBody || !pdcBody) return;
+      gapsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--text-muted);">Loading…</td></tr>';
+      pdcBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-muted);">Loading…</td></tr>';
+      try {
+        const res = await fetch(API_BASE + '/php/api_reconciliation.php', { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Reconciliation unavailable');
+        gapsBody.innerHTML = data.seriesGaps.length
+          ? data.seriesGaps.map((g) => `<tr><td><strong>OR-${teamEsc(g.series)}</strong> / ${g.year}</td><td>${g.issuedCount}</td><td>${g.highestNumber}</td><td>${g.gaps.length ? g.gaps.map(teamEsc).join(', ') : 'None'}</td></tr>`).join('')
+          : '<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--text-muted);">No OR series found.</td></tr>';
+        if (data.duplicateOrNumbers && data.duplicateOrNumbers.length) {
+          gapsBody.innerHTML += data.duplicateOrNumbers.map((d) => `<tr><td colspan="4" style="color:#b91c1c;">Duplicate OR number: ${teamEsc(d.orNumber)} (${d.count} rows)</td></tr>`).join('');
+        }
+        pdcBody.innerHTML = data.pdcMissingCheckNumber.length
+          ? data.pdcMissingCheckNumber.map((p) => `<tr><td>#${p.paymentId}</td><td>${teamEsc(p.contractId)}</td><td>${formatPHP(p.amount)}</td><td>${formatDate(p.dateCollected)}</td><td>${teamEsc(p.orNumber || '—')}</td></tr>`).join('')
+          : '<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-muted);">All PDC collections have check numbers.</td></tr>';
+      } catch (err) {
+        gapsBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:16px; color:var(--text-muted);">${teamEsc(err.message)}</td></tr>`;
+        pdcBody.innerHTML = `<tr><td colspan="5"></td></tr>`;
+      }
+    }
+
+    async function loadAuditLogs() {
+      const body = document.getElementById('auditBody');
+      if (!body) return;
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Loading audit logs…</td></tr>';
+      try {
+        const res = await fetch(API_BASE + '/php/api_audit.php?limit=200', { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Could not load audit logs.');
+        body.innerHTML = data.rows.length
+          ? data.rows.map((r) => `
+            <tr>
+              <td style="white-space:nowrap;">${fmtDateTime(new Date(String(r.createdAt).replace(' ', 'T')))}</td>
+              <td><strong style="font-size:12px;">${teamEsc(r.action)}</strong></td>
+              <td>${r.contractId != null ? 'IHC-' + r.contractId : '—'}</td>
+              <td>${teamEsc(r.clientName || '—')}</td>
+              <td>${teamEsc(r.actorName || r.actorId || '—')}</td>
+              <td>${r.fromStatus || r.toStatus ? teamEsc((r.fromStatus || '—') + ' → ' + (r.toStatus || '—')) : '—'}</td>
+            </tr>`).join('')
+          : '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No audit entries yet.</td></tr>';
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">${teamEsc(err.message)}</td></tr>`;
+      }
+    }
+
+    document.getElementById('refreshAuditBtn')?.addEventListener('click', loadAuditLogs);
+
     async function loadRemittances() {
       const body = document.getElementById('remittanceBody');
       if (!body) return;
