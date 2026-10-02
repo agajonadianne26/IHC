@@ -1853,6 +1853,9 @@
               <h2>Reports & Exports</h2>
               <p>Generate and export financial summary reports for your collection records.</p>
             </div>
+            <button class="btn-primary" id="generateAllReportsBtn" type="button">
+              <i data-lucide="file-down" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px;"></i>Export All Reports (PDF)
+            </button>
           </div>
           <div class="report-grid">
             <div class="report-card">
@@ -2678,9 +2681,69 @@
       lucide.createIcons();
     }
 
-    document.getElementById('generateRegisterBtn').addEventListener('click', () => {
-      showToast('Contract register generated & ready for export', 'success');
-    });
+    function prepareContractRegister() {
+      const company = getReportCompanyName();
+      const genStr = 'Generated: ' + fmtDateTime(new Date());
+      const fileDate = fmtDateFile(new Date());
+      document.getElementById('cr-company').textContent = company;
+      document.getElementById('cr-generated').textContent = genStr;
+      const statusLabel = (st) => st === 'paid' ? 'Current / Settled'
+        : st === 'overdue' ? 'Overdue'
+        : st === 'due-soon' ? 'Due Soon'
+        : 'Active / On Track';
+      let totTcp = 0, totDp = 0, totOut = 0;
+      const tbody = document.getElementById('cr-tbody');
+      if (!registerContracts.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="padding:10px; text-align:center; color:#64748b; border:1px solid #e5e7eb;">No contracts found in the database.</td></tr>';
+      } else {
+        tbody.innerHTML = registerContracts.map(c => {
+          totTcp += Number(c.tcp) || 0;
+          totDp += Number(c.downpayment) || 0;
+          totOut += Number(c.outstanding) || 0;
+          return '<tr>' +
+            reportCell(c.id || c.contractId || '') +
+            reportCell(c.client || '') +
+            reportCell(c.property || '') +
+            reportCell(formatPHP(c.tcp || 0), 'right') +
+            reportCell(formatPHP(c.downpayment || 0), 'right') +
+            reportCell(formatPHP(c.outstanding || 0), 'right') +
+            reportCell((c.terms || 0) + ' Months', 'center') +
+            reportCell(statusLabel(c.status)) +
+            reportCell(c.clerk || '') +
+            '</tr>';
+        }).join('');
+      }
+      document.getElementById('cr-count').textContent = registerContracts.length;
+      document.getElementById('cr-tcp').textContent = formatPHP(totTcp);
+      document.getElementById('cr-dp').textContent = formatPHP(totDp);
+      document.getElementById('cr-out').textContent = formatPHP(totOut);
+      document.getElementById('cr-tot-tcp').textContent = formatPHP(totTcp);
+      document.getElementById('cr-tot-dp').textContent = formatPHP(totDp);
+      document.getElementById('cr-tot-out').textContent = formatPHP(totOut);
+      return { elementId: 'tpl-contract-register', filename: 'Contract-Register-' + fileDate + '.pdf' };
+    }
+
+    const generateRegisterBtn = document.getElementById('generateRegisterBtn');
+    if (generateRegisterBtn) {
+      generateRegisterBtn.addEventListener('click', async () => {
+        const orig = generateRegisterBtn.innerHTML;
+        generateRegisterBtn.disabled = true;
+        generateRegisterBtn.textContent = 'Generating...';
+        try {
+          const prepared = prepareContractRegister();
+          const el = document.getElementById(prepared.elementId);
+          await exportElementToPdf(el, prepared.filename);
+          showToast('Contract Register exported as PDF', 'success');
+        } catch (err) {
+          console.error('Contract Register export failed:', err);
+          showToast('Failed to generate PDF: ' + (err.message || 'unknown error'), 'info');
+        } finally {
+          generateRegisterBtn.disabled = false;
+          generateRegisterBtn.innerHTML = orig;
+          if (window.lucide && lucide.createIcons) lucide.createIcons();
+        }
+      });
+    }
 
     /* ==========================================
        PAYMENT SCHEDULES VIEW
@@ -2762,13 +2825,277 @@
     }
 
     /* ==========================================
-       REPORTS VIEW
+       REPORTS VIEW - PDF EXPORT
     ========================================== */
+    function getReportCompanyName() {
+      const el = document.getElementById('soaCompanyName');
+      if (el && el.value && el.value.trim()) return el.value.trim();
+      return 'IHC System';
+    }
+    function fmtDateTime(d) {
+      const dt = d instanceof Date ? d : new Date();
+      return dt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    function fmtDateFile(d) {
+      const dt = d instanceof Date ? d : new Date();
+      return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+    }
+    function toImgData(canvas) {
+      if (!canvas) return '';
+      try {
+        const data = canvas.toDataURL('image/jpeg', 0.95);
+        return data && data.length > 64 ? data : '';
+      } catch (e) { return ''; }
+    }
+    function setReportImage(id, canvas) {
+      const img = document.getElementById(id);
+      if (!img) return;
+      const src = toImgData(canvas);
+      if (src) {
+        img.src = src;
+        img.style.display = '';
+      } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+      }
+    }
+    function reportCell(v, align, extra) {
+      return '<td style="padding:6px 8px; border:1px solid #e5e7eb;' + (align ? 'text-align:' + align + ';' : '') + (extra || '') + '">' + v + '</td>';
+    }
+    function prepareReport(type) {
+      const company = getReportCompanyName();
+      const genStr = 'Generated: ' + fmtDateTime(new Date());
+      const fileDate = fmtDateFile(new Date());
+      let elementId = null;
+      let filename = null;
+
+      if (type === 'collection') {
+        elementId = 'tpl-collection-summary';
+        filename = 'Collection-Summary-' + fileDate + '.pdf';
+        document.getElementById('cs-company').textContent = company;
+        document.getElementById('cs-generated').textContent = genStr;
+        document.getElementById('cs-expected').textContent = formatPHP((adminKpis && adminKpis.expected) || 0);
+        document.getElementById('cs-collected').textContent = formatPHP((adminKpis && adminKpis.collectedMonth) || 0);
+        document.getElementById('cs-eff').textContent = ((adminKpis && adminKpis.efficiency) || 0) + '%';
+        document.getElementById('cs-duesoon').textContent = (adminKpis && adminKpis.dueSoon) || 0;
+        let all = 0, paid = 0, ds = 0, ovd = 0;
+        const rowsSorted = contracts.slice().sort((a, b) => {
+          const da = a.dueDate instanceof Date ? a.dueDate : parseLocalDate(a.dueDate);
+          const db = b.dueDate instanceof Date ? b.dueDate : parseLocalDate(b.dueDate);
+          return da - db;
+        });
+        rowsSorted.forEach(c => {
+          all++;
+          if (c.status === 'paid') paid++;
+          else if (c.status === 'due-soon') ds++;
+          else if (c.status === 'overdue') ovd++;
+        });
+        document.getElementById('cs-all').textContent = all;
+        document.getElementById('cs-paid').textContent = paid;
+        document.getElementById('cs-ds').textContent = ds;
+        document.getElementById('cs-ovd').textContent = ovd;
+        const tbody = document.getElementById('cs-tbody');
+        tbody.innerHTML = rowsSorted.map(c => {
+          const stLabel = c.status === 'paid' ? 'Paid' : (c.status === 'overdue' ? 'Overdue' : (c.status === 'due-soon' ? 'Due Soon' : 'Current'));
+          return '<tr>' +
+            reportCell(c.client || '') +
+            reportCell(c.id || c.contractId || '') +
+            reportCell(c.property || '') +
+            reportCell(formatPHP(c.amount || 0), 'right') +
+            reportCell(formatDate(c.dueDate), 'left', 'white-space:nowrap;') +
+            reportCell(stLabel) +
+            reportCell(c.clerk || '') +
+            '</tr>';
+        }).join('');
+        if (!rowsSorted.length) {
+          tbody.innerHTML = '<tr><td colspan="7" style="padding:10px; text-align:center; color:#64748b; border:1px solid #e5e7eb;">No records.</td></tr>';
+        }
+      } else if (type === 'cashflow') {
+        elementId = 'tpl-cashflow';
+        filename = 'Cash-Flow-Forecast-' + fileDate + '.pdf';
+        document.getElementById('cf-company').textContent = company;
+        document.getElementById('cf-generated').textContent = genStr;
+        setReportImage('cashflowImg', cashFlowChartInstance ? cashFlowChartInstance.canvas : null);
+        const tbody = document.getElementById('cf-tbody');
+        let tf = 0, ta = 0, html = '';
+        if (cashFlowChartInstance && cashFlowChartInstance.data) {
+          const labels = cashFlowChartInstance.data.labels || [];
+          const dsF = cashFlowChartInstance.data.datasets[0] ? cashFlowChartInstance.data.datasets[0].data : [];
+          const dsA = cashFlowChartInstance.data.datasets[1] ? cashFlowChartInstance.data.datasets[1].data : [];
+          for (let i = 0; i < labels.length; i++) {
+            const f = Number(dsF[i] || 0), a = Number(dsA[i] || 0);
+            tf += f; ta += a;
+            const v = a - f;
+            html += '<tr>' + reportCell(labels[i]) +
+              reportCell(formatPHP(f), 'right') +
+              reportCell(formatPHP(a), 'right') +
+              reportCell(formatPHP(v), 'right', 'color:' + (v >= 0 ? '#059669' : '#dc2626') + ';') +
+              '</tr>';
+          }
+        }
+        tbody.innerHTML = html;
+        document.getElementById('cf-tot-f').textContent = formatPHP(tf);
+        document.getElementById('cf-tot-a').textContent = formatPHP(ta);
+        document.getElementById('cf-tot-v').textContent = formatPHP(ta - tf);
+      } else if (type === 'aging') {
+        elementId = 'tpl-aging';
+        filename = 'Aging-of-Accounts-' + fileDate + '.pdf';
+        document.getElementById('ag-company').textContent = company;
+        document.getElementById('ag-generated').textContent = genStr;
+        setReportImage('agingImg', agingChartInstance ? agingChartInstance.canvas : null);
+        const buckets = [0, 0, 0, 0, 0];
+        contracts.forEach(c => {
+          if (c.status !== 'overdue') { buckets[0]++; return; }
+          const od = daysDiff(TODAY, c.dueDate);
+          if (od <= 30) buckets[1]++; else if (od <= 60) buckets[2]++; else if (od <= 90) buckets[3]++; else buckets[4]++;
+        });
+        const b30 = buckets[1], b60 = buckets[2], b90 = buckets[3], b90p = buckets[4];
+        const tov = b30 + b60 + b90 + b90p;
+        document.getElementById('ag-cur').textContent = buckets[0];
+        document.getElementById('ag-30').textContent = b30;
+        document.getElementById('ag-60').textContent = b60;
+        document.getElementById('ag-90').textContent = b90;
+        document.getElementById('ag-90p').textContent = b90p;
+        const pct = (n) => tov <= 0 ? '0.00%' : ((n / tov) * 100).toFixed(2) + '%';
+        document.getElementById('ag-p30').textContent = pct(b30);
+        document.getElementById('ag-p60').textContent = pct(b60);
+        document.getElementById('ag-p90').textContent = pct(b90);
+        document.getElementById('ag-p90p').textContent = pct(b90p);
+        document.getElementById('ag-tovd').textContent = tov;
+        document.getElementById('ag-tall').textContent = contracts.length;
+      } else if (type === 'dueoverdue') {
+        elementId = 'tpl-due-overdue';
+        filename = 'Due-and-Overdue-Register-' + fileDate + '.pdf';
+        document.getElementById('do-company').textContent = company;
+        document.getElementById('do-generated').textContent = genStr;
+        const due3Body = document.getElementById('do-due3');
+        const ovdBody = document.getElementById('do-ovd');
+        const due3List = [];
+        const ovdList = [];
+        contracts.forEach(c => {
+          if (c.status === 'due-soon') {
+            const d = c.dueDate instanceof Date ? c.dueDate : parseLocalDate(c.dueDate);
+            const daysUntil = Math.max(0, daysDiff(d, TODAY));
+            if (daysUntil <= 3) due3List.push({ c, daysUntil });
+          }
+          if (c.status === 'overdue') {
+            const d = c.dueDate instanceof Date ? c.dueDate : parseLocalDate(c.dueDate);
+            ovdList.push({ c, daysOver: daysDiff(TODAY, d) });
+          }
+        });
+        due3List.sort((a, b) => a.c.dueDate - b.c.dueDate);
+        ovdList.sort((a, b) => (b.daysOver - a.daysOver) || (a.c.dueDate - b.c.dueDate));
+        const doRow = (c, lastCell) => '<tr>' +
+          reportCell(c.client || '') +
+          reportCell(c.id || c.contractId || '') +
+          reportCell(c.property || '') +
+          reportCell(formatPHP(c.amount || 0), 'right') +
+          reportCell(formatDate(c.dueDate), 'left', 'white-space:nowrap;') +
+          reportCell(lastCell.value, 'center', lastCell.style || '') +
+          reportCell(c.clerk || '') +
+          '</tr>';
+        due3Body.innerHTML = due3List.length
+          ? due3List.map(x => doRow(x.c, { value: x.daysUntil })).join('')
+          : '<tr><td colspan="7" style="padding:8px; text-align:center; color:#64748b; border:1px solid #e5e7eb;">No accounts due within 3 days.</td></tr>';
+        ovdBody.innerHTML = ovdList.length
+          ? ovdList.map(x => doRow(x.c, { value: x.daysOver, style: 'color:#dc2626; font-weight:700;' })).join('')
+          : '<tr><td colspan="7" style="padding:8px; text-align:center; color:#64748b; border:1px solid #e5e7eb;">No overdue accounts.</td></tr>';
+      } else {
+        return;
+      }
+
+      return { elementId: elementId, filename: filename };
+    }
+
+    async function exportElementToPdf(el, filename, pagebreakMode) {
+      if (!el) throw new Error('Report template not found');
+      if (typeof html2pdf === 'undefined') throw new Error('PDF library not loaded');
+      await html2pdf().set({
+        margin: [10, 10, 10, 10],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: pagebreakMode || ['avoid-all', 'css', 'legacy'] }
+      }).from(el).save();
+    }
+
+    async function generatePdfReport(type) {
+      const prepared = prepareReport(type);
+      if (!prepared) return;
+      const el = document.getElementById(prepared.elementId);
+      await exportElementToPdf(el, prepared.filename);
+    }
+
+    async function generateAllPdfReports() {
+      const types = ['collection', 'cashflow', 'aging', 'dueoverdue'];
+      const fileDate = fmtDateFile(new Date());
+      // Fill every template first (charts included), then merge into one document.
+      const prepared = types.map(t => prepareReport(t)).filter(Boolean);
+      const wrapper = document.createElement('div');
+      wrapper.id = 'reportCombined';
+      wrapper.style.cssText = 'position:fixed; left:-10000px; top:0; width:780px; background:#ffffff; font-family:Arial,Helvetica,sans-serif; color:#0f172a;';
+      prepared.forEach((p, i) => {
+        const src = document.getElementById(p.elementId);
+        if (!src) return;
+        const clone = src.cloneNode(true);
+        clone.removeAttribute('id');
+        if (i > 0) clone.style.pageBreakBefore = 'always';
+        wrapper.appendChild(clone);
+      });
+      document.body.appendChild(wrapper);
+      try {
+        await exportElementToPdf(wrapper, 'IHC-Reports-' + fileDate + '.pdf', ['css', 'legacy']);
+      } finally {
+        wrapper.remove();
+      }
+    }
+
     document.querySelectorAll('.report-card .btn-primary').forEach(btn => {
-      btn.addEventListener('click', () => {
-        showToast(btn.dataset.report + ' generated & ready for export', 'success');
+      btn.addEventListener('click', async () => {
+        const rpt = btn.dataset.report;
+        let type = null;
+        if (rpt === 'Collection Summary Report') type = 'collection';
+        else if (rpt === 'Cash Flow Forecast Report') type = 'cashflow';
+        else if (rpt === 'Aging of Accounts Report') type = 'aging';
+        else if (rpt === 'Due & Overdue Register') type = 'dueoverdue';
+        if (!type) { showToast(rpt + ' generated & ready for export', 'success'); return; }
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Generating...';
+        try {
+          await generatePdfReport(type);
+          showToast(rpt + ' exported as PDF', 'success');
+        } catch (err) {
+          console.error('PDF export failed:', err);
+          showToast('Failed to generate PDF: ' + (err.message || 'unknown error'), 'info');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = orig;
+        }
       });
     });
+
+    /* Export all four reports as one multi-page PDF */
+    const generateAllReportsBtn = document.getElementById('generateAllReportsBtn');
+    if (generateAllReportsBtn) {
+      generateAllReportsBtn.addEventListener('click', async () => {
+        const orig = generateAllReportsBtn.innerHTML;
+        generateAllReportsBtn.disabled = true;
+        generateAllReportsBtn.textContent = 'Generating...';
+        try {
+          await generateAllPdfReports();
+          showToast('All reports exported as one PDF', 'success');
+        } catch (err) {
+          console.error('Combined PDF export failed:', err);
+          showToast('Failed to generate PDF: ' + (err.message || 'unknown error'), 'info');
+        } finally {
+          generateAllReportsBtn.disabled = false;
+          generateAllReportsBtn.innerHTML = orig;
+          if (window.lucide && lucide.createIcons) lucide.createIcons();
+        }
+      });
+    }
 
     /* ==========================================
        SIDEBAR TOGGLE (MOBILE)
@@ -3666,5 +3993,263 @@
     lucide.createIcons();
   });
   </script>
+
+  <script src="../js/html2pdf.bundle.min.js?v=1"></script>
+
+  <!-- HIDDEN PDF REPORT TEMPLATES -->
+  <div id="reportTemplates" style="position:fixed; left:-10000px; top:0; width:780px; font-family:Arial,Helvetica,sans-serif; color:#0f172a; background:#fff;">
+
+    <!-- COLLECTION SUMMARY -->
+    <div id="tpl-collection-summary" style="padding:20px 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e5e7eb; padding-bottom:12px; margin-bottom:18px;">
+        <div>
+          <h1 style="margin:0; font-size:18px; font-weight:700;">Collection Summary Report</h1>
+          <p style="margin:4px 0 0; font-size:11px; color:#475569;" id="cs-company"></p>
+        </div>
+        <div style="text-align:right;">
+          <p style="margin:0; font-size:11px; color:#475569;" id="cs-generated"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Generated by IHC Admin Dashboard</p>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px;">
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Total Expected (All)</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700;" id="cs-expected"></p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Collected This Month</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700; color:#059669;" id="cs-collected"></p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Collection Efficiency</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700;" id="cs-eff"></p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Due Soon</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700; color:#b45309;" id="cs-duesoon"></p>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px;">
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:8px 10px; text-align:center;">
+          <p style="margin:0; font-size:16px; font-weight:700;" id="cs-all"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Total Records</p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:8px 10px; text-align:center;">
+          <p style="margin:0; font-size:16px; font-weight:700; color:#059669;" id="cs-paid"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Paid</p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:8px 10px; text-align:center;">
+          <p style="margin:0; font-size:16px; font-weight:700; color:#b45309;" id="cs-ds"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Due Soon</p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:8px 10px; text-align:center;">
+          <p style="margin:0; font-size:16px; font-weight:700; color:#dc2626;" id="cs-ovd"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Overdue</p>
+        </div>
+      </div>
+      <h2 style="margin:0 0 8px; font-size:13px; font-weight:700;">Payment Monitoring Summary</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:10px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="text-align:left; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Client</th>
+            <th style="text-align:left; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Contract ID</th>
+            <th style="text-align:left; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Property</th>
+            <th style="text-align:right; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Amount Due</th>
+            <th style="text-align:left; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Due Date</th>
+            <th style="text-align:left; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Status</th>
+            <th style="text-align:left; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Clerk</th>
+          </tr>
+        </thead>
+        <tbody id="cs-tbody"></tbody>
+      </table>
+      <p style="margin:10px 0 0; font-size:9px; color:#64748b;">This report reflects live data at generation time.</p>
+    </div>
+
+    <!-- CASH FLOW FORECAST -->
+    <div id="tpl-cashflow" style="padding:20px 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e5e7eb; padding-bottom:12px; margin-bottom:18px;">
+        <div>
+          <h1 style="margin:0; font-size:18px; font-weight:700;">Cash Flow Forecast Report</h1>
+          <p style="margin:4px 0 0; font-size:11px; color:#475569;" id="cf-company"></p>
+        </div>
+        <div style="text-align:right;">
+          <p style="margin:0; font-size:11px; color:#475569;" id="cf-generated"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">6-Month Forecast vs. Actual Collections</p>
+        </div>
+      </div>
+      <div style="margin-bottom:14px; text-align:center;">
+        <img id="cashflowImg" style="max-width:100%; height:auto; border:1px solid #e5e7eb; border-radius:6px;" />
+      </div>
+      <h2 style="margin:0 0 8px; font-size:13px; font-weight:700;">Month-by-Month Figures</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:10px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="text-align:left; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Month</th>
+            <th style="text-align:right; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Forecast</th>
+            <th style="text-align:right; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Actual</th>
+            <th style="text-align:right; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Variance</th>
+          </tr>
+        </thead>
+        <tbody id="cf-tbody"></tbody>
+        <tfoot>
+          <tr>
+            <td style="padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;">Totals</td>
+            <td style="text-align:right; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;" id="cf-tot-f"></td>
+            <td style="text-align:right; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;" id="cf-tot-a"></td>
+            <td style="text-align:right; padding:6px 8px; border:1px solid #e5e7eb; font-weight:700;" id="cf-tot-v"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- AGING OF ACCOUNTS -->
+    <div id="tpl-aging" style="padding:20px 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e5e7eb; padding-bottom:12px; margin-bottom:18px;">
+        <div>
+          <h1 style="margin:0; font-size:18px; font-weight:700;">Aging of Accounts Report</h1>
+          <p style="margin:4px 0 0; font-size:11px; color:#475569;" id="ag-company"></p>
+        </div>
+        <div style="text-align:right;">
+          <p style="margin:0; font-size:11px; color:#475569;" id="ag-generated"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Delinquency Breakdown by Aging Period</p>
+        </div>
+      </div>
+      <div style="margin-bottom:14px; text-align:center;">
+        <img id="agingImg" style="max-width:100%; height:auto; border:1px solid #e5e7eb; border-radius:6px;" />
+      </div>
+      <table style="width:100%; border-collapse:collapse; font-size:11px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="text-align:left; padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;">Aging Bucket</th>
+            <th style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;">Accounts</th>
+            <th style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;">% of Total Overdue</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:8px 10px; border:1px solid #e5e7eb;">Current (Not Overdue)</td><td style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-cur">0</td><td style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb;">&mdash;</td></tr>
+          <tr><td style="padding:8px 10px; border:1px solid #e5e7eb;">1&ndash;30 Days Overdue</td><td style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-30">0</td><td style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-p30">0.00%</td></tr>
+          <tr><td style="padding:8px 10px; border:1px solid #e5e7eb;">31&ndash;60 Days Overdue</td><td style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-60">0</td><td style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-p60">0.00%</td></tr>
+          <tr><td style="padding:8px 10px; border:1px solid #e5e7eb;">61&ndash;90 Days Overdue</td><td style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-90">0</td><td style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-p90">0.00%</td></tr>
+          <tr><td style="padding:8px 10px; border:1px solid #e5e7eb;">90+ Days Overdue</td><td style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-90p">0</td><td style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb;" id="ag-p90p">0.00%</td></tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:#f8fafc;">
+            <td style="padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;">Total Overdue</td>
+            <td style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;" id="ag-tovd">0</td>
+            <td style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;">100.00%</td>
+          </tr>
+          <tr style="background:#f8fafc;">
+            <td style="padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;">Total Accounts (Ledger)</td>
+            <td style="text-align:center; padding:8px 10px; border:1px solid #e5e7eb; font-weight:700;" id="ag-tall">0</td>
+            <td style="text-align:right; padding:8px 10px; border:1px solid #e5e7eb;">&mdash;</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- DUE & OVERDUE REGISTER -->
+    <div id="tpl-due-overdue" style="padding:20px 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e5e7eb; padding-bottom:12px; margin-bottom:18px;">
+        <div>
+          <h1 style="margin:0; font-size:18px; font-weight:700;">Due &amp; Overdue Register</h1>
+          <p style="margin:4px 0 0; font-size:11px; color:#475569;" id="do-company"></p>
+        </div>
+        <div style="text-align:right;">
+          <p style="margin:0; font-size:11px; color:#475569;" id="do-generated"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">Due within 3 days &amp; All Overdue Accounts</p>
+        </div>
+      </div>
+      <h2 style="margin:0 0 6px; font-size:13px; font-weight:700;">Due Within 3 Days</h2>
+      <p style="margin:0 0 6px; font-size:10px; color:#64748b;">Includes accounts due today or within the next 3 days (status: Due Soon).</p>
+      <table style="width:100%; border-collapse:collapse; font-size:9px; margin-bottom:14px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Client</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Contract ID</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Property</th>
+            <th style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Amount Due</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Due Date</th>
+            <th style="text-align:center; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Days Until Due</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Clerk</th>
+          </tr>
+        </thead>
+        <tbody id="do-due3"></tbody>
+      </table>
+      <h2 style="margin:0 0 6px; font-size:13px; font-weight:700;">All Overdue Accounts</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:9px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Client</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Contract ID</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Property</th>
+            <th style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Amount Due</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Due Date</th>
+            <th style="text-align:center; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Days Overdue</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Clerk</th>
+          </tr>
+        </thead>
+        <tbody id="do-ovd"></tbody>
+      </table>
+      <p style="margin:10px 0 0; font-size:9px; color:#64748b;">&ldquo;Due within 3 days&rdquo; is based on calendar days from today (includes today). Overdue counts days past due.</p>
+    </div>
+
+    <!-- CONTRACT REGISTER -->
+    <div id="tpl-contract-register" style="padding:20px 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e5e7eb; padding-bottom:12px; margin-bottom:18px;">
+        <div>
+          <h1 style="margin:0; font-size:18px; font-weight:700;">Contract Register</h1>
+          <p style="margin:4px 0 0; font-size:11px; color:#475569;" id="cr-company"></p>
+        </div>
+        <div style="text-align:right;">
+          <p style="margin:0; font-size:11px; color:#475569;" id="cr-generated"></p>
+          <p style="margin:2px 0 0; font-size:10px; color:#64748b;">All Buyer Contracts &amp; Reconciliation Summary</p>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px;">
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Total Contracts</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700;" id="cr-count"></p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Total TCP</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700;" id="cr-tcp"></p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Total Downpayment</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700; color:#059669;" id="cr-dp"></p>
+        </div>
+        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px 12px;">
+          <p style="margin:0; font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.3px;">Total Outstanding</p>
+          <p style="margin:4px 0 0; font-size:14px; font-weight:700; color:#2563eb;" id="cr-out"></p>
+        </div>
+      </div>
+      <table style="width:100%; border-collapse:collapse; font-size:9px;">
+        <thead>
+          <tr style="background:#f1f5f9;">
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Contract ID</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Client</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Property</th>
+            <th style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Total TCP</th>
+            <th style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Downpayment</th>
+            <th style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Outstanding</th>
+            <th style="text-align:center; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Terms</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Status</th>
+            <th style="text-align:left; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Clerk</th>
+          </tr>
+        </thead>
+        <tbody id="cr-tbody"></tbody>
+        <tfoot>
+          <tr style="background:#f8fafc;">
+            <td colspan="3" style="padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;">Totals</td>
+            <td style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;" id="cr-tot-tcp"></td>
+            <td style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;" id="cr-tot-dp"></td>
+            <td style="text-align:right; padding:6px 7px; border:1px solid #e5e7eb; font-weight:700;" id="cr-tot-out"></td>
+            <td colspan="3" style="padding:6px 7px; border:1px solid #e5e7eb;"></td>
+          </tr>
+        </tfoot>
+      </table>
+      <p style="margin:10px 0 0; font-size:9px; color:#64748b;">This register reflects live data at generation time.</p>
+    </div>
+  </div>
 </body>
 </html>
