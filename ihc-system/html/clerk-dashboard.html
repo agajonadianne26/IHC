@@ -4717,9 +4717,61 @@
       pickAcItem(Number(item.dataset.i));
     });
 
+    // Free-typed full address -> Phase/Block/Lot/Project. Lets the clerk
+    // type (or paste) a complete address once — e.g. "Phase 3, Block 12,
+    // Lot 5, Mabuhay Street, Soldier's Hills Subdivision, ..." — and have
+    // the matching part fields fill in automatically.
+    function parseAddressParts(text) {
+      const out = {};
+      const phase = text.match(/(?:phase|ph)\.?\s*[-:]?\s*([\w-]+)/i);
+      if (phase) out.phase = 'Phase ' + phase[1];
+      const block = text.match(/(?:block|blk)\.?\s*[-:]?\s*([\w-]+)/i);
+      if (block) out.block = 'Block ' + block[1];
+      const lot = text.match(/lot\s*[-:]?\s*([\w-]+)/i);
+      if (lot) out.lot = 'Lot ' + lot[1];
+      const sub = String(text).split(',').map((s) => s.trim())
+        .find((s) => /subdivision|village|homes|estates|residences|township|subd\.?/i.test(s));
+      if (sub) out.project = sub;
+      return out;
+    }
+
+    function autoFillAddressParts() {
+      const parts = parseAddressParts(ncFields.address.value);
+      const targets = [
+        [ncFields.phase, parts.phase],
+        [ncFields.blockNo, parts.block],
+        [ncFields.lotNo, parts.lot],
+        [ncFields.projectName, parts.project]
+      ];
+      let any = false;
+      targets.forEach(([el, val]) => {
+        if (!val) return;
+        // Never overwrite something the clerk typed by hand — only empty
+        // fields or values we auto-filled ourselves.
+        if (el.value.trim() !== '' && el.dataset.addrAuto !== '1') return;
+        el.value = val;
+        el.dataset.addrAuto = '1';
+        any = true;
+        const field = el.closest('.nc-field');
+        if (field) {
+          field.classList.remove('from-link');
+          void field.offsetWidth;
+          field.classList.add('from-link');
+        }
+      });
+      if (any) validateForm();
+    }
+
+    // Typing in any part field by hand detaches it from the address parse,
+    // so a later address edit won't stomp it.
+    [ncFields.phase, ncFields.blockNo, ncFields.lotNo, ncFields.projectName].forEach((el) => {
+      el.addEventListener('input', () => { delete el.dataset.addrAuto; });
+    });
+
     ncFields.address.addEventListener('input', () => {
       const q = ncFields.address.value.trim();
       validateForm();
+      autoFillAddressParts();
       clearTimeout(acTimer);
       if (q.length < 2) { closeAddressAc(); return; }
       ncAddressAc.classList.add('open');
