@@ -546,6 +546,7 @@
         paidAmount: Number(s.paidAmount) || 0
       }));
       portalStore.savePortal(client.contractId, portal);
+      portal.lastSyncedAt = new Date().toISOString();
     }
 
     const live = await fetchLiveLedger();
@@ -708,6 +709,10 @@
     document.getElementById('ovTerms').textContent = client.terms + ' months';
     document.getElementById('ovMonthly').textContent = fmtPHP(monthlyAmort);
     document.getElementById('ovFinancing').textContent = fmtPHP(financing);
+    if (portal.lastSyncedAt) {
+      const syncEl = document.getElementById('ovLastSynced');
+      if (syncEl) syncEl.textContent = 'Last synced: ' + fmtTS(portal.lastSyncedAt);
+    }
 
     document.getElementById('progressLabel').textContent = paidRows.length + ' of ' + portal.schedules.length + ' installments paid';
     document.getElementById('progressPct').textContent = portal.schedules.length ? Math.round((paidRows.length / portal.schedules.length) * 100) + '%' : '0%';
@@ -744,6 +749,49 @@
           <td>${s.orNumber || '<span class="muted">\u2014</span>'}</td>
         </tr>`;
     }).join('');
+
+    document.getElementById('exportScheduleCsvBtn').addEventListener('click', () => {
+      const rows = [['Installment', 'Type', 'Due Date', 'Amount', 'Status', 'Payment Date', 'OR / Ref #']];
+      portal.schedules.forEach((s) => {
+        rows.push([
+          String(s.no),
+          phaseLabel(s.phase) || '',
+          s.dueDate || '',
+          Number(s.amount || 0).toFixed(2),
+          (scheduleStatus(s) || {}).label || '',
+          s.payDate || '',
+          s.orNumber || ''
+        ]);
+      });
+      const csv = rows.map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'installment-schedule-' + (session.contractId || 'contract') + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    });
+
+    document.getElementById('printScheduleBtn').addEventListener('click', () => {
+      const win = window.open('', '_blank', 'width=900,height=700');
+      if (!win) return;
+      const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const bodyRows = portal.schedules.map((s) => {
+        const st = scheduleStatus(s) || {};
+        return '<tr><td>' + s.no + '</td><td>' + esc(phaseLabel(s.phase) || '') + '</td><td>' + esc(s.dueDate) + '</td><td>' + fmtPHP(s.amount) + '</td><td>' + esc(st.label || '') + '</td><td>' + esc(s.payDate || '—') + '</td><td>' + esc(s.orNumber || '—') + '</td></tr>';
+      }).join('');
+      win.document.write('<html><head><title>Installment Schedule</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{font-size:18px;margin:0 0 4px}p{color:#555;margin:0 0 16px;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f1f5f9}</style></head><body>'
+        + '<h1>Installment Schedule — ' + esc(client.name || '') + '</h1>'
+        + '<p>' + esc(client.propertyAddress || '') + '</p>'
+        + '<table><thead><tr><th>#</th><th>Type</th><th>Due Date</th><th>Amount</th><th>Status</th><th>Payment Date</th><th>OR / Ref #</th></tr></thead><tbody>'
+        + bodyRows
+        + '</tbody></table></body></html>');
+      win.document.close();
+      win.focus();
+      win.print();
+    });
 
     document.getElementById('printLedgerBtn').addEventListener('click', () => {
       window.IHCSoa.open({
@@ -983,6 +1031,7 @@
                 <div class="info-item"><div class="info-label">Installment Terms</div><div class="info-value" id="ovTerms">—</div></div>
                 <div class="info-item"><div class="info-label">Monthly Amortization</div><div class="info-value" id="ovMonthly">—</div></div>
                 <div class="info-item"><div class="info-label">Financing Amount</div><div class="info-value" id="ovFinancing">—</div></div>
+                <div class="info-item"><div class="info-label">Last Synced</div><div class="info-value" id="ovLastSynced">—</div></div>
               </div>
 
               <div class="progress-wrap">
@@ -1074,6 +1123,8 @@
                 <p>Due dates, amounts and status of every installment</p>
               </div>
               <div class="table-tools">
+                <button class="btn-ghost" id="exportScheduleCsvBtn"><i data-lucide="download" style="width:15px;height:15px;"></i> Export CSV</button>
+                <button class="btn-ghost" id="printScheduleBtn"><i data-lucide="file-text" style="width:15px;height:15px;"></i> Print Schedule</button>
                 <button class="btn-ghost" id="printLedgerBtn"><i data-lucide="printer" style="width:15px;height:15px;"></i> Print SOA</button>
               </div>
             </div>

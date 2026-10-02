@@ -197,7 +197,11 @@ function buildReminderEmail(clientName, contractId, amountDue, dueDate, daysUnti
   const urgency = isPostedPayment
     ? `<p style="color:#047857;font-weight:700;font-size:16px;">The payment below was posted to the IHC ledger.</p>`
     : numericDays < 0
-      ? `<p style="color:#dc2626;font-weight:700;font-size:16px;">This payment is now <strong>${Math.abs(numericDays)} day(s) overdue</strong>.</p>`
+      ? (Math.abs(numericDays) >= 30
+        ? `<p style="color:#7f1d1d;font-weight:800;font-size:16px;">FINAL NOTICE — This payment is <strong>${Math.abs(numericDays)} day(s) overdue</strong>. Failure to settle may trigger account penalties.</p>`
+        : Math.abs(numericDays) >= 8
+          ? `<p style="color:#b45309;font-weight:700;font-size:16px;">SECOND NOTICE — This payment is now <strong>${Math.abs(numericDays)} day(s) overdue</strong>. Please settle at your earliest convenience.</p>`
+          : `<p style="color:#dc2626;font-weight:700;font-size:16px;">This payment is now <strong>${Math.abs(numericDays)} day(s) overdue</strong>.</p>`)
       : `<p>Your upcoming payment is due in <strong>${numericDays} day(s)</strong>.</p>`;
 
   const safeClientName = escapeHtml(summary?.clientName || safeText(clientName));
@@ -361,7 +365,11 @@ async function sendPaymentReminder(to, clientName, contractId, amountDue, dueDat
   const subject = transaction
     ? `${subjectPrefix}: ${subjectPaymentType} — ${formatCurrency(transaction.amount)}${transaction.orNumber ? ` — ${transaction.orNumber}` : ''}`
     : isOverdue
-      ? `OVERDUE: ${subjectPrefix}: ${subjectPaymentType} — ${formatCurrency(amountDue)} for ${contractId} is past due`
+      ? (Math.abs(daysUntil) >= 30
+        ? `FINAL NOTICE — OVERDUE: ${subjectPrefix}: ${subjectPaymentType} — ${formatCurrency(amountDue)} for ${contractId} is past due`
+        : Math.abs(daysUntil) >= 8
+          ? `SECOND NOTICE — OVERDUE: ${subjectPrefix}: ${subjectPaymentType} — ${formatCurrency(amountDue)} for ${contractId} is past due`
+          : `OVERDUE: ${subjectPrefix}: ${subjectPaymentType} — ${formatCurrency(amountDue)} for ${contractId} is past due`)
       : `${subjectPrefix}: ${subjectPaymentType} — ${formatCurrency(amountDue)} for ${contractId} due in ${daysUntil} day(s)`;
 
   const html = buildReminderEmail(clientName, contractId, amountDue, dueDate, daysUntil, to, options.installmentId, summary);

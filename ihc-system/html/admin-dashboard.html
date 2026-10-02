@@ -1883,6 +1883,21 @@
               <button class="btn-primary" data-report="Due &amp; Overdue Register">Generate</button>
             </div>
           </div>
+
+          <div class="table-section" style="margin-top:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
+                <h3>Officer Remittances</h3>
+                <p>Collections posted per officer, all time.</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead><tr><th>Officer</th><th>Receipts</th><th>Collected</th><th>Last Collection</th></tr></thead>
+                <tbody id="remittanceBody"></tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <!-- ============================
@@ -2638,6 +2653,7 @@
       if (name === 'clerks') loadTeam();
       if (name === 'notifications') renderNotifications();
       if (name === 'properties') loadPropertyUnits();
+      if (name === 'reports') loadRemittances();
 
       sidebar.classList.remove('open');
       overlay.classList.remove('visible');
@@ -2802,6 +2818,30 @@
     /* ==========================================
        NOTIFICATIONS LOG VIEW
     ========================================== */
+    async function loadRemittances() {
+      const body = document.getElementById('remittanceBody');
+      if (!body) return;
+      body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">Loading remittances…</td></tr>';
+      try {
+        const res = await fetch(API_BASE + '/php/api_remittance.php', { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'Could not load remittances.');
+        if (!data.rows.length) {
+          body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">No collections posted yet.</td></tr>';
+          return;
+        }
+        body.innerHTML = data.rows.map((r) => `
+          <tr>
+            <td><strong>${teamEsc(r.officerName)}</strong><br><small style="color:var(--text-muted);">${teamEsc(r.officerId)}</small></td>
+            <td>${r.receiptCount}</td>
+            <td>${formatPHP(r.totalCollected)}</td>
+            <td>${r.lastCollectionDate ? formatDate(r.lastCollectionDate) : '—'}</td>
+          </tr>`).join('');
+      } catch (err) {
+        body.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">${teamEsc(err.message)}</td></tr>`;
+      }
+    }
+
     function renderNotifications() {
       const body = document.getElementById('notificationsBody');
       const stClass = { 'sent': 'ok', 'pending': 'warn', 'failed': 'danger' };

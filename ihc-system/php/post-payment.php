@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/db-config.php';
 
 date_default_timezone_set('Asia/Manila');
 
@@ -20,12 +21,7 @@ require_once __DIR__ . '/payment-or-number.php';
 require_once __DIR__ . '/soa-builder.php';
 
 try {
-    $pdo = new PDO(
-        'mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4',
-        'root',
-        '',
-        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES=>false]
-    );
+    $pdo = ihc_pdo();
 
     $data = json_decode(file_get_contents('php://input') ?: '', true);
     if (!is_array($data)) throw new RuntimeException('Invalid JSON request.');

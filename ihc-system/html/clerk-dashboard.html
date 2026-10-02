@@ -2234,12 +2234,12 @@
                   <div class="nc-field">
                     <label>Reservation Fee</label>
                     <div class="input-affix"><span>₱</span><input type="text" id="ncReservationFee" inputmode="decimal" placeholder="0.00"></div>
-                    <small class="nc-hint">Optional reservation fee billed to this contract's SOA.</small>
+                    <small class="nc-hint">Optional. Billed to this contract's SOA and counted in the buyer's payment total.</small>
                   </div>
                   <div class="nc-field">
                     <label>Holding Fee</label>
                     <div class="input-affix"><span>₱</span><input type="text" id="ncHoldingFee" inputmode="decimal" placeholder="0.00"></div>
-                    <small class="nc-hint">Optional holding fee tracked against this contract's unit.</small>
+                    <small class="nc-hint">Optional. Tracked against this contract's unit and appears in the buyer's fee ledger.</small>
                   </div>
                   <div class="nc-field">
                     <label>Equity Mortgage Monthly Rate (%)</label>
@@ -2391,7 +2391,7 @@
               <div class="pm-context-item"><label>Outstanding Principal / Equity</label><strong id="pmOutstanding">—</strong></div>
               <div class="pm-context-item"><label>Calculated Interest</label><strong id="pmInterest">—</strong></div>
               <div class="pm-context-item"><label>Calculated Penalty</label><strong id="pmPenalty">—</strong></div>
-              <div class="pm-context-item"><label>Reservation / Other Charges</label><strong id="pmFees">—</strong></div>
+              <div class="pm-context-item"><label>Reservation / Other Charges <span title="Fees and extra charges are listed separately on the SOA; the ledger's next-row amount only covers principal." style="cursor:help;">ⓘ</span></label><strong id="pmFees">—</strong></div>
               <div class="pm-context-item due"><label>Total SOA Amount Due</label><strong id="pmTotalDue">—</strong></div>
             </div>
           </div>
@@ -4936,8 +4936,10 @@
         if (data.valid) setFieldState(ncEmail, 'ncEmailStatus', true, 'Working email — can receive SOA reminders', '');
         else setFieldState(ncEmail, 'ncEmailStatus', false, '', '\u2717 Not a working email — ' + (data.reason || 'domain cannot receive mail'));
       } catch (err) {
-        emailValid = false;
-        setFieldState(ncEmail, 'ncEmailStatus', false, '', '\u2717 Could not verify email domain.');
+        // Verification service unavailable — allow the clerk to proceed and
+        // flag the address as unverified instead of blocking the contract.
+        emailValid = true;
+        setFieldState(ncEmail, 'ncEmailStatus', true, 'Could not verify the domain — allowed to proceed, double-check the address.', '');
       } finally {
         emailChecking = false;
         validateForm();

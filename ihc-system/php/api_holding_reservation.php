@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/db-config.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -14,12 +15,7 @@ date_default_timezone_set('Asia/Manila');
 // DB connection — inline PDO like the rest of the codebase (AGENTS.md:18)
 // ---------------------------------------------------------------------
 try {
-    $pdo = new PDO(
-        'mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4',
-        'root',
-        '',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
-    );
+    $pdo = ihc_pdo();
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['success'=>false,'message'=>'Database connection failed: '.$e->getMessage()]);

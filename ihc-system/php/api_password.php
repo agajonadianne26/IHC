@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/db-config.php';
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -9,8 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 function out(array $p, int $code = 200): void { http_response_code($code); echo json_encode($p); exit; }
 
 try {
-    $pdo = new PDO('mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4', 'root', '',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]);
+    $pdo = ihc_pdo();
     $pdo->exec("CREATE TABLE IF NOT EXISTS password_reset_requests (
         id INT AUTO_INCREMENT PRIMARY KEY,
         email VARCHAR(255) NOT NULL,

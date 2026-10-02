@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/db-config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -29,12 +30,7 @@ const HF_METHODS = ['Bank Wire / Online Deposit', 'Over-the-Counter Cashier', 'P
 const HF_MAX_PROOF_CHARS = 1200000; // 600 KB file → base64 ≈ 800 KB, with headroom.
 
 function hf_connect(): PDO {
-    return new PDO(
-        'mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4',
-        'root',
-        '',
-        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES=>false]
-    );
+    return ihc_pdo();
 }
 
 // Self-healing DDL so a fresh or older database works without a manual
