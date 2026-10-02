@@ -186,6 +186,7 @@ try {
             'no' => $schedule['next']['no'],
             'amount' => round((float)$amount, 2),
         ];
+
         $sql = 'INSERT INTO payments
                     (contract_id, amount, payment_method, date_collected, or_number,
                      remarks, posted_by, check_number, invoice_number, installment_kind, installment_no,
@@ -265,6 +266,7 @@ try {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
+
 
     // Audit trail §17 — every payment insertion is logged (best-effort, never blocks ledger).
     try{

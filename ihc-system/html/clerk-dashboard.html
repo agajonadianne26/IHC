@@ -2232,6 +2232,16 @@
                     <div class="input-affix"><span>₱</span><input type="text" id="ncEarlyMoveIn" inputmode="decimal" placeholder="0.00"></div>
                   </div>
                   <div class="nc-field">
+                    <label>Reservation Fee</label>
+                    <div class="input-affix"><span>₱</span><input type="text" id="ncReservationFee" inputmode="decimal" placeholder="0.00"></div>
+                    <small class="nc-hint">Optional reservation fee billed to this contract's SOA.</small>
+                  </div>
+                  <div class="nc-field">
+                    <label>Holding Fee</label>
+                    <div class="input-affix"><span>₱</span><input type="text" id="ncHoldingFee" inputmode="decimal" placeholder="0.00"></div>
+                    <small class="nc-hint">Optional holding fee tracked against this contract's unit.</small>
+                  </div>
+                  <div class="nc-field">
                     <label>Equity Mortgage Monthly Rate (%)</label>
                     <div class="input-affix"><input type="text" id="ncEquityRate" inputmode="decimal" placeholder="0.00"><span class="suffix">%</span></div>
                   </div>
@@ -2440,7 +2450,7 @@
             </div>
           </div>
 
-          <div class="pm-allocation-grid">
+          <div class="pm-allocation-grid" id="pmAllocationGrid">
             <div class="pm-allocation-card primary"><label>Applied to Schedule / Principal</label><strong id="pmAppliedPrincipal">₱0.00</strong></div>
             <div class="pm-allocation-card advance"><label>Additional Equity / Advance</label><strong id="pmAdditionalEquity">₱0.00</strong></div>
             <div class="pm-allocation-card"><label>SOA Balance After Posting</label><strong id="pmRemainingTotal">₱0.00</strong></div>
@@ -4325,6 +4335,8 @@
       downpayment: document.getElementById('ncDownpayment'),
       loanable: document.getElementById('ncLoanableAmount'),
       earlyMoveIn: document.getElementById('ncEarlyMoveIn'),
+      reservationFee: document.getElementById('ncReservationFee'),
+      holdingFee: document.getElementById('ncHoldingFee'),
       equityRate: document.getElementById('ncEquityRate'),
       equityPenalty: document.getElementById('ncEquityPenalty'),
       loanTermYears: document.getElementById('ncLoanTermYears'),
@@ -4934,7 +4946,7 @@
 
     document.getElementById('ncCancelBtn').addEventListener('click', resetNewContractForm);
     function resetNewContractForm() {
-      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncClientAddress', 'ncPropertyAddress', 'ncProjectName', 'ncProjectPhase', 'ncBlockNo', 'ncLotNo', 'ncModelType', 'ncLotArea', 'ncFloorArea', 'ncTotalPrice', 'ncDiscountAmount', 'ncDownpayment', 'ncLoanableAmount', 'ncEarlyMoveIn', 'ncEquityRate', 'ncEquityPenalty', 'ncLoanTermYears', 'ncDpTerms', 'ncTerms', 'ncStartDate'].forEach(id => {
+      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncClientAddress', 'ncPropertyAddress', 'ncProjectName', 'ncProjectPhase', 'ncBlockNo', 'ncLotNo', 'ncModelType', 'ncLotArea', 'ncFloorArea', 'ncTotalPrice', 'ncDiscountAmount', 'ncDownpayment', 'ncLoanableAmount', 'ncEarlyMoveIn', 'ncReservationFee', 'ncHoldingFee', 'ncEquityRate', 'ncEquityPenalty', 'ncLoanTermYears', 'ncDpTerms', 'ncTerms', 'ncStartDate'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
@@ -5010,6 +5022,8 @@
               loanableAmount: loanableAmount,
               approvedLoanAmount: loanableAmount,
               earlyMoveInAmount: earlyMoveInAmount,
+              reservationFee: ncFields.reservationFee.value.trim() === '' ? 0 : parseAmount(ncFields.reservationFee.value),
+              holdingFee: ncFields.holdingFee.value.trim() === '' ? 0 : parseAmount(ncFields.holdingFee.value),
               equityMonthlyRate: equityMonthlyRate,
               equityPenaltyRate: equityPenaltyRate,
               loanTermYears: loanTermYears,
