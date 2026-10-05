@@ -28,7 +28,11 @@ try {
 // Self-heal: officers gained email/password_hash in migration 004. Older DBs
 // may not have run it yet — add the columns on first use instead of failing.
 try {
-    foreach (['email' => 'VARCHAR(255) NULL', 'password_hash' => 'VARCHAR(255) NULL'] as $col => $def) {
+    foreach ([
+        'email' => 'VARCHAR(255) NULL',
+        'password_hash' => 'VARCHAR(255) NULL',
+        'must_change_password' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        ] as $col => $def) {
         $exists = $pdo->query("SHOW COLUMNS FROM officers LIKE " . $pdo->quote($col))->fetch();
         if (!$exists) {
             $pdo->exec("ALTER TABLE officers ADD COLUMN `$col` $def");
@@ -67,7 +71,7 @@ try {
     // --- 1) Staff accounts (admin + clerk) live in ihc.officers ---------
     $staff = null;
     try {
-        $stmt = $pdo->prepare('SELECT id, full_name, role, email, password_hash FROM officers WHERE LOWER(email) = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, full_name, role, email, password_hash, must_change_password FROM officers WHERE LOWER(email) = ? LIMIT 1');
         $stmt->execute([$emailLower]);
         $staff = $stmt->fetch();
     } catch (Throwable $e) {
@@ -86,6 +90,7 @@ try {
             'name' => $name,
             'email' => (string)$staff['email'],
             'avatar' => initialsOf($name, (string)$staff['email']),
+            'mustChangePassword' => ((int)($staff['must_change_password'] ?? 0)) === 1,
         ];
         // Both roles originate from officers; keep the staff identity available
         // for prepared-by fields such as the database-driven SOA.

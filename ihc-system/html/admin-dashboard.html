@@ -1453,6 +1453,11 @@
         </a>
 
         <div class="sidebar-section-label">System</div>
+        <a class="sidebar-link" href="#" data-page="requests">
+        <i data-lucide="key-round"></i>
+        <span>Password Requests</span>
+        <span class="nav-badge" id="pwBadge" style="display:none;">0</span>
+        </a>
 
         <a class="sidebar-link" href="#" data-page="settings">
           <i data-lucide="settings"></i>
@@ -1919,6 +1924,23 @@
         <!-- ============================
              VIEW: SETTINGS
         ============================= -->
+          <section class="view" data-view="requests">
+            <div class="subhead">
+          <div>
+            <h2>Password Reset Requests</h2>
+            <p>Staff who used "Forgot password?" on the login page. Approving issues a temporary password they must change on first sign-in.</p>
+          </div>
+          <button class="btn-primary" id="pwRefreshBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh</button>
+        </div>
+        <div class="table-section">
+          <div class="table-scroll">
+            <table class="data-table" style="min-width:700px;">
+              <thead><tr><th>Staff</th><th>Role</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="pwReqBody"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
         <section class="view" data-view="settings">
           <div class="subhead">
             <div>
@@ -2060,6 +2082,23 @@
       <div class="soa-document" id="soaDocument"></div>
     </div>
   </div>
+
+    <div class="modal-overlay" id="tempPwModal">
+    <div class="inv-modal" style="max-width:440px;">
+      <div class="inv-modal-head">
+      <div><h3>Temporary password issued</h3><p id="tempPwFor"></p></div>
+      <button class="inv-modal-close" id="tempPwClose" type="button" aria-label="Close">&times;</button>
+      </div>
+    <div class="inv-modal-body">
+      <div id="tempPwValue" style="font-family:Consolas,monospace;font-size:20px;font-weight:700;letter-spacing:1px;background:#f1f5f9;border:1px dashed #94a3b8;border-radius:8px;padding:14px;text-align:center;user-select:all;"></div>
+      <p class="inv-hint" style="margin-top:12px;">Give this to the staff member in person or through a private channel. They must set a new password on first sign-in. It is shown only once.</p>
+  </div>
+    <div class="inv-modal-foot">
+      <button class="btn-cancel-inv" id="tempPwCopy" type="button">Copy</button>
+      <button class="btn-save-inv" id="tempPwDone" type="button">Done</button>
+      </div>
+    </div>
+    </div>
 
   <!-- PROPERTY INVENTORY MODAL -->
   <div class="modal-overlay" id="invModal">
@@ -2603,6 +2642,7 @@
        VIEW SWITCHING — Sidebar navigation
     ========================================== */
     const viewTitles = {
+      requests:      ['Password Requests', 'Staff Password Reset Approvals'],
       dashboard:     ['Payment Monitoring & Analytics', 'Admin Console \u2022 Fiscal Year 2026'],
       contracts:     ['Contracts', 'Contract Portfolio \u2022 Management & Reconciliation'],
       schedules:     ['Payment Schedules', 'Installment & Dowpayment Schedules Per Contract'],
@@ -2635,6 +2675,7 @@
       if (name === 'clerks') loadTeam();
       if (name === 'notifications') renderNotifications();
       if (name === 'properties') loadPropertyUnits();
+      if (name === 'requests') loadPasswordRequests();
 
       sidebar.classList.remove('open');
       overlay.classList.remove('visible');
@@ -3659,6 +3700,142 @@
         document.getElementById('lookupUnitBtn').click();
       }catch(e){ showToast('Mark SOLD failed: '+e.message,'info'); }
     });
+
+    /* ==========================================
+   PASSWORD RESET REQUESTS (php/api_password.php)
+========================================== */
+const PASSWORD_API = API_BASE + '/php/api_password.php';
+let pwRequests = [];
+let pwLastPending = -1;
+const pwEsc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+async function pwList() {
+  const params = new URLSearchParams({
+    action: 'list_requests',
+    actorId: String(currentUser.officerId || ''),
+    _: String(Date.now())
+  });
+  const res = await fetch(PASSWORD_API + '?' + params.toString(), { headers: { 'Accept': 'application/json' } });
+  const data = await res.json().catch(() => ({ success: false, message: 'Server error (HTTP ' + res.status + ')' }));
+  if (!res.ok || !data.success) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+async function pwPost(body) {
+  const res = await fetch(PASSWORD_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(Object.assign({
+      actorId: currentUser.officerId || '',
+      actorEmail: currentUser.email || ''
+    }, body))
+  });
+  const data = await res.json().catch(() => ({ success: false, message: 'Server error (HTTP ' + res.status + ')' }));
+  if (!res.ok || !data.success) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+const pwNorm = (r) => ({
+  id: r.id != null ? r.id : r.requestId,
+  email: r.email || '',
+  name: r.name || r.full_name || r.fullName || '',
+  role: r.role || '',
+  status: String(r.status || 'pending').toLowerCase(),
+  requestedAt: r.requestedAt || r.requested_at || r.created_at || ''
+});
+
+function updatePwBadge() {
+  const n = pwRequests.filter(r => r.status === 'pending').length;
+  const badge = document.getElementById('pwBadge');
+  if (badge) { badge.textContent = n; badge.style.display = n ? '' : 'none'; }
+  return n;
+}
+
+function renderPasswordRequests() {
+  const body = document.getElementById('pwReqBody');
+  if (!body) return;
+  if (!pwRequests.length) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);">No password reset requests.</td></tr>';
+    return;
+  }
+  const cls = { pending: 'warn', approved: 'ok', rejected: 'danger' };
+  body.innerHTML = pwRequests.map(r => {
+    const actions = r.status === 'pending'
+      ? '<div class="action-btns">'
+        + '<button class="btn-remind" type="button" data-pw="approve" data-id="' + pwEsc(r.id) + '">Approve</button>'
+        + '<button class="btn-print" type="button" data-pw="reject" data-id="' + pwEsc(r.id) + '">Reject</button></div>'
+      : '<span style="color:var(--text-muted);">—</span>';
+    return '<tr>'
+      + '<td class="client-cell"><strong>' + pwEsc(r.name || r.email) + '</strong>' + (r.name ? '<small>' + pwEsc(r.email) + '</small>' : '') + '</td>'
+      + '<td class="clerk-cell">' + pwEsc(r.role || '—') + '</td>'
+      + '<td style="white-space:nowrap;font-size:11px;">' + pwEsc(r.requestedAt || '—') + '</td>'
+      + '<td><span class="row-status ' + (cls[r.status] || 'warn') + '"><span class="dot"></span>' + pwEsc(r.status.charAt(0).toUpperCase() + r.status.slice(1)) + '</span></td>'
+      + '<td>' + actions + '</td></tr>';
+  }).join('');
+}
+
+async function loadPasswordRequests(quiet) {
+  try {
+    const data = await pwList();
+    const list = data.requests || data.items || [];
+    pwRequests = list.map(pwNorm).sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1));
+    const pending = updatePwBadge();
+    if (pending > pwLastPending && pending > 0 && (quiet || pwLastPending >= 0)) {
+      showToast(pending + ' password reset request' + (pending === 1 ? '' : 's') + ' waiting for approval.', 'info');
+    }
+    pwLastPending = pending;
+    renderPasswordRequests();
+  } catch (err) {
+    if (!quiet) {
+      const body = document.getElementById('pwReqBody');
+      if (body) body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#b91c1c;">' + pwEsc(err.message) + '</td></tr>';
+    }
+  }
+}
+
+document.getElementById('pwReqBody')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-pw]');
+  if (!btn) return;
+  const decision = btn.dataset.pw;
+  const req = pwRequests.find(r => String(r.id) === String(btn.dataset.id));
+  if (!req) return;
+  const who = req.name || req.email;
+  if (decision === 'approve' && !confirm('Approve the request from ' + who + '? Their current password will be replaced by a temporary one.')) return;
+  if (decision === 'reject' && !confirm('Reject the request from ' + who + '?')) return;
+  btn.disabled = true;
+  try {
+    const data = await pwPost({ action: 'resolve_request', requestId: req.id, id: req.id, decision });
+    const temp = data.tempPassword || data.temporaryPassword || data.temp_password;
+    if (decision === 'approve' && temp) {
+      document.getElementById('tempPwFor').textContent = who + ' (' + req.email + ')';
+      document.getElementById('tempPwValue').textContent = temp;
+      document.getElementById('tempPwModal').classList.add('visible');
+    } else {
+      showToast(data.message || (decision === 'approve' ? 'Request approved.' : 'Request rejected.'), 'success');
+    }
+    await loadPasswordRequests(true);
+  } catch (err) {
+    showToast(err.message, 'info');
+    btn.disabled = false;
+  }
+});
+
+const closeTempPw = () => {
+  document.getElementById('tempPwModal').classList.remove('visible');
+  document.getElementById('tempPwValue').textContent = '';   // don't leave it in the DOM
+};
+  document.getElementById('tempPwClose')?.addEventListener('click', closeTempPw);
+  document.getElementById('tempPwDone')?.addEventListener('click', closeTempPw);
+  document.getElementById('tempPwCopy')?.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById('tempPwValue').textContent);
+    showToast('Temporary password copied.', 'success');
+  } catch { showToast('Copy failed — select the text and copy it manually.', 'info'); }
+});
+  document.getElementById('pwRefreshBtn')?.addEventListener('click', () => loadPasswordRequests());
+
+loadPasswordRequests(true);                           // badge + toast on dashboard load
+setInterval(() => loadPasswordRequests(true), 60000); // keep the badge fresh
 
     /* ==========================================
        LUCIDE ICONS INIT

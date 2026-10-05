@@ -1,12 +1,14 @@
 <?php
 declare(strict_types=1);
+ob_start();
+ini_set('display_errors', '0');
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
-function out(array $p, int $code = 200): void { http_response_code($code); echo json_encode($p); exit; }
+function out(array $p, int $code = 200): void { if (ob_get_length()) ob_clean(); http_response_code($code); echo json_encode($p); exit; }
 
 try {
     $pdo = new PDO('mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4', 'root', '',
@@ -80,10 +82,13 @@ try {
     // --- Admin: list pending requests ---------------------------------
     if ($action === 'list_requests') {
         requireAdmin($pdo, $_GET['actorId'] ?? '');
-        $rows = $pdo->query("SELECT id, email, account_type, account_name, requested_at FROM password_reset_requests WHERE status = 'pending' ORDER BY id")->fetchAll();
+        $rows = $pdo->query("SELECT r.id, r.email, r.account_type, r.account_name, r.requested_at, o.role
+                     FROM password_reset_requests r
+                     LEFT JOIN officers o ON LOWER(o.email) = LOWER(r.email)
+                     WHERE r.status = 'pending' ORDER BY r.id")->fetchAll();
         out(['success' => true, 'requests' => array_map(fn($r) => [
             'id' => (int)$r['id'], 'email' => $r['email'], 'type' => $r['account_type'],
-            'name' => $r['account_name'], 'requestedAt' => $r['requested_at'],
+            'name' => $r['account_name'], 'role' => $r['role'], 'requestedAt' => $r['requested_at'],
         ], $rows)]);
     }
 
