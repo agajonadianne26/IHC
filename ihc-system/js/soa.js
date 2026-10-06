@@ -95,45 +95,6 @@
     return escapeHtml(invoice) + external;
   }
 
-  function scheduleTable(rows) {
-    const body = rows.length ? rows.map((row) => `
-      <tr class="${rowClass(row.status)}">
-        <td><strong>${escapeHtml(row.installmentNo)}</strong><br><small>${escapeHtml(row.type)}</small></td>
-        <td>${date(row.paymentDate)}</td>
-        <td>${date(row.dueDate)}</td>
-        <td>${Number(row.daysPastDue || 0) > 0 ? Number(row.daysPastDue).toLocaleString('en-PH') : '\u2014'}</td>
-        <td>${references(row.checkNumber)}</td>
-        <td>${invoiceCell(row)}</td>
-        <td class="money">${money(row.amountDue)}</td>
-        <td class="money">${money(row.penalty)}</td>
-        <td class="money">${money(row.interest)}</td>
-        <td class="money">${money(row.principal)}</td>
-        <td class="money"><strong>${money(row.outstandingBalance)}</strong></td>
-      </tr>`).join('') : '<tr><td class="ihc-soa-empty" colspan="11">No payment schedule is available.</td></tr>';
-
-    return `
-      <div class="ihc-soa-table-wrap">
-        <table class="ihc-soa-table">
-          <thead>
-            <tr>
-              <th>Installment No.</th>
-              <th>Date of Payment</th>
-              <th>Due Date</th>
-              <th>No. of Days Past Due</th>
-              <th>Check No.</th>
-              <th>Invoice / OR No.</th>
-              <th>Amount</th>
-              <th>Penalty</th>
-              <th>Interest</th>
-              <th>Principal</th>
-              <th>Outstanding Balance</th>
-            </tr>
-          </thead>
-          <tbody>${body}</tbody>
-        </table>
-      </div>`;
-  }
-
   function equityTable(rows) {
     const body = rows.length ? rows.map((row) => `
       <tr class="${rowClass(row.status)}">
@@ -347,11 +308,6 @@
               </div>
             </div>
           </div>
-        </section>
-
-        <section class="ihc-soa-section">
-          ${sectionHeading('Payment / Installment Schedule', 'Principal schedule follows the shared IHC ledger allocation')}
-          ${scheduleTable(data.schedule || [])}
         </section>
 
         <section class="ihc-soa-section compact">

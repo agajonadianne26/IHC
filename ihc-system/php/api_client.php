@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/db-config.php';
 
 // Shared installment-schedule math — the clerk and admin endpoints include
 // this same file, so the client's ledger shows exactly what their officer sees.
@@ -29,12 +30,7 @@ header('Access-Control-Allow-Headers: Content-Type, Accept');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 try {
-    $pdo = new PDO(
-        'mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4',
-        'root',
-        '',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
-    );
+    $pdo = ihc_pdo();
 } catch (Throwable $e) {
     echo json_encode(['success' => false, 'message' => 'Database connection failed.']);
     exit;
@@ -198,6 +194,16 @@ try {
         }
         $sched = ihc_schedule($contract, $scheduleRows);
 
+        // Interest/penalty posted against allocations are real cash collected;
+        // surface them in the buyer-facing totals so finance charges are not
+        // invisible on the ledger.
+        $interestPaid = 0.0;
+        $penaltyPaid = 0.0;
+        foreach ($financeByPayment as $finance) {
+            $interestPaid += (float)$finance['interest'];
+            $penaltyPaid  += (float)$finance['penalty'];
+        }
+
         // Server-sent client notifications (email + SMS reminders, receipts).
         // The ack rows (channel ack_email) are clerk-facing and stay out of this feed.
         $notifStmt = $pdo->prepare(
@@ -307,7 +313,10 @@ try {
             'payments' => $payments,
             'schedule' => $sched['installments'],
             'totals' => [
-                'paid'        => $sched['paid'],
+                'paid'        => round($sched['paid'] + $interestPaid + $penaltyPaid, 2),
+                'principalPaid' => $sched['paid'],
+                'interestPaid'  => round($interestPaid, 2),
+                'penaltyPaid'   => round($penaltyPaid, 2),
                 'outstanding' => $sched['outstanding'],
                 'settled'     => $sched['settled'],
             ],

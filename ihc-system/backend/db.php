@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../php/db-config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -14,12 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 try {
-    $pdo = new PDO(
-        'mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4',
-        'root',
-        '',
-        [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES=>false]
-    );
+    $pdo = ihc_pdo();
 
     $data = json_decode(file_get_contents('php://input') ?: '', true);
     if (!is_array($data)) throw new RuntimeException('Invalid JSON request.');
@@ -79,6 +75,18 @@ try {
     $loanableAmount = $normalizeOptionalAmount($loanableAmount, (float)$totalPrice, 'Loanable amount');
     $approvedLoanAmount = $normalizeOptionalAmount($approvedLoanAmount, (float)$totalPrice, 'Approved loan amount');
     $earlyMoveInAmount = $normalizeOptionalAmount($earlyMoveInAmount, (float)$totalPrice, 'Early move-in amount') ?? 0.0;
+    $reservationFee = $contract['reservationFee'] ?? null;
+    if ($reservationFee === '' || $reservationFee === null) $reservationFee = 0;
+    if (!is_numeric($reservationFee) || (float)$reservationFee < 0 || (float)$reservationFee > (float)$totalPrice) {
+        throw new RuntimeException('Reservation fee must be between zero and the total contract price.');
+    }
+    $reservationFee = round((float)$reservationFee, 2);
+    $holdingFee = $contract['holdingFee'] ?? null;
+    if ($holdingFee === '' || $holdingFee === null) $holdingFee = 0;
+    if (!is_numeric($holdingFee) || (float)$holdingFee < 0 || (float)$holdingFee > (float)$totalPrice) {
+        throw new RuntimeException('Holding fee must be between zero and the total contract price.');
+    }
+    $holdingFee = round((float)$holdingFee, 2);
     $equityMonthlyRate = $normalizeOptionalAmount($equityMonthlyRate, 100, 'Equity monthly interest rate') ?? 0.0;
     $equityPenaltyRate = $normalizeOptionalAmount($equityPenaltyRate, 100, 'Equity penalty rate');
     $loanTermYears = $normalizeOptionalAmount($loanTermYears, 120, 'Loan term in years');
@@ -267,6 +275,7 @@ try {
         $unitLookup->execute([$unitLabel]);
         $existingUnit = $unitLookup->fetch();
         $propertyCreated = false;
+        $propertyUnitId = $existingUnit ? (int)$existingUnit['id'] : null;
         if ($existingUnit) {
             $pdo->prepare(
                 'UPDATE property_units SET
@@ -307,6 +316,51 @@ try {
                 $contractId,
             ]);
             $propertyCreated = true;
+            $propertyUnitId = (int)$pdo->lastInsertId();
+        }
+
+        // Persist any reservation/holding fees collected with this contract so
+        // they land in the buyer's ledger, the SOA (reservation fee section and
+        // totals), and the holding/reservation modules for that unit.
+        $holdingFeeId = null;
+        if ($holdingFee > 0) {
+            $pdo->prepare(
+                'INSERT INTO holding_fees
+                    (officer_id, contract_id, property_unit_id, client_name, property_address,
+                     amount, payment_method, payment_date, status, remarks, processed_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+            )->execute([
+                $officerId !== '' ? $officerId : null,
+                $contractId,
+                $propertyUnitId,
+                $clientName,
+                mb_substr($unitLabel, 0, 500),
+                $holdingFee,
+                'To be collected',
+                $startDate,
+                'PENDING',
+                'Set at contract creation.',
+                $officerId !== '' ? $officerId : null,
+            ]);
+            $holdingFeeId = (int)$pdo->lastInsertId();
+        }
+        if ($reservationFee > 0) {
+            $pdo->prepare(
+                'INSERT INTO reservation_fees
+                    (contract_id, property_unit_id, holding_fee_id, amount, payment_method,
+                     payment_date, status, remarks, processed_by)
+                 VALUES (?,?,?,?,?,?,?,?,?)'
+            )->execute([
+                $contractId,
+                $propertyUnitId,
+                $holdingFeeId,
+                $reservationFee,
+                'To be collected',
+                $startDate,
+                'PENDING',
+                'Set at contract creation.',
+                $officerId !== '' ? $officerId : null,
+            ]);
         }
 
         // Create the buyer's portal account, or update the existing one when

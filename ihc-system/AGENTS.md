@@ -38,3 +38,12 @@ No build, no tests, no lint, no CI. Plain XAMPP (Apache + PHP + MySQL) + a Node 
 - `ACKNOWLEDGEMENT_SECRET` must be set (long random) or ack links throw; email `Open Client Dashboard` / ack URLs default to localhost — override `CLIENT_LOGIN_URL` / `CLIENT_DASHBOARD_URL` / `ACKNOWLEDGEMENT_URL` in `.env` when deployed.
 - Holding fee lifecycle: `holding_fees.status` → `EXPIRED` automatically via `php/api_holding_reservation.php:127` `expireStaleHolds()` (lazy on every `GET` + `cronJobs.js:163` `runHoldingFeeExpiration()` daily 12:05 AM `Asia/Manila`) when `expiration_date < CURDATE()` and `converted_to_reservation_id IS NULL`; if `business_rules.holding_fee.expire_makes_available=1` the `property_units` row flips `ON HOLD → AVAILABLE` (audited, never deleted). `holding_expiring` notices (2 days before expiry) are sent like payment reminders via `php/api_holding_reservation.php` / `cronJobs.js:fetchHoldingExpiringRows()` — `due_soon` per-channel dedup applies (`reminder_type='holding_expiring'` in `notifications_logs`, `channel='email'/'sms'`), client gets `Hi {name}, ... HF-{id} ({unit}) expires...` and clerk sees the `Expiring Holds` table (sorted nearest first) + `ACTIVE HOLDS` KPI.
 - Ack signal is a transient modal only: clerk dashboard polls `GET /api/acknowledgments/recent?officerId=&since=` (local wall-clock `YYYY-MM-DD HH:mm:ss`, cursor in `localStorage`) every 5 min and pops one confirm modal per new `ack_email` row. No ack column/KPI/badges on the dashboard. SQL joining `notifications_logs.contract_id` to `contracts.id` needs explicit `COLLATE utf8mb4_general_ci` (mixed collations error at runtime).
+
+## Recent changes (2026-10-02)
+
+- New Contract (`backend/db.php` + clerk form) accepts optional `reservationFee`/`holdingFee`, writing PENDING rows to `reservation_fees`/`holding_fees` tied to the contract + property unit. The SOA reservation fee section/totals, client ledger history (`api_client.php`), and admin holding summary pick them up automatically.
+- The SOA no longer renders the Payment/Installment Schedule section (`js/soa.js`); the schedule data is still computed for totals/next-payment.
+- DB credentials centralized in `php/db-config.php` (`ihc_pdo()`); override with `IHC_DB_DSN` / `IHC_DB_USER` / `IHC_DB_PASS`. All PHP endpoints use it.
+- Dead endpoints `php/api_dashboard1.php` and `php/api_insert.php` were deleted.
+- Running `backend/migrations/011_backfill_payment_allocations_ihc.sql` backfills allocation rows for legacy payments.
+

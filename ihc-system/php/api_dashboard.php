@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/db-config.php';
 header('Content-Type: application/json');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -13,12 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 // non-POST request (like this GET request), so the dashboard could never
 // load any data at all. Connect directly here instead of reusing that file.
 try {
-    $pdo = new PDO(
-        'mysql:host=127.0.0.1;dbname=ihc;charset=utf8mb4',
-        'root',
-        '',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
-    );
+    $pdo = ihc_pdo();
 } catch (Throwable $e) {
     echo json_encode(['success' => false, 'message' => 'Database connection failed: ' . $e->getMessage()]);
     exit;
