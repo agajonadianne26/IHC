@@ -2746,6 +2746,14 @@
     const formatPHP = (n) => '\u20B1' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const formatDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const daysDiff = (d1, d2) => Math.ceil((d1 - d2) / (1000 * 60 * 60 * 24));
+    
+    function validatePortalPassword(pw) {
+    const value = String(pw || '');
+    if (value.length < 6) return { ok: false, message: 'Use at least 6 characters.' };
+    if (!/[a-z]/.test(value)) return { ok: false, message: 'Include at least one lowercase letter. All-capital passwords are not allowed.' };
+    if (!/[A-Z]/.test(value)) return { ok: false, message: 'Include at least one capital letter. All-lowercase passwords are not allowed.' };
+       return { ok: true, message: '' };
+    }
 
     const getStatusLabel = (row) => {
       if (row.status === 'paid') return 'Paid';
@@ -3439,9 +3447,10 @@
         showToast('This contract has no email address on file.', 'info');
         return;
       }
-      if (password.length < 6) {
-        showToast('Portal password must be at least 6 characters.', 'info');
-        return;
+      const pwCheck = validatePortalPassword(password);
+      if (!pwCheck.ok) {
+        showToast('Portal password: ' + pwCheck.message, 'info');
+       return;
       }
 
       const btn = document.getElementById('submitPortal');
@@ -4552,8 +4561,10 @@
       setFieldState(ncFields.date, 'hintDate', dateOk, 'Valid date', date ? (dateOk ? '' : 'Enter a valid start date.') : 'Start date is required.');
 
       const passwordVal = ncFields.password.value.trim();
-      const passwordOk = passwordVal.length >= 6;
-      setFieldState(ncFields.password, 'hintPassword', passwordOk, 'Portal password ready', !passwordVal ? 'Client Portal Password is required so the buyer can sign in.' : (passwordOk ? '' : 'Use at least 6 characters.'));
+      const pwCheck = validatePortalPassword(passwordVal);
+      const passwordOk = pwCheck.ok;
+      setFieldState(ncFields.password, 'hintPassword', passwordOk, 'Portal password ready',
+        !passwordVal ? 'Client Portal Password is required so the buyer can sign in.' : pwCheck.message);
 
       const emailVal = ncFields.email.value.trim();
       const emailBaseOk = !!emailVal && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal);

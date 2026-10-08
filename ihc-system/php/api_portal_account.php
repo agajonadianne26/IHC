@@ -34,6 +34,8 @@ try {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Please enter a valid email address.');
     if ($password === '') throw new RuntimeException('Client Portal Password is required.');
     if (strlen($password) < 6) throw new RuntimeException('Portal password must be at least 6 characters.');
+    if (!preg_match('/[a-z]/', $password)) throw new RuntimeException('Portal password must include at least one lowercase letter. All-capital passwords are not allowed.');
+    if (!preg_match('/[A-Z]/', $password)) throw new RuntimeException('Portal password must include at least one capital letter. All-lowercase passwords are not allowed.');
 
     // An account can only be provisioned for an email the system already
     // knows. Backfill name/phone from that client's newest contract.
