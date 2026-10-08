@@ -577,10 +577,13 @@
 
     .table-scroll {
       width: 100%;
+      max-width: 100%;
       overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #94a3b8 #f1f5f9;
     }
 
-    .table-scroll::-webkit-scrollbar { height: 10px; }
+    .table-scroll::-webkit-scrollbar { height: 12px; }
     .table-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
     .table-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 6px; }
     .table-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
