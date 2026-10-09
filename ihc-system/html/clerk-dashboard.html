@@ -208,6 +208,33 @@
       font-weight: 600;
     }
 
+    /* New Contract sidebar group: toggle + flyout submenu */
+    .sidebar-parent-link .sidebar-caret {
+      width: 16px; height: 16px; margin-left: auto;
+      transition: transform var(--transition);
+      opacity: 0.7;
+    }
+    .sidebar-parent-link[aria-expanded="true"] .sidebar-caret { transform: rotate(180deg); }
+    .sidebar-submenu {
+      display: none;
+      padding-left: 16px;
+      margin-bottom: 2px;
+    }
+    .sidebar-submenu.open { display: block; }
+    .sidebar-sub-link {
+      font-size: 12.5px;
+      padding-left: 16px;
+      gap: 10px;
+    }
+    .sidebar-sub-link i { width: 16px; height: 16px; }
+    /* The parent is a group header, not a page — dim it unless a child is active */
+    .sidebar-parent-link.active-parent {
+      background: transparent;
+      color: #cbd5e1;
+      border-left-color: transparent;
+      font-weight: 600;
+    }
+
     .sidebar-footer {
       padding: 16px 16px 20px;
       border-top: 1px solid rgba(255,255,255,0.08);
@@ -1808,10 +1835,25 @@
           <i data-lucide="bell"></i>
           <span>Notifications Log</span>
         </a>
-        <a class="sidebar-link" href="#" data-page="new-contract">
+        <a class="sidebar-link sidebar-parent-link" href="#" id="newContractNavToggle" data-group="new-contract" aria-expanded="false">
           <i data-lucide="user-plus"></i>
           <span>New Contract</span>
+          <i data-lucide="chevron-down" class="sidebar-caret"></i>
         </a>
+        <div class="sidebar-submenu" id="newContractSubmenu">
+          <a class="sidebar-link sidebar-sub-link" href="#" data-page="holding-fee">
+            <i data-lucide="hand-coins"></i>
+            <span>Holding Fee</span>
+          </a>
+          <a class="sidebar-link sidebar-sub-link" href="#" data-page="reservation">
+            <i data-lucide="calendar-check"></i>
+            <span>Reservation</span>
+          </a>
+          <a class="sidebar-link sidebar-sub-link" href="#" data-page="new-contract">
+            <i data-lucide="file-plus-2"></i>
+            <span>New Contract</span>
+          </a>
+        </div>
       </nav>
 
       <div class="sidebar-footer">
@@ -2165,6 +2207,13 @@
                 </div>
                 <div class="nc-body">
                   <div class="nc-field full">
+                    <label>Select Client</label>
+                    <select id="ncClientSelect">
+                      <option value="">New buyer (type details below)&hellip;</option>
+                    </select>
+                    <small class="nc-hint" id="ncClientSelectHint">Pick a client registered via Holding Fee / Reservation to auto-fill their details, or leave blank to enter a new buyer.</small>
+                  </div>
+                  <div class="nc-field full">
                     <label>Client Full Name <span class="req">*</span></label>
                     <input type="text" id="ncClientName" placeholder="e.g., Juan Dela Cruz">
                     <small class="nc-hint" id="hintName"></small>
@@ -2246,16 +2295,6 @@
                   <div class="nc-field">
                     <label>Early Move-in Amount</label>
                     <div class="input-affix"><span>₱</span><input type="text" id="ncEarlyMoveIn" inputmode="decimal" placeholder="0.00"></div>
-                  </div>
-                  <div class="nc-field">
-                    <label>Reservation Fee</label>
-                    <div class="input-affix"><span>₱</span><input type="text" id="ncReservationFee" inputmode="decimal" placeholder="0.00"></div>
-                    <small class="nc-hint">Optional. Billed to this contract's SOA and counted in the buyer's payment total.</small>
-                  </div>
-                  <div class="nc-field">
-                    <label>Holding Fee</label>
-                    <div class="input-affix"><span>₱</span><input type="text" id="ncHoldingFee" inputmode="decimal" placeholder="0.00"></div>
-                    <small class="nc-hint">Optional. Tracked against this contract's unit and appears in the buyer's fee ledger.</small>
                   </div>
                   <div class="nc-field">
                     <label>Equity Mortgage Monthly Rate (%)</label>
@@ -2586,6 +2625,18 @@
           <div class="form-group full hf-new-fields" style="display:none;">
             <label>New Buyer Name <span style="color:var(--accent-rose);">*</span></label>
             <input type="text" id="hfClientName" placeholder="e.g., Juan Dela Cruz">
+          </div>
+          <div class="form-group hf-new-fields" style="display:none;">
+            <label>Client Email</label>
+            <input type="email" id="hfClientEmail" placeholder="e.g., juan@gmail.com">
+          </div>
+          <div class="form-group hf-new-fields" style="display:none;">
+            <label>Client Cellphone</label>
+            <input type="tel" id="hfClientPhone" placeholder="e.g., 0917 123 4567">
+          </div>
+          <div class="form-group full hf-new-fields" style="display:none;">
+            <label>Client Address</label>
+            <input type="text" id="hfClientAddress" placeholder="Optional — mailing address">
           </div>
           <div class="form-group full hf-new-fields" style="display:none;">
             <label>Property / Unit <span style="color:var(--accent-rose);">*</span></label>
@@ -3042,6 +3093,7 @@
       renderPostingQueue();
       renderNotifLog();
       populateHfClientSelect();
+      loadProspectClientsForNc(); // New Contract "Select Client" dropdown (non-blocking)
       await loadHoldingFees();
       // Also refresh the admin-style holding summary if server has newer counts
       try{
@@ -3556,7 +3608,8 @@
         if (data.success && Array.isArray(data.holdingFees)) {
           // Map server fields back to the clerk-dashboard shape expected by render logic
           return data.holdingFees.map(r => ({
-            id: r.id, contractId: r.contractId, clientName: r.clientName,
+            id: r.id, contractId: r.contractId, prospectClientId: r.prospectClientId ?? null, clientName: r.clientName,
+            clientEmail: r.clientEmail || r.email || '', clientPhone: r.clientPhone || '', clientAddress: r.clientAddress || '',
             propertyAddress: r.propertyAddress || r.unitLabel || '',
             amount: r.amount, paymentMethod: r.paymentMethod,
             paymentDate: r.paymentDate, orNumber: r.orNumber || r.referenceNumber || '',
@@ -3578,7 +3631,8 @@
         const data=await res.json();
         if(data.success && Array.isArray(data.reservationFees)){
           return data.reservationFees.map(r=>({
-            id:r.id, contractId:r.contractId, holdingFeeId:r.holdingFeeId, clientName:r.clientName,
+            id:r.id, contractId:r.contractId, prospectClientId:r.prospectClientId ?? null, holdingFeeId:r.holdingFeeId, clientName:r.clientName,
+            clientEmail:r.clientEmail||'', clientPhone:r.clientPhone||'', clientAddress:r.clientAddress||'',
             propertyAddress:r.propertyAddress||r.unitLabel||'', amount:r.amount, paymentMethod:r.paymentMethod,
             paymentDate:r.paymentDate, orNumber:r.orNumber||r.referenceNumber||'', status:String(r.status||'pending').toLowerCase(),
             remarks:r.remarks||'', proof:r.proofPath?{name:r.proofName||'proof',dataUrl:r.proofPath,isImage:true}:null, createdAt:r.createdAt, serverRow:r
@@ -3804,6 +3858,19 @@
     const hfClientSelect = document.getElementById('hfClientSelect');
     let hfProofData = null;
     let hfEditId = null;
+    // Registered clients (Holding Fee / Reservation before any contract exists).
+    let prospectClients = [];
+
+    async function loadProspectClients() {
+      try {
+        const res = await fetch(HOLDING_API + '?action=prospect_clients');
+        const data = await res.json();
+        prospectClients = (res.ok && data.success && Array.isArray(data.clients)) ? data.clients : [];
+      } catch (e) {
+        prospectClients = [];
+      }
+      return prospectClients;
+    }
 
     function setHfProofHint(msg, cls) {
       const el = document.getElementById('hfProofHint');
@@ -3823,12 +3890,33 @@
     function populateHfClientSelect() {
       const seen = new Set();
       const opts = ['<option value="">Select a client&hellip;</option>', '<option value="__new__">New buyer (no contract yet)</option>'];
-      myContracts.forEach(c => {
-        if (seen.has(c.contractId)) return;
-        seen.add(c.contractId);
-        opts.push(`<option value="${c.contractId}">${c.client} \u2014 ${c.property || c.accountCode}</option>`);
-      });
+      // Registered clients first — buyers who already paid a holding fee or
+      // reservation BEFORE the contract was created.
+      const activeProspects = prospectClients.filter(p => !p.contractId);
+      if (activeProspects.length) {
+        opts.push('<optgroup label="Registered clients (no contract yet)">');
+        activeProspects.forEach(p => {
+          opts.push(`<option value="prospect:${p.id}">${escapeHtml(p.fullName)}${p.email ? ' \u2014 ' + escapeHtml(p.email) : ''}</option>`);
+        });
+        opts.push('</optgroup>');
+      }
+      const linkedProspectIds = new Set(prospectClients.filter(p => p.contractId).map(p => String(p.contractId)));
+      if (myContracts.length) {
+        opts.push('<optgroup label="Existing contracts">');
+        myContracts.forEach(c => {
+          if (seen.has(c.contractId) || linkedProspectIds.has(String(c.contractId))) return;
+          seen.add(c.contractId);
+          opts.push(`<option value="${c.contractId}">${escapeHtml(c.client)} \u2014 ${escapeHtml(c.property || c.accountCode)}</option>`);
+        });
+        opts.push('</optgroup>');
+      }
       hfClientSelect.innerHTML = opts.join('');
+    }
+
+    function findProspectByOption(val) {
+      if (!val || val.indexOf('prospect:') !== 0) return null;
+      const id = val.slice('prospect:'.length);
+      return prospectClients.find(p => String(p.id) === String(id)) || null;
     }
 
     function updateHfValidity() {
@@ -3882,7 +3970,13 @@
       if (subEl) subEl.textContent = 'Link the fee to a client and property/unit, then record the payment details.';
       const labelEl = document.getElementById('hfSubmitLabel');
       if (labelEl) labelEl.textContent = 'Save Holding Fee';
-      ['hfClientSelect', 'hfClientName', 'hfPropertyAddress', 'hfAmount', 'hfMethod', 'hfOR', 'hfRemarks', 'hfPaymentMode'].forEach(id => {
+      // Default back to Holding Fee — openHfModal(mode) overrides right after
+      const feeTypeEl = document.getElementById('hfFeeType');
+      if (feeTypeEl && feeTypeEl.value !== 'holding') {
+        feeTypeEl.value = 'holding';
+        feeTypeEl.dispatchEvent(new Event('change'));
+      }
+      ['hfClientSelect', 'hfClientName', 'hfClientEmail', 'hfClientPhone', 'hfClientAddress', 'hfPropertyAddress', 'hfAmount', 'hfMethod', 'hfOR', 'hfRemarks', 'hfPaymentMode'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
@@ -3903,13 +3997,25 @@
 
     function populateHfForm(fee) {
       populateHfClientSelect();
-      hfClientSelect.value = fee.contractId != null ? String(fee.contractId) : '__new__';
+      hfClientSelect.value = fee.contractId != null ? String(fee.contractId) : (fee.prospectClientId != null ? 'prospect:' + fee.prospectClientId : '__new__');
       const isNew = hfClientSelect.value === '__new__';
-      document.querySelectorAll('.hf-new-fields').forEach(el => { el.style.display = isNew ? '' : 'none'; });
+      const prospect = findProspectByOption(hfClientSelect.value);
+      document.querySelectorAll('.hf-new-fields').forEach(el => { el.style.display = (isNew || prospect) ? '' : 'none'; });
       const summary = document.getElementById('hfClientSummary');
       const nameEl = document.getElementById('hfClientName');
       const propEl = document.getElementById('hfPropertyAddress');
-      if (!isNew) {
+      const emailEl = document.getElementById('hfClientEmail');
+      const phoneEl = document.getElementById('hfClientPhone');
+      const addrEl = document.getElementById('hfClientAddress');
+      if (prospect) {
+        nameEl.value = fee.clientName || prospect.fullName || '';
+        propEl.value = fee.propertyAddress || prospect.propertyAddress || '';
+        if (emailEl) emailEl.value = fee.clientEmail || prospect.email || '';
+        if (phoneEl) phoneEl.value = fee.clientPhone || prospect.phone || '';
+        if (addrEl) addrEl.value = fee.clientAddress || prospect.address || '';
+        summary.textContent = prospect.fullName + ' (registered client)';
+        summary.classList.add('visible');
+      } else if (!isNew) {
         const c = myContracts.find(x => String(x.contractId) === String(fee.contractId));
         if (c) {
           nameEl.value = c.client;
@@ -3920,6 +4026,9 @@
       } else {
         nameEl.value = fee.clientName || '';
         propEl.value = fee.propertyAddress || '';
+        if (emailEl) emailEl.value = fee.clientEmail || '';
+        if (phoneEl) phoneEl.value = fee.clientPhone || '';
+        if (addrEl) addrEl.value = fee.clientAddress || '';
         summary.classList.remove('visible');
         summary.textContent = '';
       }
@@ -3941,13 +4050,21 @@
       updateHfOrRequirement();
     }
 
-    window.openHfModal = () => {
+    window.openHfModal = async (mode) => {
       resetHfModal();
+      if (mode === 'reservation' || mode === 'holding') {
+        const feeTypeEl = document.getElementById('hfFeeType');
+        if (feeTypeEl && feeTypeEl.value !== mode) {
+          feeTypeEl.value = mode;
+          feeTypeEl.dispatchEvent(new Event('change'));
+        }
+      }
+      await loadProspectClients();
       populateHfClientSelect();
       hfModal.classList.add('visible');
     };
 
-    window.editHoldingFee = (id) => {
+    window.editHoldingFee = async (id) => {
       const fee = holdingFees.find(f => f.id === id);
       if (!fee) return;
       resetHfModal();
@@ -3958,6 +4075,7 @@
       if (subEl) subEl.textContent = 'Update the fee details and payment record for this client.';
       const labelEl = document.getElementById('hfSubmitLabel');
       if (labelEl) labelEl.textContent = 'Save Changes';
+      await loadProspectClients();
       populateHfForm(fee);
       hfModal.classList.add('visible');
     };
@@ -3975,11 +4093,23 @@
     hfClientSelect.addEventListener('change', () => {
       const val = hfClientSelect.value;
       const isNew = val === '__new__';
-      document.querySelectorAll('.hf-new-fields').forEach(el => { el.style.display = isNew ? '' : 'none'; });
+      const prospect = findProspectByOption(val);
+      document.querySelectorAll('.hf-new-fields').forEach(el => { el.style.display = (isNew || prospect) ? '' : 'none'; });
       const summary = document.getElementById('hfClientSummary');
       const nameEl = document.getElementById('hfClientName');
       const propEl = document.getElementById('hfPropertyAddress');
-      if (val && val !== '__new__') {
+      const emailEl = document.getElementById('hfClientEmail');
+      const phoneEl = document.getElementById('hfClientPhone');
+      const addrEl = document.getElementById('hfClientAddress');
+      if (prospect) {
+        nameEl.value = prospect.fullName || '';
+        propEl.value = prospect.propertyAddress || '';
+        if (emailEl) emailEl.value = prospect.email || '';
+        if (phoneEl) phoneEl.value = prospect.phone || '';
+        if (addrEl) addrEl.value = prospect.address || '';
+        summary.textContent = prospect.fullName + (prospect.propertyAddress ? ' \u2014 ' + prospect.propertyAddress : '') + ' (registered client)';
+        summary.classList.add('visible');
+      } else if (val && val !== '__new__') {
         const c = myContracts.find(x => String(x.contractId) === String(val));
         if (c) {
           nameEl.value = c.client;
@@ -3990,7 +4120,7 @@
       } else {
         summary.classList.remove('visible');
         summary.textContent = '';
-        if (isNew) { nameEl.value = ''; propEl.value = ''; }
+        if (isNew) { nameEl.value = ''; propEl.value = ''; if (emailEl) emailEl.value = ''; if (phoneEl) phoneEl.value = ''; if (addrEl) addrEl.value = ''; }
       }
     });
 
@@ -4052,9 +4182,14 @@
       const isHoldingType = feeType==='holding';
       const selectVal = hfClientSelect.value;
       const isNew = selectVal === '__new__';
-      const matched = !isNew && selectVal ? myContracts.find(x => String(x.contractId) === String(selectVal)) : null;
-      const clientName = isNew ? document.getElementById('hfClientName').value.trim() : (matched ? matched.client : '');
-      const property = isNew ? document.getElementById('hfPropertyAddress').value.trim() : (matched ? (matched.property || '') : '');
+      const prospect = findProspectByOption(selectVal);
+      const preContract = isNew || !!prospect; // saved against a registered client, not a contract
+      const matched = !preContract && selectVal ? myContracts.find(x => String(x.contractId) === String(selectVal)) : null;
+      const clientName = matched ? matched.client : document.getElementById('hfClientName').value.trim();
+      const property = matched ? (matched.property || '') : document.getElementById('hfPropertyAddress').value.trim();
+      const clientEmail = (document.getElementById('hfClientEmail')?.value || '').trim();
+      const clientPhone = (document.getElementById('hfClientPhone')?.value || '').trim();
+      const clientAddress = (document.getElementById('hfClientAddress')?.value || '').trim();
       const amount = parseAmount(document.getElementById('hfAmount').value);
       const method = document.getElementById('hfMethod').value;
       const date = document.getElementById('hfDate').value;
@@ -4064,12 +4199,16 @@
 
       if (!selectVal) { showToast('Select a client or choose "New buyer".', 'info'); return; }
       if (!clientName) { showToast('Client name is required.', 'info'); return; }
-      if (isNew && !property) { showToast('Property / unit is required for a new buyer.', 'info'); return; }
+      if (preContract && !property) { showToast('Property / unit is required for a client without a contract.', 'info'); return; }
+      if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) { showToast('Please enter a valid client email address.', 'info'); return; }
+      if (clientPhone) {
+        const digits = clientPhone.replace(/[\s\-().]/g, '');
+        if (!/^09\d{9}$/.test(digits) && !/^\+639\d{9}$/.test(digits)) { showToast('Cellphone number must be a valid PH mobile (e.g., 0917 123 4567).', 'info'); return; }
+      }
       if (isNaN(amount) || amount <= 0) { showToast('Enter a valid '+(isHoldingType?'holding':'reservation')+' fee amount.', 'info'); return; }
       if (!method) { showToast('Select the payment method.', 'info'); return; }
       if (!date) { showToast('Select the payment date.', 'info'); return; }
       if (status === 'paid' && !orNum) { showToast('OR / reference number is required for paid fees.', 'info'); return; }
-      if (!matched || !matched.contractId) { showToast('Link the fee to an existing contract (or create one first via New Contract).', 'info'); return; }
 
       const editing = hfEditId != null;
       const btn = document.getElementById('submitHoldingFee');
@@ -4080,16 +4219,24 @@
       const fd = new FormData();
       fd.append('action', isHoldingType ? (editing ? 'update_holding_fee' : 'create_holding_fee') : (editing ? 'update_reservation_fee' : 'create_reservation_fee'));
       if(editing) fd.append('id', String(hfEditId));
-      fd.append('contractId', String(matched.contractId));
+      if(matched) fd.append('contractId', String(matched.contractId));
+      if(prospect) fd.append('prospectClientId', String(prospect.id));
       fd.append('amount', String(amount));
       fd.append('paymentMethod', method);
       fd.append('paymentDate', date);
       fd.append('orNumber', orNum);
       fd.append('status', status);
       fd.append('remarks', remarks);
-      fd.append('propertyAddress', property || matched.property || '');
+      fd.append('propertyAddress', property || (matched ? matched.property : '') || '');
       fd.append('processedBy', String(currentUser.officerId || ''));
       fd.append('paymentMode', document.getElementById('hfPaymentMode').value);
+      if(preContract){
+        // Pre-contract fees need the client's own details on the server
+        fd.append('clientName', clientName);
+        if(clientEmail) fd.append('clientEmail', clientEmail);
+        if(clientPhone) fd.append('clientPhone', clientPhone);
+        if(clientAddress) fd.append('clientAddress', clientAddress);
+      }
       if(isHoldingType){
         // Use JS-computed expiration; server will default to 30 days if omitted but we send explicit
         const exp = new Date(date); exp.setDate(exp.getDate()+30);
@@ -4099,7 +4246,9 @@
         fd.append('clientName', clientName);
       } else {
         // Reservation — link to holding if one exists for same unit
-        const linkedHold = holdingFees.find(h=> String(h.contractId)===String(matched.contractId) && h.status==='paid');
+        const linkedHold = matched
+          ? holdingFees.find(h=> String(h.contractId)===String(matched.contractId) && h.status==='paid')
+          : holdingFees.find(h=> (prospect && String(h.prospectClientId)===String(prospect.id)) && h.status==='paid');
         if(linkedHold) fd.append('holdingFeeId', String(linkedHold.id));
       }
       // Proof file: hfProofInput holds the <input type=file>; hfProofData is base64 from earlier handler
@@ -4116,8 +4265,9 @@
         hfModal.classList.remove('visible');
         showToast(data.message || (isHoldingType?'Holding':'Reservation')+' fee saved — '+formatPHP(amount)+' for '+clientName, 'success');
         await loadHoldingFees();
-        // Portal notification mirror (local)
-        if(status==='paid' && window.portalStore && matched.contractId){
+        await loadProspectClients(); // a new buyer is now a registered client
+        // Portal notification mirror (local) — only for contract-linked fees
+        if(status==='paid' && window.portalStore && matched && matched.contractId){
           const portalData = window.portalStore.readPortal(matched.contractId);
           if(portalData && Array.isArray(portalData.notifications)){
             portalData.notifications.unshift({
@@ -4132,7 +4282,7 @@
         // Fallback to localStorage when offline so the demo never blocks
         console.warn('Holding/Reservation save offline fallback:', e.message);
         if(!navigator.onLine || String(e.message).includes('Failed to fetch')){
-          const fee={ id: editing? hfEditId : Date.now(), contractId: matched.contractId, clientName, propertyAddress: property, amount, paymentMethod: method, paymentDate: date, orNumber, status, remarks, proof: hfProofData || null, createdAt: new Date().toISOString() };
+          const fee={ id: editing? hfEditId : Date.now(), contractId: matched? matched.contractId : null, prospectClientId: prospect? prospect.id : null, clientName, propertyAddress: property, clientEmail, clientPhone, clientAddress, amount, paymentMethod: method, paymentDate: date, orNumber, status, remarks, proof: hfProofData || null, createdAt: new Date().toISOString() };
           if(editing){ const idx=holdingFees.findIndex(f=>f.id===hfEditId); if(idx>=0) holdingFees[idx]=fee; }
           else holdingFees.push(fee);
           try{ localStorage.setItem(holdingFeeStorageKey, JSON.stringify(holdingFees)); }catch(e){}
@@ -4313,6 +4463,15 @@
     const pageStorageKey = 'IHC_CLERK_CURRENT_PAGE_' + (currentUser.officerId || currentUser.id || 'default');
 
     function showView(name) {
+      // Holding Fee / Reservation live in the sidebar dropdown and open the
+      // modal on top of whichever view is current — they are not views.
+      if (name === 'holding-fee' || name === 'reservation') {
+        openHfModal(name);
+        closeSidebarGroup();
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        return;
+      }
       if (!Object.prototype.hasOwnProperty.call(viewTitles, name)) name = 'clients';
       localStorage.setItem(pageStorageKey, name);
 
@@ -4323,6 +4482,13 @@
       document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
       const link = document.querySelector('.sidebar-link[data-page="' + name + '"]');
       if (link) link.classList.add('active');
+      // Keep the New Contract group expanded + marked when one of its pages is active
+      const inNcGroup = ['new-contract', 'holding-fee', 'reservation'].indexOf(name) !== -1;
+      const ncToggle = document.getElementById('newContractNavToggle');
+      const ncSubmenu = document.getElementById('newContractSubmenu');
+      if (ncToggle) ncToggle.classList.toggle('active-parent', inNcGroup);
+      if (ncSubmenu && inNcGroup) ncSubmenu.classList.add('open');
+      if (ncToggle) ncToggle.setAttribute('aria-expanded', inNcGroup ? 'true' : 'false');
 
       const t = viewTitles[name];
       const titleEl = document.querySelector('.header-title h1');
@@ -4345,9 +4511,22 @@
     document.querySelectorAll('.sidebar-link').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
+        if (link.id === 'newContractNavToggle') {
+          const submenu = document.getElementById('newContractSubmenu');
+          const openNow = submenu.classList.toggle('open');
+          link.setAttribute('aria-expanded', openNow ? 'true' : 'false');
+          return;
+        }
         showView(link.dataset.page || 'clients');
       });
     });
+
+    function closeSidebarGroup() {
+      const ncToggle = document.getElementById('newContractNavToggle');
+      const ncSubmenu = document.getElementById('newContractSubmenu');
+      if (ncSubmenu) ncSubmenu.classList.remove('open');
+      if (ncToggle) ncToggle.setAttribute('aria-expanded', 'false');
+    }
 
     const savedPage = localStorage.getItem(pageStorageKey);
     showView(savedPage || 'clients');
@@ -4377,8 +4556,6 @@
       downpayment: document.getElementById('ncDownpayment'),
       loanable: document.getElementById('ncLoanableAmount'),
       earlyMoveIn: document.getElementById('ncEarlyMoveIn'),
-      reservationFee: document.getElementById('ncReservationFee'),
-      holdingFee: document.getElementById('ncHoldingFee'),
       equityRate: document.getElementById('ncEquityRate'),
       equityPenalty: document.getElementById('ncEquityPenalty'),
       loanTermYears: document.getElementById('ncLoanTermYears'),
@@ -4388,6 +4565,65 @@
       terms: document.getElementById('ncTerms'),
       date: document.getElementById('ncStartDate')
     };
+
+    /* -------- Select Client (registered via Holding Fee / Reservation) -------- */
+    const ncClientSelect = document.getElementById('ncClientSelect');
+    let selectedProspectId = null;
+
+    async function loadProspectClientsForNc() {
+      let clients = [];
+      try {
+        const res = await fetch(API_BASE + '/php/api_holding_reservation.php?action=prospect_clients');
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.clients)) clients = data.clients;
+      } catch (e) { /* offline — dropdown stays empty */ }
+      prospectClients = clients;
+      if (!ncClientSelect) return;
+      const keep = ncClientSelect.value;
+      const opts = ['<option value="">New buyer (type details below)&hellip;</option>'];
+      // Only buyers still waiting for a contract — linked ones are done
+      clients.filter(p => !p.contractId).forEach(p => {
+        const bits = [p.fullName];
+        if (p.email) bits.push(p.email);
+        if (p.propertyAddress) bits.push(p.propertyAddress);
+        opts.push(`<option value="${p.id}">${escapeHtml(bits.join(' \u2014 '))}</option>`);
+      });
+      ncClientSelect.innerHTML = opts.join('');
+      // Preserve the current selection across refreshes
+      if (keep && Array.from(ncClientSelect.options).some(o => o.value === keep)) ncClientSelect.value = keep;
+      else { ncClientSelect.value = ''; selectedProspectId = null; }
+    }
+
+    function applySelectedProspect() {
+      const id = ncClientSelect ? ncClientSelect.value : '';
+      selectedProspectId = id ? Number(id) : null;
+      const p = selectedProspectId ? prospectClients.find(c => c.id === selectedProspectId) : null;
+      const hintEl = document.getElementById('ncClientSelectHint');
+      if (!p) {
+        if (hintEl) hintEl.textContent = 'Pick a client registered via Holding Fee / Reservation to auto-fill their details, or leave blank to enter a new buyer.';
+        validateForm();
+        return;
+      }
+      if (ncFields.name) ncFields.name.value = p.fullName || '';
+      if (ncFields.email && p.email) {
+        ncFields.email.value = p.email;
+        // Run the normal domain verification so emailValid stays in sync
+        ncFields.email.dispatchEvent(new Event('blur'));
+      }
+      if (ncFields.phone && p.phone) { ncFields.phone.value = p.phone; formatPhoneField(); }
+      if (ncFields.clientAddress && p.address) ncFields.clientAddress.value = p.address;
+      if (ncFields.address && p.propertyAddress) ncFields.address.value = p.propertyAddress;
+      if (ncFields.projectName && p.projectName) ncFields.projectName.value = p.projectName;
+      if (ncFields.phase && p.phase) ncFields.phase.value = p.phase;
+      if (ncFields.blockNo && p.blockNo) ncFields.blockNo.value = p.blockNo;
+      if (ncFields.lotNo && p.lotNo) ncFields.lotNo.value = p.lotNo;
+      if (ncFields.modelType && p.modelType) ncFields.modelType.value = p.modelType;
+      if (ncFields.lotArea && p.lotArea) ncFields.lotArea.value = p.lotArea;
+      if (ncFields.floorArea && p.floorArea) ncFields.floorArea.value = p.floorArea;
+      if (hintEl) hintEl.textContent = 'Details loaded from ' + (p.sourceLabel || 'registered client') + ' #' + p.id + '. Review before saving — the fee will link to this contract.';
+      validateForm();
+    }
+    if (ncClientSelect) ncClientSelect.addEventListener('change', applySelectedProspect);
 
     function formatPhoneField() {
       const digits = ncFields.phone.value.replace(/\D/g, '').slice(0, 11);
@@ -4993,7 +5229,7 @@
 
     document.getElementById('ncCancelBtn').addEventListener('click', resetNewContractForm);
     function resetNewContractForm() {
-      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncClientAddress', 'ncPropertyAddress', 'ncProjectName', 'ncProjectPhase', 'ncBlockNo', 'ncLotNo', 'ncModelType', 'ncLotArea', 'ncFloorArea', 'ncTotalPrice', 'ncDiscountAmount', 'ncDownpayment', 'ncLoanableAmount', 'ncEarlyMoveIn', 'ncReservationFee', 'ncHoldingFee', 'ncEquityRate', 'ncEquityPenalty', 'ncLoanTermYears', 'ncDpTerms', 'ncTerms', 'ncStartDate'].forEach(id => {
+      ['ncClientName', 'ncClientEmail', 'ncClientPhone', 'ncClientPassword', 'ncClientAddress', 'ncPropertyAddress', 'ncProjectName', 'ncProjectPhase', 'ncBlockNo', 'ncLotNo', 'ncModelType', 'ncLotArea', 'ncFloorArea', 'ncTotalPrice', 'ncDiscountAmount', 'ncDownpayment', 'ncLoanableAmount', 'ncEarlyMoveIn', 'ncEquityRate', 'ncEquityPenalty', 'ncLoanTermYears', 'ncDpTerms', 'ncTerms', 'ncStartDate'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
@@ -5008,6 +5244,10 @@
       renderPasswordChecklist('', 'pwChecklistNew');
       Object.keys(ncFields).forEach(k => { if (ncFields[k]) ncFields[k].classList.remove('valid', 'invalid'); });
       document.querySelectorAll('.nc-field.from-link').forEach(f => f.classList.remove('from-link'));
+      if (ncClientSelect) ncClientSelect.value = '';
+      selectedProspectId = null;
+      const ncSelHint = document.getElementById('ncClientSelectHint');
+      if (ncSelHint) ncSelHint.textContent = 'Pick a client registered via Holding Fee / Reservation to auto-fill their details, or leave blank to enter a new buyer.';
       if (typeof closeAddressAc === 'function') { clearTimeout(acTimer); clearTimeout(resolveTimer); closeAddressAc(); }
       emailValid = false;
       emailChecking = false;
@@ -5054,6 +5294,7 @@
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
             officerId: officerId,
+            prospectClientId: selectedProspectId || null, // link Holding Fee / Reservation client + their fees
             client: { fullName: clientName, email: email, phone: phone, address: clientAddress, portalPassword: portalPassword },
             contract: {
               propertyAddress: propertyAddress,
@@ -5070,8 +5311,6 @@
               loanableAmount: loanableAmount,
               approvedLoanAmount: loanableAmount,
               earlyMoveInAmount: earlyMoveInAmount,
-              reservationFee: ncFields.reservationFee.value.trim() === '' ? 0 : parseAmount(ncFields.reservationFee.value),
-              holdingFee: ncFields.holdingFee.value.trim() === '' ? 0 : parseAmount(ncFields.holdingFee.value),
               equityMonthlyRate: equityMonthlyRate,
               equityPenaltyRate: equityPenaltyRate,
               loanTermYears: loanTermYears,
@@ -5128,6 +5367,7 @@
         }
 
         showToast(data.message || 'Contract saved successfully to the database.', 'success');
+        if (data.prospectClientLinked) showToast('Registered client and their Holding Fee / Reservation fees are now linked to this contract.', 'success');
         resetNewContractForm();
         await loadDashboard();
         showView('clients');

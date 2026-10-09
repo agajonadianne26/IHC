@@ -38,6 +38,11 @@ try {
     exit;
 }
 
+// Holding/reservation rows can pre-date their contract; the summary below LEFT
+// JOINs prospect_clients, so make sure the table is there (self-heal, cheap).
+require_once __DIR__ . '/prospect-clients.php';
+try { prospect_ensure_tables($pdo); } catch (Throwable $e) { /* keep serving */ }
+
 soa_ensure_schema($pdo);
 
 try {
@@ -490,11 +495,12 @@ try {
         $holdingSummary['pendingPayments'] = $countSt("SELECT COUNT(*) c FROM holding_fees WHERE status='PENDING'");
         $holdingSummary['pendingPayments'] += $countSt("SELECT COUNT(*) c FROM reservation_fees WHERE status='PENDING'");
 
-        // Expiring holds table sorted nearest first (§12)
-        $expSt=$pdo->prepare("SELECT hf.*, c.client_name, COALESCE(pu.display_label, c.property_address) AS unit_label FROM holding_fees hf JOIN contracts c ON c.id=hf.contract_id LEFT JOIN property_units pu ON pu.id=hf.property_unit_id WHERE hf.status='PAID' AND hf.expiration_date >= ? ORDER BY hf.expiration_date ASC LIMIT 20");
+        // Expiring holds table sorted nearest first (§12). LEFT JOIN so
+        // pre-contract holds (contract_id NULL) still surface with their client.
+        $expSt=$pdo->prepare("SELECT hf.*, COALESCE(c.client_name, hf.client_name, p.full_name) AS client_name, COALESCE(pu.display_label, hf.property_address, c.property_address) AS unit_label FROM holding_fees hf LEFT JOIN contracts c ON c.id=hf.contract_id LEFT JOIN prospect_clients p ON p.id=hf.prospect_client_id LEFT JOIN property_units pu ON pu.id=hf.property_unit_id WHERE hf.status='PAID' AND hf.expiration_date >= ? ORDER BY hf.expiration_date ASC LIMIT 20");
         $expSt->execute([$todayStr]);
         foreach($expSt->fetchAll() as $r){
-            $expiringHoldsList[] = ['client'=>$r['client_name'],'unit'=>$r['unit_label'],'amount'=>(float)$r['amount'],'expiration'=>$r['expiration_date'],'holdingFeeId'=>(int)$r['id'],'contractId'=>(int)$r['contract_id']];
+            $expiringHoldsList[] = ['client'=>$r['client_name'],'unit'=>$r['unit_label'],'amount'=>(float)$r['amount'],'expiration'=>$r['expiration_date'],'holdingFeeId'=>(int)$r['id'],'contractId'=>$r['contract_id']!==null?(int)$r['contract_id']:null];
         }
     } catch(Throwable $e){ /* tables missing -> keep defaults */ }
 

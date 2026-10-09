@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/db-config.php';
+require_once __DIR__ . '/prospect-clients.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -161,6 +162,9 @@ function ensureHoldingTables(PDO $pdo): void {
     } catch(Throwable $e){ /* self-heal must not block */ }
 }
 ensureHoldingTables($pdo);
+// Prospect clients: buyers registered through a Holding Fee / Reservation
+// before a contract exists (New Contract → Select Client dropdown).
+prospect_ensure_tables($pdo);
 
 // ---------------------------------------------------------------------
 // Helpers
@@ -331,7 +335,9 @@ try{
         if($action==='dashboard_summary'){
             expireStaleHolds($pdo);
             $officerId = isset($_GET['officerId']) ? trim((string)$_GET['officerId']) : '';
-            // Counts are scoped to officer's contracts if officerId given; otherwise global
+            // Counts are scoped to officer's contracts if officerId given; otherwise global.
+            // Pre-contract fees keep contract_id NULL, so the officer scope also accepts
+            // rows the clerk recorded themselves (processed_by / officer_id).
             $contractIds=[];
             if($officerId!==''){
                 $st=$pdo->prepare('SELECT id FROM contracts WHERE officer_id=?'); $st->execute([$officerId]);
@@ -340,22 +346,52 @@ try{
                 foreach($pdo->query('SELECT id FROM contracts') as $r) $contractIds[]=(int)$r['id'];
             }
             $in = $contractIds ? implode(',', array_map('intval',$contractIds)) : '0';
-            $activeHolds = (int)$pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE contract_id IN ($in) AND status='PAID' AND expiration_date >= CURDATE()")->fetch()['c'];
-            // Future-proof: also count PENDING as not yet active? Spec: ACTIVE HOLDS are PAID within window
-            $pendingHolds = (int)$pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE contract_id IN ($in) AND status='PENDING'")->fetch()['c'];
-            $expiringHolds = (int)$pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE contract_id IN ($in) AND status='PAID' AND expiration_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)")->fetch()['c'];
-            $reservedUnits = (int)$pdo->query("SELECT COUNT(*) c FROM property_units WHERE status='RESERVED'".($officerId!==''?" AND current_contract_id IN ($in)":''))->fetch()['c'];
+            if($officerId!==''){
+                $hfWhere = "(hf.contract_id IN ($in) OR hf.processed_by = ? OR hf.officer_id = ?)";
+                $hfScopeParams = [$officerId, $officerId];
+            } else {
+                $hfWhere = '1=1';
+                $hfScopeParams = [];
+            }
+            $hfCount = function(string $extra) use ($pdo, $hfWhere, $hfScopeParams): int {
+                try{
+                    $st=$pdo->prepare("SELECT COUNT(*) c FROM holding_fees hf WHERE $hfWhere $extra");
+                    $st->execute($hfScopeParams);
+                    return (int)$st->fetch()['c'];
+                }catch(Throwable $e){ return 0; }
+            };
+            $activeHolds = $hfCount("AND hf.status='PAID' AND hf.expiration_date >= CURDATE()");
+            $pendingHolds = $hfCount("AND hf.status='PENDING'");
+            $expiringHolds = $hfCount("AND hf.status='PAID' AND hf.expiration_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
+            $reservedUnits = (int)$pdo->query("SELECT COUNT(*) c FROM property_units WHERE status='RESERVED'".($officerId!==''?" AND (current_contract_id IN ($in) OR current_reservation_fee_id IS NOT NULL OR current_holding_fee_id IS NOT NULL)":''))->fetch()['c'];
             // Fallback: also count via reservation_fees PAID
-            $pendingPayments = (int)$pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE contract_id IN ($in) AND status='PENDING'")->fetch()['c'];
-            $pendingPayments += (int)$pdo->query("SELECT COUNT(*) c FROM reservation_fees WHERE contract_id IN ($in) AND status='PENDING'")->fetch()['c'];
-            $allHolds = (int)$pdo->query("SELECT COUNT(*) c FROM holding_fees WHERE contract_id IN ($in)")->fetch()['c'];
+            $pendingPayments = $hfCount("AND hf.status='PENDING'");
+            try{
+                if($officerId!==''){
+                    $st=$pdo->prepare("SELECT COUNT(*) c FROM reservation_fees rf WHERE (rf.contract_id IN ($in) OR rf.processed_by = ?) AND rf.status='PENDING'");
+                    $st->execute([$officerId,$officerId]);
+                } else {
+                    $st=$pdo->query("SELECT COUNT(*) c FROM reservation_fees rf WHERE rf.status='PENDING'");
+                }
+                $pendingPayments += (int)$st->fetch()['c'];
+            }catch(Throwable $e){}
+            $allHolds = $hfCount('');
 
-            $rows=$pdo->query("SELECT hf.*, c.client_name, c.property_address FROM holding_fees hf JOIN contracts c ON c.id=hf.contract_id WHERE hf.contract_id IN ($in) AND hf.status='PAID' AND hf.expiration_date >= CURDATE() ORDER BY hf.expiration_date ASC LIMIT 20")->fetchAll();
+            try{
+                $expSt=$pdo->prepare("SELECT hf.*, COALESCE(c.client_name, hf.client_name, p.full_name) AS client_name,
+                                      COALESCE(pu.display_label, hf.property_address, c.property_address) AS unit_label
+                               FROM holding_fees hf
+                               LEFT JOIN contracts c ON c.id=hf.contract_id
+                               LEFT JOIN prospect_clients p ON p.id=hf.prospect_client_id
+                               LEFT JOIN property_units pu ON pu.id=hf.property_unit_id
+                               WHERE $hfWhere AND hf.status='PAID' AND hf.expiration_date >= CURDATE()
+                               ORDER BY hf.expiration_date ASC LIMIT 20");
+                $expSt->execute($hfScopeParams);
+                $expRows=$expSt->fetchAll();
+            }catch(Throwable $e){ $expRows=[]; }
             $expiring=[];
-            foreach($rows as $r){
-                $unitLabel = $r['property_address'] ?: ('CON-'.$r['contract_id']);
-                if($r['property_unit_id']){ $u=getUnitById($pdo,(int)$r['property_unit_id']); if($u) $unitLabel=$u['display_label']; }
-                $expiring[]=['id'=>(int)$r['id'],'contractId'=>(int)$r['contract_id'],'client'=>$r['client_name'],'unit'=>$unitLabel,'amount'=>(float)$r['amount'],'expiration'=>$r['expiration_date'],'status'=>$r['status']];
+            foreach($expRows as $r){
+                $expiring[]=['id'=>(int)$r['id'],'contractId'=>$r['contract_id']!==null?(int)$r['contract_id']:null,'client'=>$r['client_name'],'unit'=>$r['unit_label'],'amount'=>(float)$r['amount'],'expiration'=>$r['expiration_date'],'status'=>$r['status']];
             }
             echo json_encode(['success'=>true,'summary'=>['activeHolds'=>$activeHolds,'expiringHolds'=>$expiringHolds,'reservedUnits'=>$reservedUnits,'pendingPayments'=>$pendingPayments,'pendingHolds'=>$pendingHolds,'allHolds'=>$allHolds],'expiringHolds'=>$expiring]);
             exit;
@@ -365,14 +401,27 @@ try{
             $contractId = isset($_GET['contractId']) ? normalizeContractId($_GET['contractId']) : null;
             $where=[]; $params=[];
             if($officerId!==''){
-                // Scope to officer's contracts
+                // Scope to officer's contracts, plus the pre-contract fees they recorded
                 $st=$pdo->prepare('SELECT id FROM contracts WHERE officer_id=?'); $st->execute([$officerId]);
                 $ids=array_map(fn($r)=>(int)$r['id'],$st->fetchAll());
-                if(!$ids){ echo json_encode(['success'=>true,'holdingFees'=>[]]); exit; }
-                $where[]='hf.contract_id IN ('.implode(',',array_map('intval',$ids)).')';
+                $inClause = $ids ? implode(',',array_map('intval',$ids)) : '-1';
+                $where[]="(hf.contract_id IN ($inClause) OR hf.processed_by = ? OR hf.officer_id = ?)";
+                $params[] = $officerId; $params[] = $officerId;
             }
             if($contractId!==null){ $where[]='hf.contract_id=?'; $params[]=$contractId; }
-            $sql='SELECT hf.*, c.client_name, c.email, c.property_address, c.officer_id, pu.display_label AS unit_label, pu.status AS unit_status FROM holding_fees hf JOIN contracts c ON c.id=hf.contract_id LEFT JOIN property_units pu ON pu.id=hf.property_unit_id';
+            // LEFT JOIN: a fee can exist before its contract (contract_id NULL) —
+            // its client comes from the prospect row / the fee's own snapshot.
+            $sql='SELECT hf.*, COALESCE(c.client_name, hf.client_name, p.full_name) AS client_name,
+                         COALESCE(c.email, p.email) AS email,
+                         COALESCE(c.property_address, hf.property_address, p.property_address) AS property_address,
+                         c.officer_id AS contract_officer_id,
+                         p.full_name AS prospect_name, p.email AS prospect_email, p.cellphone_number AS prospect_phone,
+                         p.client_address AS prospect_address, p.contract_id AS prospect_contract_id, p.source AS prospect_source,
+                         pu.display_label AS unit_label, pu.status AS unit_status
+                  FROM holding_fees hf
+                  LEFT JOIN contracts c ON c.id=hf.contract_id
+                  LEFT JOIN prospect_clients p ON p.id=hf.prospect_client_id
+                  LEFT JOIN property_units pu ON pu.id=hf.property_unit_id';
             if($where) $sql.=' WHERE '.implode(' AND ',$where);
             $sql.=' ORDER BY hf.created_at DESC, hf.id DESC';
             $st=$pdo->prepare($sql); $st->execute($params);
@@ -380,7 +429,11 @@ try{
             $out=[];
             foreach($rows as $r){
                 $out[]=[
-                    'id'=>(int)$r['id'],'contractId'=>(int)$r['contract_id'],'clientName'=>$r['client_name'],'email'=>$r['email'],
+                    'id'=>(int)$r['id'],
+                    'contractId'=>$r['contract_id']!==null?(int)$r['contract_id']:null,
+                    'prospectClientId'=>$r['prospect_client_id']!==null?(int)$r['prospect_client_id']:null,
+                    'clientName'=>$r['client_name'],'email'=>$r['email'],
+                    'clientEmail'=>$r['email'],'clientPhone'=>$r['prospect_phone'],'clientAddress'=>$r['prospect_address'],
                     'propertyAddress'=>$r['unit_label'] ?: $r['property_address'],'unitLabel'=>$r['unit_label'] ?: $r['property_address'],
                     'unitStatus'=>$r['unit_status'],'amount'=>(float)$r['amount'],'paymentMethod'=>$r['payment_method'],
                     'paymentDate'=>$r['payment_date'],'referenceNumber'=>$r['reference_number'],'orNumber'=>$r['or_number'],
@@ -400,11 +453,19 @@ try{
             if($officerId!==''){
                 $st=$pdo->prepare('SELECT id FROM contracts WHERE officer_id=?'); $st->execute([$officerId]);
                 $ids=array_map(fn($r)=>(int)$r['id'],$st->fetchAll());
-                if(!$ids){ echo json_encode(['success'=>true,'reservationFees'=>[]]); exit; }
-                $where[]='rf.contract_id IN ('.implode(',',array_map('intval',$ids)).')';
+                $inClause = $ids ? implode(',',array_map('intval',$ids)) : '-1';
+                $where[]="(rf.contract_id IN ($inClause) OR rf.processed_by = ?)";
+                $params[] = $officerId;
             }
             if($contractId!==null){ $where[]='rf.contract_id=?'; $params[]=$contractId; }
-            $sql='SELECT rf.*, c.client_name, c.email, c.property_address, pu.display_label AS unit_label, pu.status AS unit_status FROM reservation_fees rf JOIN contracts c ON c.id=rf.contract_id LEFT JOIN property_units pu ON pu.id=rf.property_unit_id';
+            $sql='SELECT rf.*, COALESCE(c.client_name, p.full_name) AS client_name,
+                         COALESCE(c.property_address, p.property_address) AS property_address,
+                         p.email AS prospect_email, p.cellphone_number AS prospect_phone, p.client_address AS prospect_address,
+                         pu.display_label AS unit_label, pu.status AS unit_status
+                  FROM reservation_fees rf
+                  LEFT JOIN contracts c ON c.id=rf.contract_id
+                  LEFT JOIN prospect_clients p ON p.id=rf.prospect_client_id
+                  LEFT JOIN property_units pu ON pu.id=rf.property_unit_id';
             if($where) $sql.=' WHERE '.implode(' AND ',$where);
             $sql.=' ORDER BY rf.created_at DESC, rf.id DESC';
             $st=$pdo->prepare($sql); $st->execute($params);
@@ -412,8 +473,13 @@ try{
             $out=[];
             foreach($rows as $r){
                 $out[]=[
-                    'id'=>(int)$r['id'],'contractId'=>(int)$r['contract_id'],'holdingFeeId'=>$r['holding_fee_id']? (int)$r['holding_fee_id']:null,
-                    'clientName'=>$r['client_name'],'propertyAddress'=>$r['unit_label'] ?: $r['property_address'],'unitLabel'=>$r['unit_label'] ?: $r['property_address'],
+                    'id'=>(int)$r['id'],
+                    'contractId'=>$r['contract_id']!==null?(int)$r['contract_id']:null,
+                    'prospectClientId'=>$r['prospect_client_id']!==null?(int)$r['prospect_client_id']:null,
+                    'holdingFeeId'=>$r['holding_fee_id']? (int)$r['holding_fee_id']:null,
+                    'clientName'=>$r['client_name'],
+                    'clientEmail'=>$r['prospect_email'],'clientPhone'=>$r['prospect_phone'],'clientAddress'=>$r['prospect_address'],
+                    'propertyAddress'=>$r['unit_label'] ?: $r['property_address'],'unitLabel'=>$r['unit_label'] ?: $r['property_address'],
                     'unitStatus'=>$r['unit_status'],'amount'=>(float)$r['amount'],'paymentMethod'=>$r['payment_method'],
                     'paymentDate'=>$r['payment_date'],'referenceNumber'=>$r['reference_number'],'orNumber'=>$r['or_number'],
                     'status'=>$r['status'],'remarks'=>$r['remarks'],'proofPath'=>$r['proof_path'],'proofName'=>$r['proof_name'],
@@ -421,6 +487,19 @@ try{
                 ];
             }
             echo json_encode(['success'=>true,'reservationFees'=>$out]);
+            exit;
+        }
+        if($action==='prospect_clients'){
+            // New Contract → "Select Client" dropdown: everyone who registered
+            // through a Holding Fee or Reservation, deduplicated.
+            echo json_encode(['success'=>true,'clients'=>prospect_list($pdo)]);
+            exit;
+        }
+        if($action==='prospect_client'){
+            $id=(int)($_GET['id'] ?? 0);
+            $row=prospect_find($pdo,$id);
+            if(!$row){ http_response_code(404); echo json_encode(['success'=>false,'message'=>'Client not found.']); exit; }
+            echo json_encode(['success'=>true,'client'=>prospect_shape($row)]);
             exit;
         }
         if($action==='payment_history'){
@@ -551,9 +630,9 @@ try{
             // History for unit
             $hf=[]; $rf=[];
             if($unit['id']){
-                $st=$pdo->prepare('SELECT hf.*, c.client_name FROM holding_fees hf JOIN contracts c ON c.id=hf.contract_id WHERE hf.property_unit_id=? ORDER BY hf.payment_date DESC');
+                $st=$pdo->prepare('SELECT hf.*, COALESCE(c.client_name, hf.client_name, p.full_name) AS client_name FROM holding_fees hf LEFT JOIN contracts c ON c.id=hf.contract_id LEFT JOIN prospect_clients p ON p.id=hf.prospect_client_id WHERE hf.property_unit_id=? ORDER BY hf.payment_date DESC');
                 $st->execute([$unit['id']]); $hf=$st->fetchAll();
-                $st=$pdo->prepare('SELECT rf.*, c.client_name FROM reservation_fees rf JOIN contracts c ON c.id=rf.contract_id WHERE rf.property_unit_id=? ORDER BY rf.payment_date DESC');
+                $st=$pdo->prepare('SELECT rf.*, COALESCE(c.client_name, p.full_name) AS client_name FROM reservation_fees rf LEFT JOIN contracts c ON c.id=rf.contract_id LEFT JOIN prospect_clients p ON p.id=rf.prospect_client_id WHERE rf.property_unit_id=? ORDER BY rf.payment_date DESC');
                 $st->execute([$unit['id']]); $rf=$st->fetchAll();
             }
             echo json_encode(['success'=>true,'unit'=>$unit,'holdingFees'=>$hf,'reservationFees'=>$rf]);
@@ -670,9 +749,35 @@ try{
                 if(!$existing){ throw new RuntimeException('Holding fee not found.'); }
             }
             $contractId = normalizeContractId($get($input,'contractId','contract_id'));
-            if(!$contractId) throw new RuntimeException('Client/Contract is required.');
-            $contract=fetchContract($pdo,$contractId);
-            if(!$contract) throw new RuntimeException('Contract not found in database.');
+            if($contractId===null && $isUpdate && $existing['contract_id']!==null) $contractId=(int)$existing['contract_id'];
+            $contract=$contractId ? fetchContract($pdo,$contractId) : null;
+            if($contractId && !$contract) throw new RuntimeException('Contract not found in database.');
+
+            // Client info — REQUIRED when the fee is recorded before a contract
+            // exists (New Contract → Holding Fee / Reservation flow), optional
+            // extras otherwise (contract-linked fees read the client from contracts).
+            $prospectRaw=$get($input,'prospectClientId','prospect_client_id');
+            $prospectId=$prospectRaw!==null && $prospectRaw!=='' ? (int)$prospectRaw : null;
+            if($prospectId===null && $isUpdate && $existing['prospect_client_id']!==null) $prospectId=(int)$existing['prospect_client_id'];
+            $prospect=$prospectId ? prospect_find($pdo,$prospectId) : null;
+            if($prospectId && !$prospect) throw new RuntimeException('Selected client record not found. Reload the client list and try again.');
+
+            $rawEmail=$get($input,'clientEmail','client_email');
+            $rawPhone=$get($input,'clientPhone','client_phone','cellphone');
+            if($rawEmail!==null && $rawEmail!=='' && !filter_var(trim((string)$rawEmail),FILTER_VALIDATE_EMAIL)){
+                throw new RuntimeException('Please enter a valid client email address.');
+            }
+            if($rawPhone!==null && $rawPhone!==''){
+                $phoneDigits=preg_replace('/[\s\-().]/','',(string)$rawPhone);
+                if(!preg_match('/^09\d{9}$/',$phoneDigits) && !preg_match('/^\+639\d{9}$/',$phoneDigits)){
+                    throw new RuntimeException('Cellphone number must be a valid PH mobile (e.g., 0917 123 4567).');
+                }
+            }
+            $clientName=trim((string)($get($input,'clientName','client_name') ?? ($contract['client_name'] ?? ($prospect['full_name'] ?? ''))));
+            $clientEmail=trim((string)($rawEmail ?? ($contract['email'] ?? ($prospect['email'] ?? ''))));
+            $clientPhone=$rawPhone!==null && $rawPhone!=='' ? trim((string)$rawPhone) : trim((string)($contract['cellphone_number'] ?? ($prospect['cellphone_number'] ?? '')));
+            $clientAddress=trim((string)($get($input,'clientAddress','client_address') ?? ($contract['client_address'] ?? ($prospect['client_address'] ?? ''))));
+            if(!$contract && $clientName==='') throw new RuntimeException('Client name is required.');
             $amount = $get($input,'amount');
             if($amount===null || $amount==='' || !is_numeric($amount) || (float)$amount <= 0) throw new RuntimeException('Enter a valid holding fee amount greater than zero.');
             $amount=(float)$amount;
@@ -707,23 +812,80 @@ try{
             if($processedBy==='') $processedBy=null;
             $actorName = resolveOfficerName($pdo,$processedBy);
 
-            // Resolve / create property unit from propertyAddress or unitLabel or contract's property_address
-            $unitLabel = trim((string)($get($input,'propertyAddress','property_address','unitLabel','unit_label','property') ?? $contract['property_address'] ?? ''));
-            if($unitLabel==='') $unitLabel = 'CON-'.$contractId;
-            $unit = getOrCreateUnit($pdo,$unitLabel,$contractId);
+            // Resolve / create property unit: explicit address → the fee row's own
+            // unit (updates) → contract → registered client → contract placeholder.
+            $unitLabelIn=trim((string)($get($input,'propertyAddress','property_address','unitLabel','unit_label','property') ?? ''));
+            $unitLabel=$unitLabelIn;
+            if($unitLabel==='' && $isUpdate && $existing['property_unit_id']){
+                $exUnit=getUnitById($pdo,(int)$existing['property_unit_id']);
+                if($exUnit) $unitLabel=(string)$exUnit['display_label'];
+            }
+            if($unitLabel==='' && $contract) $unitLabel=(string)($contract['property_address'] ?? '');
+            if($unitLabel==='' && $prospect) $unitLabel=(string)($prospect['property_address'] ?? '');
+            if($unitLabel==='' && $contractId) $unitLabel='CON-'.$contractId;
+            if($unitLabel==='' && !$isUpdate) throw new RuntimeException('Property / unit is required.');
+            $unit = $unitLabel!=='' ? getOrCreateUnit($pdo,$unitLabel,$contractId) : null;
             $unitId = $unit ? (int)$unit['id'] : null;
+
+            // Pre-contract fees register (or reuse) the client row so the New
+            // Contract "Select Client" dropdown can find them later. Runs before
+            // the duplicate checks below so "same client" can match either identity.
+            if(!$contract && !$isUpdate){
+                $prospect=prospect_upsert($pdo,[
+                    'fullName'=>$clientName,
+                    'email'=>$clientEmail,
+                    'phone'=>$clientPhone,
+                    'address'=>$clientAddress,
+                    'propertyAddress'=>$unitLabel,
+                    'projectName'=>(string)($get($input,'projectName','project_name') ?? ''),
+                    'phase'=>(string)($get($input,'phase','project_phase') ?? ''),
+                    'blockNo'=>(string)($get($input,'blockNo','block_no') ?? ''),
+                    'lotNo'=>(string)($get($input,'lotNo','lot_no') ?? ''),
+                    'modelType'=>(string)($get($input,'modelType','model_type') ?? ''),
+                    'lotArea'=>(string)($get($input,'lotArea','lot_area') ?? ''),
+                    'floorArea'=>(string)($get($input,'floorArea','floor_area') ?? ''),
+                    'source'=>'HOLDING',
+                ]);
+                $prospectId=(int)$prospect['id'];
+            }
+
+            // "Same client" identity: whichever of contract / registered client
+            // applies. NULL contract_id on a pre-contract row must not match an
+            // unrelated contract, so the owner clause stays inside the predicates.
+            $ownerParts=[]; $ownerParams=[];
+            if($contractId){ $ownerParts[]='contract_id = ?'; $ownerParams[]=$contractId; }
+            if($prospectId){ $ownerParts[]='prospect_client_id = ?'; $ownerParams[]=$prospectId; }
+            $ownerSql=$ownerParts ? '('.implode(' OR ',$ownerParts).')' : null;
+
+            // Does this ON HOLD unit belong to the client we are saving for?
+            $unitOwnedByClient=false;
+            if($unit && $unit['status']==='ON HOLD'){
+                if($contractId && $unit['current_contract_id']!==null && (int)$unit['current_contract_id']===$contractId) $unitOwnedByClient=true;
+                if(!$unitOwnedByClient && $prospectId && $unit['current_holding_fee_id']){
+                    $own=$pdo->prepare('SELECT prospect_client_id, contract_id FROM holding_fees WHERE id=?');
+                    $own->execute([(int)$unit['current_holding_fee_id']]);
+                    $ownRow=$own->fetch();
+                    if($ownRow){
+                        if($ownRow['prospect_client_id']!==null && (int)$ownRow['prospect_client_id']===$prospectId) $unitOwnedByClient=true;
+                        elseif($contractId && $ownRow['contract_id']!==null && (int)$ownRow['contract_id']===$contractId) $unitOwnedByClient=true;
+                    }
+                }
+            }
 
             // Validations §11
             if($status==='PAID' && !$isUpdate){
-                // Duplicate active hold for same unit
+                // Duplicate active hold for same unit by another client
                 if($unitId){
-                    $dup=$pdo->prepare("SELECT id FROM holding_fees WHERE property_unit_id=? AND contract_id<>? AND status IN ('PENDING','PAID','CONVERTED') LIMIT 1");
-                    $dup->execute([$unitId,$contractId]);
+                    $dupSql="SELECT id FROM holding_fees WHERE property_unit_id=? AND status IN ('PENDING','PAID','CONVERTED')";
+                    $dupParams=array_merge([$unitId],$ownerParams);
+                    if($ownerSql) $dupSql.=" AND NOT $ownerSql";
+                    $dup=$pdo->prepare($dupSql.' LIMIT 1');
+                    $dup->execute($dupParams);
                     if($dup->fetch()) throw new RuntimeException('This unit is already on hold by another client.');
                     // Also check unit status SOLD/RESERVED
                     if(in_array($unit['status'],['SOLD','RESERVED'],true)) throw new RuntimeException('This unit is already '.strtolower($unit['status']).' and cannot be placed on hold.');
-                    // If unit ON HOLD by different contract, block
-                    if($unit['status']==='ON HOLD' && (int)$unit['current_contract_id'] !== $contractId){
+                    // If unit ON HOLD by a different client, block
+                    if($unit['status']==='ON HOLD' && !$unitOwnedByClient){
                         // Check if that hold is still active
                         $ah=$pdo->prepare("SELECT id FROM holding_fees WHERE property_unit_id=? AND status='PAID' AND expiration_date >= CURDATE() LIMIT 1");
                         $ah->execute([$unitId]);
@@ -731,12 +893,12 @@ try{
                     }
                 }
             }
-            // Also block a second active hold for the same contract+unit.
+            // Also block a second active hold for the same client+unit.
             // `<=>` (null-safe equals) keeps the "unitless hold" rule without
             // making one NULL-unit hold block every other unit for this client.
-            if(!$isUpdate){
-                $dup2=$pdo->prepare("SELECT id FROM holding_fees WHERE contract_id=? AND status IN ('PENDING','PAID') AND property_unit_id <=> ? LIMIT 1");
-                $dup2->execute([$contractId,$unitId]);
+            if(!$isUpdate && $ownerSql){
+                $dup2=$pdo->prepare("SELECT id FROM holding_fees WHERE $ownerSql AND status IN ('PENDING','PAID') AND property_unit_id <=> ? LIMIT 1");
+                $dup2->execute(array_merge($ownerParams,[$unitId]));
                 if($dup2->fetch()) throw new RuntimeException('This client already has an active holding fee for this unit.');
             }
 
@@ -753,10 +915,14 @@ try{
 
             $clientId=null;
             // Try to resolve client_accounts id by contract email
-            if($contract['email']){
+            if($contract && $contract['email']){
                 $st=$pdo->prepare('SELECT id FROM client_accounts WHERE LOWER(email)=LOWER(?) LIMIT 1');
                 $st->execute([$contract['email']]); $ca=$st->fetch(); if($ca) $clientId=(int)$ca['id'];
             }
+            $contractIdVal=$contractId; // nullable: pre-contract fees store NULL
+            $prospectIdVal=$prospectId;
+            $clientNameVal=$clientName!=='' ? $clientName : (string)($existing['client_name'] ?? '');
+            $propSnapshot=$unitLabel!=='' ? $unitLabel : (string)($isUpdate ? ($existing['property_address'] ?? '') : '');
 
             if($isUpdate){
                 // Refund policy check §19
@@ -767,11 +933,11 @@ try{
                 $pdo->beginTransaction();
                 try{
                     if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
-                    $pdo->prepare('UPDATE holding_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, start_date=?, expiration_date=?, status=?, payment_mode=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, updated_at=NOW() WHERE id=?')
-                    ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$paymentMode,$remarks?:null,$proofPath,$proofName,$processedBy,$holdingId]);
+                    $pdo->prepare('UPDATE holding_fees SET amount=?, payment_method=?, payment_date=?, reference_number=?, or_number=?, start_date=?, expiration_date=?, status=?, payment_mode=?, remarks=?, proof_path=?, proof_name=?, processed_by=?, client_name=?, property_address=?, updated_at=NOW() WHERE id=?')
+                    ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$paymentMode,$remarks?:null,$proofPath,$proofName,$processedBy,$clientNameVal,$propSnapshot,$holdingId]);
                     audit($pdo,'holding_fee.updated',$contractId,$holdingId,null,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
                     if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
-                        $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=?, current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$holdingId,$unitId]);
+                        $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=COALESCE(?, current_contract_id), current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$holdingId,$unitId]);
                         audit($pdo,'unit.status_changed',$contractId,$holdingId,null,$unitId,'AVAILABLE','ON HOLD',$processedBy,$actorName,['reason'=>'holding paid']);
                     }
                     if(in_array($status,['CANCELLED','EXPIRED','REFUNDED','FORFEITED'],true) && $unitId){
@@ -791,18 +957,19 @@ try{
                 $pdo->beginTransaction();
                 try{
                     if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
-                    $pdo->prepare('INSERT INTO holding_fees (contract_id,client_id,property_unit_id,amount,payment_method,payment_date,reference_number,or_number,start_date,expiration_date,status,payment_mode,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                         ->execute([$contractId,$clientId,$unitId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$paymentMode,$remarks?:null,$proofPath,$proofName,$processedBy]);
+                    $pdo->prepare('INSERT INTO holding_fees (contract_id,prospect_client_id,client_id,property_unit_id,client_name,property_address,amount,payment_method,payment_date,reference_number,or_number,start_date,expiration_date,status,payment_mode,remarks,proof_path,proof_name,processed_by,officer_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                         ->execute([$contractIdVal,$prospectIdVal,$clientId,$unitId,$clientNameVal,$propSnapshot,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$startDate,$expDate,$status,$paymentMode,$remarks?:null,$proofPath,$proofName,$processedBy,$processedBy]);
                     $newId=(int)$pdo->lastInsertId();
-                    audit($pdo,'holding_fee.created',$contractId,$newId,null,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
+                    if($prospectIdVal) $pdo->prepare('UPDATE prospect_clients SET holding_fee_id=COALESCE(holding_fee_id, ?), updated_at=NOW() WHERE id=?')->execute([$newId,$prospectIdVal]);
+                    audit($pdo,'holding_fee.created',$contractId,$newId,null,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel,'prospectClientId'=>$prospectIdVal]);
                     if($status==='PAID' && $unitId){
-                        $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=?, current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
+                        $pdo->prepare("UPDATE property_units SET status='ON HOLD', current_contract_id=COALESCE(?, current_contract_id), current_holding_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
                         audit($pdo,'unit.status_changed',$contractId,$newId,null,$unitId,'AVAILABLE','ON HOLD',$processedBy,$actorName,['reason'=>'holding paid']);
                     }
                     $pdo->commit();
                 }catch(Throwable $e){ if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
                 $st=$pdo->prepare('SELECT * FROM holding_fees WHERE id=?'); $st->execute([$newId]); $row=$st->fetch();
-                echo json_encode(['success'=>true,'message'=>'Holding fee recorded.','id'=>$newId,'holdingFee'=>$row]);
+                echo json_encode(['success'=>true,'message'=>'Holding fee recorded.','id'=>$newId,'prospectClientId'=>$prospectIdVal,'holdingFee'=>$row]);
                 exit;
             }
         }
@@ -816,9 +983,34 @@ try{
                 if(!$existing) throw new RuntimeException('Reservation fee not found.');
             }
             $contractId = normalizeContractId($get($input,'contractId','contract_id'));
-            if(!$contractId) throw new RuntimeException('Client/Contract is required.');
-            $contract=fetchContract($pdo,$contractId);
-            if(!$contract) throw new RuntimeException('Contract not found.');
+            if($contractId===null && $isUpdate && $existing['contract_id']!==null) $contractId=(int)$existing['contract_id'];
+            $contract=$contractId ? fetchContract($pdo,$contractId) : null;
+            if($contractId && !$contract) throw new RuntimeException('Contract not found.');
+
+            // Client info — required when the reservation is recorded before a
+            // contract exists (New Contract → Reservation flow).
+            $prospectRaw=$get($input,'prospectClientId','prospect_client_id');
+            $prospectId=$prospectRaw!==null && $prospectRaw!=='' ? (int)$prospectRaw : null;
+            if($prospectId===null && $isUpdate && $existing['prospect_client_id']!==null) $prospectId=(int)$existing['prospect_client_id'];
+            $prospect=$prospectId ? prospect_find($pdo,$prospectId) : null;
+            if($prospectId && !$prospect) throw new RuntimeException('Selected client record not found. Reload the client list and try again.');
+
+            $rawEmail=$get($input,'clientEmail','client_email');
+            $rawPhone=$get($input,'clientPhone','client_phone','cellphone');
+            if($rawEmail!==null && $rawEmail!=='' && !filter_var(trim((string)$rawEmail),FILTER_VALIDATE_EMAIL)){
+                throw new RuntimeException('Please enter a valid client email address.');
+            }
+            if($rawPhone!==null && $rawPhone!==''){
+                $phoneDigits=preg_replace('/[\s\-().]/','',(string)$rawPhone);
+                if(!preg_match('/^09\d{9}$/',$phoneDigits) && !preg_match('/^\+639\d{9}$/',$phoneDigits)){
+                    throw new RuntimeException('Cellphone number must be a valid PH mobile (e.g., 0917 123 4567).');
+                }
+            }
+            $clientName=trim((string)($get($input,'clientName','client_name') ?? ($contract['client_name'] ?? ($prospect['full_name'] ?? ''))));
+            $clientEmail=trim((string)($rawEmail ?? ($contract['email'] ?? ($prospect['email'] ?? ''))));
+            $clientPhone=$rawPhone!==null && $rawPhone!=='' ? trim((string)$rawPhone) : trim((string)($contract['cellphone_number'] ?? ($prospect['cellphone_number'] ?? '')));
+            $clientAddress=trim((string)($get($input,'clientAddress','client_address') ?? ($contract['client_address'] ?? ($prospect['client_address'] ?? ''))));
+            if(!$contract && $clientName==='') throw new RuntimeException('Client name is required.');
             $amount = $get($input,'amount');
             if($amount===null || $amount==='' || !is_numeric($amount) || (float)$amount <=0) throw new RuntimeException('Enter a valid reservation fee amount greater than zero.');
             $amount=(float)$amount;
@@ -834,42 +1026,109 @@ try{
             $remarks=trim((string)($get($input,'remarks') ?? ''));
             $processedBy=trim((string)($get($input,'processedBy','processed_by','postedBy') ?? '')) ?: null;
             $actorName=resolveOfficerName($pdo,$processedBy);
-            $unitLabel=trim((string)($get($input,'propertyAddress','property_address','unitLabel','unit_label','property') ?? $contract['property_address'] ?? ''));
-            if($unitLabel==='') $unitLabel='CON-'.$contractId;
-            $unit=getOrCreateUnit($pdo,$unitLabel,$contractId);
+            $unitLabel=trim((string)($get($input,'propertyAddress','property_address','unitLabel','unit_label','property') ?? ''));
+            if($unitLabel==='' && $isUpdate && $existing['property_unit_id']){
+                $exUnit=getUnitById($pdo,(int)$existing['property_unit_id']);
+                if($exUnit) $unitLabel=(string)$exUnit['display_label'];
+            }
+            if($unitLabel==='' && $contract) $unitLabel=(string)($contract['property_address'] ?? '');
+            if($unitLabel==='' && $prospect) $unitLabel=(string)($prospect['property_address'] ?? '');
+            if($unitLabel==='' && $contractId) $unitLabel='CON-'.$contractId;
+            if($unitLabel==='' && !$isUpdate) throw new RuntimeException('Property / unit is required.');
+            $unit=$unitLabel!=='' ? getOrCreateUnit($pdo,$unitLabel,$contractId) : null;
             $unitId=$unit ? (int)$unit['id'] : null;
             $holdingFeeId = $get($input,'holdingFeeId','holding_fee_id');
             $holdingFeeId = $holdingFeeId!==null && $holdingFeeId!=='' ? (int)$holdingFeeId : null;
+
+            // Pre-contract reservations register (or reuse) the client row so the
+            // New Contract "Select Client" dropdown can find them later.
+            if(!$contract && !$isUpdate){
+                $prospect=prospect_upsert($pdo,[
+                    'fullName'=>$clientName,
+                    'email'=>$clientEmail,
+                    'phone'=>$clientPhone,
+                    'address'=>$clientAddress,
+                    'propertyAddress'=>$unitLabel,
+                    'projectName'=>(string)($get($input,'projectName','project_name') ?? ''),
+                    'phase'=>(string)($get($input,'phase','project_phase') ?? ''),
+                    'blockNo'=>(string)($get($input,'blockNo','block_no') ?? ''),
+                    'lotNo'=>(string)($get($input,'lotNo','lot_no') ?? ''),
+                    'modelType'=>(string)($get($input,'modelType','model_type') ?? ''),
+                    'lotArea'=>(string)($get($input,'lotArea','lot_area') ?? ''),
+                    'floorArea'=>(string)($get($input,'floorArea','floor_area') ?? ''),
+                    'source'=>'RESERVATION',
+                ]);
+                $prospectId=(int)$prospect['id'];
+            }
+
+            // "Same client" identity — contract or registered client (see holding fees).
+            $ownerParts=[]; $ownerParams=[];
+            if($contractId){ $ownerParts[]='contract_id = ?'; $ownerParams[]=$contractId; }
+            if($prospectId){ $ownerParts[]='prospect_client_id = ?'; $ownerParams[]=$prospectId; }
+            $ownerSql=$ownerParts ? '('.implode(' OR ',$ownerParts).')' : null;
 
             // Validations §11
             if($unit && $unit['status']==='SOLD') throw new RuntimeException('This unit is already SOLD and cannot be reserved.');
             if($unitId && !$isUpdate){
                 // Duplicate active reservation for same unit by different client
-                $dup=$pdo->prepare("SELECT id, contract_id FROM reservation_fees WHERE property_unit_id=? AND status='PAID' LIMIT 1");
-                $dup->execute([$unitId]); $ex=$dup->fetch();
-                if($ex && (int)$ex['contract_id'] !== $contractId) throw new RuntimeException('This unit is already reserved by another client.');
+                $dupSql="SELECT id FROM reservation_fees WHERE property_unit_id=? AND status='PAID'";
+                $dupParams=array_merge([$unitId],$ownerParams);
+                if($ownerSql) $dupSql.=" AND NOT $ownerSql";
+                $dup=$pdo->prepare($dupSql.' LIMIT 1'); $dup->execute($dupParams);
+                if($dup->fetch()) throw new RuntimeException('This unit is already reserved by another client.');
                 // Also via property_units status
-                if($unit['status']==='RESERVED' && (int)$unit['current_contract_id'] !== $contractId) throw new RuntimeException('This unit is already reserved by another client.');
-                // Check second active reservation for same contract
-                $dup2=$pdo->prepare("SELECT id FROM reservation_fees WHERE contract_id=? AND status IN ('PENDING','PAID') LIMIT 1");
-                $dup2->execute([$contractId]); if($dup2->fetch()) throw new RuntimeException('This client already has an active reservation for this unit.');
+                if($unit['status']==='RESERVED'){
+                    $reservedByUs=false;
+                    if($contractId && $unit['current_contract_id']!==null && (int)$unit['current_contract_id']===$contractId) $reservedByUs=true;
+                    if(!$reservedByUs && $unit['current_reservation_fee_id']){
+                        $own=$pdo->prepare('SELECT prospect_client_id, contract_id FROM reservation_fees WHERE id=?');
+                        $own->execute([(int)$unit['current_reservation_fee_id']]); $ownRow=$own->fetch();
+                        if($ownRow){
+                            if($ownRow['prospect_client_id']!==null && $prospectId && (int)$ownRow['prospect_client_id']===$prospectId) $reservedByUs=true;
+                            elseif($contractId && $ownRow['contract_id']!==null && (int)$ownRow['contract_id']===$contractId) $reservedByUs=true;
+                        }
+                    }
+                    if(!$reservedByUs) throw new RuntimeException('This unit is already reserved by another client.');
+                }
+                // Check second active reservation for same client
+                if($ownerSql){
+                    $dup2=$pdo->prepare("SELECT id FROM reservation_fees WHERE $ownerSql AND status IN ('PENDING','PAID') LIMIT 1");
+                    $dup2->execute($ownerParams); if($dup2->fetch()) throw new RuntimeException('This client already has an active reservation for this unit.');
+                }
             }
             // If unit ON HOLD, verify client matches hold owner
             if($unit && $unit['status']==='ON HOLD'){
-                if((int)$unit['current_contract_id'] !== $contractId) throw new RuntimeException('This unit is on hold by another client.');
+                $holdOwnedByUs=false;
+                if($contractId && $unit['current_contract_id']!==null && (int)$unit['current_contract_id']===$contractId) $holdOwnedByUs=true;
+                if(!$holdOwnedByUs && $unit['current_holding_fee_id']){
+                    $own=$pdo->prepare('SELECT prospect_client_id, contract_id FROM holding_fees WHERE id=?');
+                    $own->execute([(int)$unit['current_holding_fee_id']]); $ownRow=$own->fetch();
+                    if($ownRow){
+                        if($ownRow['prospect_client_id']!==null && $prospectId && (int)$ownRow['prospect_client_id']===$prospectId) $holdOwnedByUs=true;
+                        elseif($contractId && $ownRow['contract_id']!==null && (int)$ownRow['contract_id']===$contractId) $holdOwnedByUs=true;
+                    }
+                }
+                if(!$holdOwnedByUs) throw new RuntimeException('This unit is on hold by another client.');
                 // Check hold not expired
                 if($holdingFeeId===null){
-                    // Auto-link the active holding fee for this contract+unit
-                    $hfSt=$pdo->prepare("SELECT id, status, expiration_date FROM holding_fees WHERE contract_id=? AND property_unit_id=? AND status='PAID' ORDER BY expiration_date DESC LIMIT 1");
-                    $hfSt->execute([$contractId,$unitId]); $hf=$hfSt->fetch();
+                    // Auto-link the active holding fee for this client+unit
+                    $hfSql="SELECT id, status, expiration_date FROM holding_fees WHERE property_unit_id=? AND status='PAID'";
+                    $hfParams=array_merge([$unitId],$ownerParams);
+                    if($ownerSql) $hfSql.=" AND $ownerSql";
+                    $hfSt=$pdo->prepare($hfSql.' ORDER BY expiration_date DESC LIMIT 1');
+                    $hfSt->execute($hfParams); $hf=$hfSt->fetch();
                     if($hf){
                         if($hf['expiration_date'] < date('Y-m-d')) throw new RuntimeException('The holding period for this unit has expired. Please create a new valid transaction according to IHC policy.');
                         $holdingFeeId=(int)$hf['id'];
                     }
                 } else {
                     $hfSt=$pdo->prepare("SELECT * FROM holding_fees WHERE id=?"); $hfSt->execute([$holdingFeeId]); $hf=$hfSt->fetch();
-                    if($hf && $hf['expiration_date'] < date('Y-m-d') && $hf['status']==='PAID') throw new RuntimeException('The holding period for this unit has expired. Please create a new valid transaction according to IHC policy.');
-                    if($hf && (int)$hf['contract_id'] !== $contractId) throw new RuntimeException('Holding fee does not belong to this client.');
+                    if($hf){
+                        $hfOwned = ($contractId && $hf['contract_id']!==null && (int)$hf['contract_id']===$contractId)
+                                || ($prospectId && $hf['prospect_client_id']!==null && (int)$hf['prospect_client_id']===$prospectId);
+                        if(!$hfOwned) throw new RuntimeException('Holding fee does not belong to this client.');
+                        if($hf['expiration_date'] < date('Y-m-d') && $hf['status']==='PAID') throw new RuntimeException('The holding period for this unit has expired. Please create a new valid transaction according to IHC policy.');
+                    }
                 }
             }
             // If no holding at all, some business rules allow direct reservation — allow with warning audit
@@ -877,7 +1136,7 @@ try{
             if($isUpdate && $proofPath===null){ $proofPath=$existing['proof_path']; $proofName=$existing['proof_name']; }
             if($isUpdate && isset($input['removeProof']) && $input['removeProof']){ $proofPath=null; $proofName=null; }
             $clientId=null;
-            if($contract['email']){ $st=$pdo->prepare('SELECT id FROM client_accounts WHERE LOWER(email)=LOWER(?) LIMIT 1'); $st->execute([$contract['email']]); $ca=$st->fetch(); if($ca) $clientId=(int)$ca['id']; }
+            if($contract && $contract['email']){ $st=$pdo->prepare('SELECT id FROM client_accounts WHERE LOWER(email)=LOWER(?) LIMIT 1'); $st->execute([$contract['email']]); $ca=$st->fetch(); if($ca) $clientId=(int)$ca['id']; }
 
             if($status==='REFUNDED' && getBusinessRule($pdo,'reservation_fee.refundable','1')!=='1'){
                 throw new RuntimeException('Reservation fees are not refundable per current IHC policy (business_rules.reservation_fee.refundable).');
@@ -902,7 +1161,7 @@ try{
                         ->execute([$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy,$resId]);
                     audit($pdo,'reservation_fee.updated',$contractId,null,$resId,$unitId,$prevStatus,$status,$processedBy,$actorName,['amount'=>$amount]);
                     if($prevStatus!=='PAID' && $status==='PAID' && $unitId){
-                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_holding_fee_id=NULL, current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$unitId]);
+                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_holding_fee_id=NULL, current_contract_id=COALESCE(?, current_contract_id), current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$resId,$unitId]);
                         audit($pdo,'unit.status_changed',$contractId,null,$resId,$unitId,'ON HOLD','RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
                         if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
                             $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$resId,$holdingFeeId]);
@@ -918,13 +1177,14 @@ try{
                 $pdo->beginTransaction();
                 try{
                     if($unitId) $pdo->prepare('SELECT status FROM property_units WHERE id=? FOR UPDATE')->execute([$unitId]);
-                    $pdo->prepare('INSERT INTO reservation_fees (contract_id,property_unit_id,client_id,holding_fee_id,amount,payment_method,payment_date,reference_number,or_number,status,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-                        ->execute([$contractId,$unitId,$clientId,$holdingFeeId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy]);
+                    $pdo->prepare('INSERT INTO reservation_fees (contract_id,prospect_client_id,property_unit_id,client_id,holding_fee_id,amount,payment_method,payment_date,reference_number,or_number,status,remarks,proof_path,proof_name,processed_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                        ->execute([$contractId,$prospectId,$unitId,$clientId,$holdingFeeId,$amount,$methodVal,$paymentDate,$refNumber?:null,$orNumber?:null,$status,$remarks?:null,$proofPath,$proofName,$processedBy]);
                     $newId=(int)$pdo->lastInsertId();
-                    audit($pdo,'reservation_fee.created',$contractId,null,$newId,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel]);
+                    if($prospectId) $pdo->prepare("UPDATE prospect_clients SET reservation_fee_id=COALESCE(reservation_fee_id, ?), source='RESERVATION', updated_at=NOW() WHERE id=?")->execute([$newId,$prospectId]);
+                    audit($pdo,'reservation_fee.created',$contractId,null,$newId,$unitId,null,$status,$processedBy,$actorName,['amount'=>$amount,'unit'=>$unitLabel,'prospectClientId'=>$prospectId]);
                     if($status==='PAID' && $unitId){
                         $prevUnitStatus=$unit['status'];
-                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_holding_fee_id=NULL, current_contract_id=?, current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
+                        $pdo->prepare("UPDATE property_units SET status='RESERVED', current_holding_fee_id=NULL, current_contract_id=COALESCE(?, current_contract_id), current_reservation_fee_id=?, updated_at=NOW() WHERE id=?")->execute([$contractId,$newId,$unitId]);
                         audit($pdo,'unit.status_changed',$contractId,null,$newId,$unitId,$prevUnitStatus,'RESERVED',$processedBy,$actorName,['reason'=>'reservation paid']);
                         if(getBusinessRule($pdo,'holding_fee.convert_on_reservation','1')==='1' && $holdingFeeId){
                             $pdo->prepare("UPDATE holding_fees SET status='CONVERTED', converted_to_reservation_id=?, updated_at=NOW() WHERE id=?")->execute([$newId,$holdingFeeId]);
@@ -934,7 +1194,7 @@ try{
                     $pdo->commit();
                 }catch(Throwable $e){ if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
                 $st=$pdo->prepare('SELECT * FROM reservation_fees WHERE id=?'); $st->execute([$newId]); $row=$st->fetch();
-                echo json_encode(['success'=>true,'message'=>'Reservation fee recorded.','id'=>$newId,'reservationFee'=>$row]);
+                echo json_encode(['success'=>true,'message'=>'Reservation fee recorded.','id'=>$newId,'prospectClientId'=>$prospectId,'reservationFee'=>$row]);
                 exit;
             }
         }

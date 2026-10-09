@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../php/db-config.php';
+require_once __DIR__ . '/../php/prospect-clients.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -16,6 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 try {
     $pdo = ihc_pdo();
+    // Prospect clients (Holding Fee / Reservation registrations) + their link
+    // columns on holding_fees / reservation_fees. DDL runs outside the
+    // transaction below — MySQL commits implicitly on DDL.
+    prospect_ensure_tables($pdo);
 
     $data = json_decode(file_get_contents('php://input') ?: '', true);
     if (!is_array($data)) throw new RuntimeException('Invalid JSON request.');
@@ -75,18 +80,6 @@ try {
     $loanableAmount = $normalizeOptionalAmount($loanableAmount, (float)$totalPrice, 'Loanable amount');
     $approvedLoanAmount = $normalizeOptionalAmount($approvedLoanAmount, (float)$totalPrice, 'Approved loan amount');
     $earlyMoveInAmount = $normalizeOptionalAmount($earlyMoveInAmount, (float)$totalPrice, 'Early move-in amount') ?? 0.0;
-    $reservationFee = $contract['reservationFee'] ?? null;
-    if ($reservationFee === '' || $reservationFee === null) $reservationFee = 0;
-    if (!is_numeric($reservationFee) || (float)$reservationFee < 0 || (float)$reservationFee > (float)$totalPrice) {
-        throw new RuntimeException('Reservation fee must be between zero and the total contract price.');
-    }
-    $reservationFee = round((float)$reservationFee, 2);
-    $holdingFee = $contract['holdingFee'] ?? null;
-    if ($holdingFee === '' || $holdingFee === null) $holdingFee = 0;
-    if (!is_numeric($holdingFee) || (float)$holdingFee < 0 || (float)$holdingFee > (float)$totalPrice) {
-        throw new RuntimeException('Holding fee must be between zero and the total contract price.');
-    }
-    $holdingFee = round((float)$holdingFee, 2);
     $equityMonthlyRate = $normalizeOptionalAmount($equityMonthlyRate, 100, 'Equity monthly interest rate') ?? 0.0;
     $equityPenaltyRate = $normalizeOptionalAmount($equityPenaltyRate, 100, 'Equity penalty rate');
     $loanTermYears = $normalizeOptionalAmount($loanTermYears, 120, 'Loan term in years');
@@ -322,49 +315,10 @@ try {
             $propertyUnitId = (int)$pdo->lastInsertId();
         }
 
-        // Persist any reservation/holding fees collected with this contract so
-        // they land in the buyer's ledger, the SOA (reservation fee section and
-        // totals), and the holding/reservation modules for that unit.
-        $holdingFeeId = null;
-        if ($holdingFee > 0) {
-            $pdo->prepare(
-                'INSERT INTO holding_fees
-                    (officer_id, contract_id, property_unit_id, client_name, property_address,
-                     amount, payment_method, payment_date, status, remarks, processed_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?)'
-            )->execute([
-                $officerId !== '' ? $officerId : null,
-                $contractId,
-                $propertyUnitId,
-                $clientName,
-                mb_substr($unitLabel, 0, 500),
-                $holdingFee,
-                'To be collected',
-                $startDate,
-                'PENDING',
-                'Set at contract creation.',
-                $officerId !== '' ? $officerId : null,
-            ]);
-            $holdingFeeId = (int)$pdo->lastInsertId();
-        }
-        if ($reservationFee > 0) {
-            $pdo->prepare(
-                'INSERT INTO reservation_fees
-                    (contract_id, property_unit_id, holding_fee_id, amount, payment_method,
-                     payment_date, status, remarks, processed_by)
-                 VALUES (?,?,?,?,?,?,?,?,?)'
-            )->execute([
-                $contractId,
-                $propertyUnitId,
-                $holdingFeeId,
-                $reservationFee,
-                'To be collected',
-                $startDate,
-                'PENDING',
-                'Set at contract creation.',
-                $officerId !== '' ? $officerId : null,
-            ]);
-        }
+        // Note: Holding Fee / Reservation Fee are no longer collected on the
+        // New Contract form. They are recorded through their own flows (fee
+        // modal / sidebar) which link to the contract via prospect_clients or
+        // contract_id — no PENDING rows are seeded here anymore.
 
         // Create the buyer's portal account, or update the existing one when
         // this email has signed up before (new password/name/phone win).
@@ -386,6 +340,50 @@ try {
         // 1 = account created, 2 = existing account updated, 0 = updated but unchanged.
         $acctRows = $acctStmt->rowCount();
         $accountAction = $acctRows === 1 ? 'created' : ($acctRows === 0 ? 'unchanged' : 'updated');
+
+        // Link the buyer selected from the New Contract "Select Client" dropdown
+        // (registered through a Holding Fee / Reservation). The client row is
+        // marked with this contract and every still-unlinked holding/reservation
+        // fee of theirs is attached, so the fee shows up in this contract's
+        // ledger, payment history and SOA. Without an explicit id we still match
+        // a never-contracted registered client by email so nothing is orphaned.
+        $prospectId = (int)($data['prospectClientId'] ?? 0);
+        $prospectLinked = false;
+        if ($prospectId <= 0) {
+            $lookup = $pdo->prepare('SELECT id FROM prospect_clients WHERE LOWER(email) = LOWER(?) AND contract_id IS NULL ORDER BY id LIMIT 1');
+            $lookup->execute([$email]);
+            $match = $lookup->fetch();
+            if ($match) $prospectId = (int)$match['id'];
+        }
+        if ($prospectId > 0 && prospect_find($pdo, $prospectId)) {
+            $prospectLinked = prospect_link_contract($pdo, $prospectId, $contractId);
+            // The form the clerk just submitted is the freshest copy of the
+            // buyer's details — keep the registered-client row in step with it.
+            $pdo->prepare(
+                'UPDATE prospect_clients SET
+                    full_name = ?, email = ?, cellphone_number = ?, client_address = ?,
+                    property_address = ?, project_name = COALESCE(?, project_name),
+                    project_phase = COALESCE(?, project_phase), block_no = COALESCE(?, block_no),
+                    lot_no = COALESCE(?, lot_no), model_type = COALESCE(?, model_type),
+                    lot_area = COALESCE(?, lot_area), floor_area = COALESCE(?, floor_area),
+                    updated_at = NOW()
+                 WHERE id = ?'
+            )->execute([
+                $clientName,
+                $email,
+                $phone,
+                $clientAddress !== '' ? $clientAddress : null,
+                mb_substr(trim($propertyAddress), 0, 500),
+                $projectName !== '' ? mb_substr($projectName, 0, 255) : null,
+                $projectPhase !== '' ? mb_substr($projectPhase, 0, 120) : null,
+                $blockNo !== '' ? mb_substr($blockNo, 0, 50) : null,
+                $lotNo !== '' ? mb_substr($lotNo, 0, 50) : null,
+                $modelType !== '' ? mb_substr($modelType, 0, 120) : null,
+                $lotArea !== '' ? mb_substr($lotArea, 0, 100) : null,
+                $floorArea !== '' ? mb_substr($floorArea, 0, 100) : null,
+                $prospectId,
+            ]);
+        }
 
         $pdo->commit();
     } catch (Throwable $e) {
@@ -429,6 +427,9 @@ try {
         'accountAction'=>$accountAction,
         'propertyCreated'=>$propertyCreated,
         'reminderQueued'=>$reminderQueued,
+        // Registered-client link (Holding Fee / Reservation → contract)
+        'prospectClientId'=>$prospectId > 0 ? $prospectId : null,
+        'prospectClientLinked'=>$prospectLinked,
         // Echo the stored terms so the clerk's local mirror matches the row.
         'dpMode'=>$dpMode,
         'dpTerms'=>$dpTerms,
