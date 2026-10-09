@@ -1068,6 +1068,13 @@
     .nc-hint.ok { color: #059669; font-weight: 600; }
     .nc-hint.err { color: #dc2626; font-weight: 600; }
 
+    /* CLIENT PORTAL PASSWORD REQUIREMENTS CHECKLIST */
+    .pw-checklist { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 3px; }
+    .pw-checklist li { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .pw-checklist li::before { content: '\25CB'; line-height: 1; }
+    .pw-checklist li.ok { color: #059669; font-weight: 600; }
+    .pw-checklist li.ok::before { content: '\2713'; }
+
     /* PROPERTY ADDRESS / PHASE-BLOCK-LOT LINKAGE */
     .nc-field { position: relative; }
 
@@ -2175,7 +2182,13 @@
                   <div class="nc-field full">
                     <label>Client Portal Password <span class="req">*</span></label>
                     <input type="text" id="ncClientPassword" placeholder="Give the buyer a Portal password" autocomplete="off">
-                    <small class="nc-hint" id="hintPassword">At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.</small>
+                    <ul class="pw-checklist" id="pwChecklistNew">
+                      <li data-rule="length">At least 8 characters</li>
+                      <li data-rule="upper">One uppercase letter (A&ndash;Z)</li>
+                      <li data-rule="lower">One lowercase letter (a&ndash;z)</li>
+                      <li data-rule="digits">At least 2 digits (0&ndash;9)</li>
+                    </ul>
+                    <small class="nc-hint" id="hintPassword">At least 8 characters with an uppercase letter, a lowercase letter, and 2 digits. You will hand this password to the buyer so they can sign in to their Ledger.</small>
                   </div>
                   <div class="nc-field full">
                     <label>Client Address</label>
@@ -2500,8 +2513,8 @@
           </div>
           <div class="form-group full">
             <label>Portal Password <span class="req">*</span></label>
-            <input type="text" id="paPassword" placeholder="At least 6 characters" autocomplete="off">
-            <small class="nc-hint">At least 6 characters. One account covers every contract under this email — hand the password to the buyer so they can sign in to their Ledger.</small>
+            <input type="text" id="paPassword" placeholder="At least 8 chars, mixed case, 2 digits" autocomplete="off">
+            <small class="nc-hint">At least 8 characters with an uppercase letter, a lowercase letter, and 2 digits. One account covers every contract under this email — hand the password to the buyer so they can sign in to their Ledger.</small>
           </div>
         </div>
       </div>
@@ -2747,12 +2760,29 @@
     const formatDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const daysDiff = (d1, d2) => Math.ceil((d1 - d2) / (1000 * 60 * 60 * 24));
     
+    const PASSWORD_RULES = [
+      { rule: 'length', message: 'Use at least 8 characters.', test: (v) => v.length >= 8 },
+      { rule: 'upper', message: 'Include at least one uppercase letter.', test: (v) => /[A-Z]/.test(v) },
+      { rule: 'lower', message: 'Include at least one lowercase letter.', test: (v) => /[a-z]/.test(v) },
+      { rule: 'digits', message: 'Include at least 2 digits.', test: (v) => (v.match(/\d/g) || []).length >= 2 }
+    ];
+
     function validatePortalPassword(pw) {
-    const value = String(pw || '');
-    if (value.length < 6) return { ok: false, message: 'Use at least 6 characters.' };
-    if (!/[a-z]/.test(value)) return { ok: false, message: 'Include at least one lowercase letter. All-capital passwords are not allowed.' };
-    if (!/[A-Z]/.test(value)) return { ok: false, message: 'Include at least one capital letter. All-lowercase passwords are not allowed.' };
-       return { ok: true, message: '' };
+      const value = String(pw || '');
+      for (const r of PASSWORD_RULES) {
+        if (!r.test(value)) return { ok: false, message: r.message };
+      }
+      return { ok: true, message: '' };
+    }
+
+    function renderPasswordChecklist(pw, listId) {
+      const list = document.getElementById(listId);
+      if (!list) return;
+      const value = String(pw || '');
+      PASSWORD_RULES.forEach((r) => {
+        const li = list.querySelector('[data-rule="' + r.rule + '"]');
+        if (li) li.classList.toggle('ok', r.test(value));
+      });
     }
 
     const getStatusLabel = (row) => {
@@ -4586,6 +4616,7 @@
     ncFields.terms.addEventListener('input', () => { updateSummary(); validateForm(); });
     ncFields.date.addEventListener('input', validateForm);
     ['name', 'phone', 'password', 'address'].forEach(k => ncFields[k].addEventListener('blur', validateForm));
+    ncFields.password.addEventListener('input', () => { renderPasswordChecklist(ncFields.password.value, 'pwChecklistNew'); validateForm(); });
 
     dpModeRadios.forEach(radio => {
       radio.addEventListener('change', () => {
@@ -4972,8 +5003,9 @@
       dpModeRadios.forEach(r => { r.checked = false; r.classList.remove('valid', 'invalid'); });
       ['hintName', 'ncEmailStatus', 'hintPhone', 'hintPassword', 'hintAddress', 'hintPrice', 'hintDownpayment', 'hintDpMode', 'hintDpTerms', 'hintBank', 'hintInterest', 'hintTerms', 'hintDate'].forEach(id => {
         const h = document.getElementById(id);
-        if (h) { h.className = 'nc-hint'; h.textContent = id === 'ncEmailStatus' ? 'A working email is required so we can send payment reminders and SOA.' : (id === 'hintPassword' ? 'At least 6 characters. You will hand this password to the buyer so they can sign in to their Ledger.' : (id === 'hintDpMode' ? 'Lump Sum is paid upfront. Monthly spreads the downpayment over a deposit term.' : (id === 'hintDpTerms' ? 'The downpayment is divided equally over these months at 0% interest.' : (id === 'hintBank' ? "The bank's annual interest rate is applied to the house amortization." : (id === 'hintInterest' ? 'Auto-filled when a bank is selected. Editable before saving.' : ''))))); }
+        if (h) { h.className = 'nc-hint'; h.textContent = id === 'ncEmailStatus' ? 'A working email is required so we can send payment reminders and SOA.' : (id === 'hintPassword' ? 'At least 8 characters with an uppercase letter, a lowercase letter, and 2 digits. You will hand this password to the buyer so they can sign in to their Ledger.' : (id === 'hintDpMode' ? 'Lump Sum is paid upfront. Monthly spreads the downpayment over a deposit term.' : (id === 'hintDpTerms' ? 'The downpayment is divided equally over these months at 0% interest.' : (id === 'hintBank' ? "The bank's annual interest rate is applied to the house amortization." : (id === 'hintInterest' ? 'Auto-filled when a bank is selected. Editable before saving.' : ''))))); }
       });
+      renderPasswordChecklist('', 'pwChecklistNew');
       Object.keys(ncFields).forEach(k => { if (ncFields[k]) ncFields[k].classList.remove('valid', 'invalid'); });
       document.querySelectorAll('.nc-field.from-link').forEach(f => f.classList.remove('from-link'));
       if (typeof closeAddressAc === 'function') { clearTimeout(acTimer); clearTimeout(resolveTimer); closeAddressAc(); }

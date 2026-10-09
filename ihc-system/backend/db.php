@@ -137,7 +137,10 @@ try {
 
     $portalPassword = (string)($client['portalPassword'] ?? '');
     if ($portalPassword === '') throw new RuntimeException('Client Portal Password is required so the buyer can sign in.');
-    if (strlen($portalPassword) < 6) throw new RuntimeException('Portal password must be at least 6 characters.');
+    if (strlen($portalPassword) < 8) throw new RuntimeException('Portal password must be at least 8 characters.');
+    if (!preg_match('/[A-Z]/', $portalPassword)) throw new RuntimeException('Portal password must include at least one uppercase letter.');
+    if (!preg_match('/[a-z]/', $portalPassword)) throw new RuntimeException('Portal password must include at least one lowercase letter.');
+    if (preg_match_all('/\d/', $portalPassword) < 2) throw new RuntimeException('Portal password must include at least 2 digits.');
 
     // Add fields required by the New Contract form if an older contracts table lacks them.
     $columns = [];
