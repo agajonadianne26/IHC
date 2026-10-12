@@ -1047,6 +1047,9 @@
     .btn-save-inv:hover { background: #047857; }
     .btn-save-inv:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .pw-confirm-reject { background: #dc2626; }
+    .pw-confirm-reject:hover { background: #b91c1c; }
+
     .inv-link {
       background: none;
       border: none;
@@ -2006,8 +2009,8 @@
               <h2>Audit Logs</h2>
               <p>Every posting, status transition, and policy change with actor and timestamp.</p>
             </div>
-            <button class="btn-secondary" id="refreshAuditBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Refresh</button>
-          </div>
+            <button class="btn-primary" id="refreshAuditBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh</button>
+          </div>        
           <div class="table-scroll">
             <table class="data-table">
               <thead><tr><th>When</th><th>Action</th><th>Contract</th><th>Client</th><th>Actor</th><th>Transition</th></tr></thead>
@@ -2194,6 +2197,25 @@
       </div>
     </div>
     </div>
+
+  <div class="modal-overlay" id="pwConfirmModal" role="presentation">
+    <div class="inv-modal" style="max-width:440px;" role="dialog" aria-modal="true" aria-labelledby="pwConfirmTitle" aria-describedby="pwConfirmMessage">
+      <div class="inv-modal-head">
+        <div>
+          <h3 id="pwConfirmTitle">Confirm password reset request</h3>
+          <p id="pwConfirmFor"></p>
+        </div>
+        <button class="inv-modal-close" id="pwConfirmClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="inv-modal-body">
+        <p id="pwConfirmMessage" style="font-size:13px;color:var(--text-secondary);"></p>
+      </div>
+      <div class="inv-modal-foot">
+        <button class="btn-cancel-inv" id="pwConfirmCancel" type="button">Cancel</button>
+        <button class="btn-save-inv" id="pwConfirmSubmit" type="button">Approve</button>
+      </div>
+    </div>
+  </div>
 
   <!-- PROPERTY INVENTORY MODAL -->
   <div class="modal-overlay" id="invModal">
@@ -4313,17 +4335,47 @@ async function loadPasswordRequests(quiet) {
   }
 }
 
-document.getElementById('pwReqBody')?.addEventListener('click', async (e) => {
+const pwConfirmModal = document.getElementById('pwConfirmModal');
+const pwConfirmSubmit = document.getElementById('pwConfirmSubmit');
+let pendingPwAction = null;
+
+function closePwConfirm(restoreFocus) {
+  pwConfirmModal.classList.remove('visible');
+  if (restoreFocus && pendingPwAction?.button.isConnected) pendingPwAction.button.focus();
+  pendingPwAction = null;
+}
+
+document.getElementById('pwReqBody')?.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-pw]');
   if (!btn) return;
   const decision = btn.dataset.pw;
   const req = pwRequests.find(r => String(r.id) === String(btn.dataset.id));
-  if (!req) return;
+  if (!req || req.status !== 'pending' || !['approve', 'reject'].includes(decision)) return;
+
   const who = req.name || req.email;
-  if (decision === 'approve' && !confirm('Approve the request from ' + who + '? Their current password will be replaced by a temporary one.')) return;
-  if (decision === 'reject' && !confirm('Reject the request from ' + who + '?')) return;
-  btn.disabled = true;
+  pendingPwAction = { req, decision, button: btn };
+  document.getElementById('pwConfirmTitle').textContent = decision === 'approve'
+    ? 'Approve password reset?'
+    : 'Reject password reset?';
+  document.getElementById('pwConfirmFor').textContent = who + (req.email && who !== req.email ? ' (' + req.email + ')' : '');
+  document.getElementById('pwConfirmMessage').textContent = decision === 'approve'
+    ? 'This will replace their current password with a temporary one that they must change at their next sign-in.'
+    : 'This will reject the password reset request.';
+  pwConfirmSubmit.textContent = decision === 'approve' ? 'Approve Request' : 'Reject Request';
+  pwConfirmSubmit.classList.toggle('pw-confirm-reject', decision === 'reject');
+  pwConfirmModal.classList.add('visible');
+  pwConfirmSubmit.focus();
+});
+
+pwConfirmSubmit.addEventListener('click', async () => {
+  const action = pendingPwAction;
+  if (!action) return;
+  closePwConfirm(false);
+  action.button.disabled = true;
+
   try {
+    const { req, decision } = action;
+    const who = req.name || req.email;
     const data = await pwPost({ action: 'resolve_request', requestId: req.id, id: req.id, decision });
     const temp = data.tempPassword || data.temporaryPassword || data.temp_password;
     if (decision === 'approve' && temp) {
@@ -4336,8 +4388,17 @@ document.getElementById('pwReqBody')?.addEventListener('click', async (e) => {
     await loadPasswordRequests(true);
   } catch (err) {
     showToast(err.message, 'info');
-    btn.disabled = false;
+    if (action.button.isConnected) action.button.disabled = false;
   }
+});
+
+document.getElementById('pwConfirmCancel').addEventListener('click', () => closePwConfirm(true));
+document.getElementById('pwConfirmClose').addEventListener('click', () => closePwConfirm(true));
+pwConfirmModal.addEventListener('click', (e) => {
+  if (e.target === pwConfirmModal) closePwConfirm(true);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && pwConfirmModal.classList.contains('visible')) closePwConfirm(true);
 });
 
 const closeTempPw = () => {
