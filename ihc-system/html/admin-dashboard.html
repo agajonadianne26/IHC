@@ -115,6 +115,13 @@
       font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition);
     }
     .btn-primary:hover { background: #2563eb; }
+    .btn-primary.btn-white {
+      background: #fff;
+      border: 1px solid var(--border);
+      color: #475569;
+    }
+    .btn-primary.btn-white:hover { background: #f8fafc; }
+    .btn-primary.btn-white:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
     .report-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
@@ -882,6 +889,7 @@
       gap: 6px;
       white-space: nowrap;
     }
+    .inv-actions { gap: 10px; }
 
     .btn-print, .btn-remind {
       height: 30px;
@@ -1049,6 +1057,8 @@
 
     .pw-confirm-reject { background: #dc2626; }
     .pw-confirm-reject:hover { background: #b91c1c; }
+    .inv-confirm-danger { background: #dc2626; }
+    .inv-confirm-danger:hover { background: #b91c1c; }
 
     .inv-link {
       background: none;
@@ -1679,7 +1689,7 @@
               <input id="unitLookupInput" type="text" placeholder="e.g., Building A - Unit 101 or exact property_address" style="width:100%; height:38px; border:1px solid var(--border); border-radius:6px; padding:0 10px; margin-top:6px;">
             </div>
             <button class="btn-primary" id="lookupUnitBtn" type="button">Lookup Unit</button>
-            <button class="btn-secondary" id="markSoldBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Mark Unit SOLD</button>
+            <button class="btn-primary btn-white" id="markSoldBtn" type="button">Mark Unit SOLD</button>
           </div>
           <div id="unitDetailBox" style="padding:0 24px 18px; display:none;">
             <div id="unitDetailContent" style="font-size:12px; line-height:1.6; color:var(--text-secondary);"></div>
@@ -1975,7 +1985,7 @@
               <h2>Clerks &amp; Clients</h2>
               <p>Every staff account with the clients they enrolled. Expand a clerk to see that clerk's contracts.</p>
             </div>
-            <button class="btn-secondary" id="refreshTeamBtn" type="button" style="background:#e2e8f0;border:1px solid var(--border);color:#475569;">Refresh</button>
+            <button class="btn-primary" id="refreshTeamBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh</button>
           </div>
 
           <div class="table-section" style="margin-bottom:24px;">
@@ -2268,6 +2278,25 @@
       <div class="inv-modal-foot">
         <button class="btn-cancel-inv" id="invCancelBtn" type="button">Cancel</button>
         <button class="btn-save-inv" id="invSaveBtn" type="button">Save Property</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="invConfirmModal" role="presentation">
+    <div class="inv-modal" style="max-width:440px;" role="dialog" aria-modal="true" aria-labelledby="invConfirmTitle" aria-describedby="invConfirmMessage">
+      <div class="inv-modal-head">
+        <div>
+          <h3 id="invConfirmTitle">Confirm inventory change</h3>
+          <p id="invConfirmFor"></p>
+        </div>
+        <button class="inv-modal-close" id="invConfirmClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="inv-modal-body">
+        <p id="invConfirmMessage" style="font-size:13px;color:var(--text-secondary);"></p>
+      </div>
+      <div class="inv-modal-foot">
+        <button class="btn-cancel-inv" id="invConfirmCancel" type="button">Cancel</button>
+        <button class="btn-save-inv" id="invConfirmSubmit" type="button">Confirm</button>
       </div>
     </div>
   </div>
@@ -3922,6 +3951,8 @@
     const invCountsBox = document.getElementById('invCounts');
     const invSearch = document.getElementById('invSearch');
     const invModal = document.getElementById('invModal');
+    const invConfirmModal = document.getElementById('invConfirmModal');
+    const invConfirmSubmit = document.getElementById('invConfirmSubmit');
     const invSaveBtn = document.getElementById('invSaveBtn');
     const invFormStatus = document.getElementById('invFormStatus');
     const invFields = {
@@ -3938,6 +3969,8 @@
     let invStatusFilter = '';
     let invRows = [];
     let invTimer = null;
+    let resolveInvConfirmation = null;
+    let invConfirmReturnFocus = null;
 
     const invEsc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const invDash = (v) => (v == null || v === '' ? '<span class="inv-muted">&mdash;</span>' : invEsc(v));
@@ -4011,7 +4044,7 @@
           '<td>' + invDash(u.lot) + '</td>' +
           '<td>' + (modelBits || '<span class="inv-muted">&mdash;</span>') + '</td>' +
           '<td><span class="row-status ' + invStatusClass(u.status) + '"><span class="dot"></span>' + invEsc(u.status) + '</span></td>' +
-          '<td><div class="action-btns">' +
+          '<td><div class="action-btns inv-actions">' +
             '<button class="inv-link" onclick="window.editPropertyUnit(' + Number(u.id) + ')">Edit</button>' +
             (u.status !== 'SOLD'
               ? '<button class="inv-link" onclick="window.markPropertySold(' + Number(u.id) + ')">Mark SOLD</button>'
@@ -4054,6 +4087,38 @@
       invEditId = null;
     }
 
+    function closeInvConfirmation(confirmed) {
+      if (!resolveInvConfirmation) return;
+      const resolve = resolveInvConfirmation;
+      resolveInvConfirmation = null;
+      invConfirmModal.classList.remove('visible');
+      resolve(confirmed);
+      if (invConfirmReturnFocus?.isConnected) invConfirmReturnFocus.focus();
+      invConfirmReturnFocus = null;
+    }
+
+    function confirmInventoryAction({ title, property, message, confirmLabel, danger }) {
+      document.getElementById('invConfirmTitle').textContent = title;
+      document.getElementById('invConfirmFor').textContent = property;
+      document.getElementById('invConfirmMessage').textContent = message;
+      invConfirmSubmit.textContent = confirmLabel;
+      invConfirmSubmit.classList.toggle('inv-confirm-danger', Boolean(danger));
+      invConfirmReturnFocus = document.activeElement;
+      invConfirmModal.classList.add('visible');
+      invConfirmSubmit.focus();
+      return new Promise((resolve) => { resolveInvConfirmation = resolve; });
+    }
+
+    document.getElementById('invConfirmSubmit')?.addEventListener('click', () => closeInvConfirmation(true));
+    document.getElementById('invConfirmCancel')?.addEventListener('click', () => closeInvConfirmation(false));
+    document.getElementById('invConfirmClose')?.addEventListener('click', () => closeInvConfirmation(false));
+    invConfirmModal?.addEventListener('click', (e) => {
+      if (e.target === invConfirmModal) closeInvConfirmation(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && invConfirmModal.classList.contains('visible')) closeInvConfirmation(false);
+    });
+
     window.editPropertyUnit = (id) => {
       const unit = invRows.find((u) => Number(u.id) === Number(id));
       if (unit) openInvModal(unit);
@@ -4062,7 +4127,14 @@
     window.markPropertySold = async (id) => {
       const unit = invRows.find((u) => Number(u.id) === Number(id));
       if (!unit) return;
-      if (!confirm('Mark "' + unit.displayLabel + '" as SOLD? This finalizes the unit and cannot be reverted.')) return;
+      const confirmed = await confirmInventoryAction({
+        title: 'Mark property as SOLD?',
+        property: unit.displayLabel,
+        message: 'This finalizes the unit and cannot be reverted.',
+        confirmLabel: 'Mark SOLD',
+        danger: true
+      });
+      if (!confirmed) return;
       try {
         const res = await fetch(HOLDING_API, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4085,7 +4157,14 @@
     window.deletePropertyUnit = async (id) => {
       const unit = invRows.find((u) => Number(u.id) === Number(id));
       if (!unit) return;
-      if (!confirm('Delete "' + unit.displayLabel + '" from the inventory? This cannot be undone.')) return;
+      const confirmed = await confirmInventoryAction({
+        title: 'Delete property from inventory?',
+        property: unit.displayLabel,
+        message: 'This cannot be undone. Properties linked to a contract or fee record cannot be deleted.',
+        confirmLabel: 'Delete Property',
+        danger: true
+      });
+      if (!confirmed) return;
       try {
         const res = await fetch(HOLDING_API, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
