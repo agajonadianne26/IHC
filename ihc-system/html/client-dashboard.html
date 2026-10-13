@@ -235,6 +235,11 @@
     .table-header-left p { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
     .table-tools { display: flex; gap: 10px; }
     .table-scroll { overflow-x: auto; }
+    .buyer-schedule-collapsed-row { display: none; }
+    .buyer-schedule-expanded .buyer-schedule-collapsed-row { display: table-row; }
+    .buyer-schedule-toggle-wrap { display: flex; justify-content: center; padding: 12px 18px 16px; }
+    .buyer-schedule-toggle-wrap[hidden] { display: none; }
+    .buyer-schedule-table { scroll-margin-top: 72px; }
     table { width: 100%; border-collapse: collapse; min-width: 640px; }
     thead th {
       text-align: left; padding: 11px 18px; font-size: 10px; font-weight: 700;
@@ -331,6 +336,8 @@
       .view { display: block !important; }
       table { min-width: 0; }
       thead th { background: #fff; }
+      .buyer-schedule-collapsed-row { display: table-row !important; }
+      .buyer-schedule-toggle-wrap { display: none !important; }
     }
   </style>
   <link rel="stylesheet" href="../css/soa.css?v=1">
@@ -736,10 +743,17 @@
     document.getElementById('ledgerRemaining').textContent = fmtPHP(remainingBalance);
     document.getElementById('ledgerMonthly').textContent = fmtPHP(monthlyAmort);
 
-    document.getElementById('ledgerBody').innerHTML = portal.schedules.map(s => {
+    const ledgerBody = document.getElementById('ledgerBody');
+    const scheduleTable = ledgerBody.closest('table');
+    const scheduleTableSection = ledgerBody.closest('.table-section');
+    const scheduleToggleWrap = document.getElementById('buyerScheduleToggleWrap');
+    const scheduleToggleButton = document.getElementById('buyerScheduleToggleBtn');
+    const scheduleCount = portal.schedules.length;
+
+    ledgerBody.innerHTML = portal.schedules.map((s, index) => {
       const st = scheduleStatus(s);
       return `
-        <tr>
+        <tr${index >= 6 ? ' class="buyer-schedule-collapsed-row"' : ''}>
           <td><strong>${s.no}</strong></td>
           <td>${s.phase ? `<span class="phase-chip ${s.phase}">${phaseLabel(s.phase)}</span>` : '<span class="muted">\u2014</span>'}</td>
           <td>${fmtDate(s.dueDate)}</td>
@@ -749,6 +763,15 @@
           <td>${s.orNumber || '<span class="muted">\u2014</span>'}</td>
         </tr>`;
     }).join('');
+
+    scheduleToggleWrap.hidden = scheduleCount <= 6;
+    scheduleToggleButton.textContent = 'View all (' + scheduleCount + ')';
+    scheduleToggleButton.addEventListener('click', () => {
+      const expanded = scheduleTableSection.classList.toggle('buyer-schedule-expanded');
+      scheduleToggleButton.textContent = expanded ? 'Show less' : 'View all (' + scheduleCount + ')';
+      scheduleToggleButton.setAttribute('aria-expanded', String(expanded));
+      if (!expanded) scheduleTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 
     document.getElementById('exportScheduleCsvBtn').addEventListener('click', () => {
       const rows = [['Installment', 'Type', 'Due Date', 'Amount', 'Status', 'Payment Date', 'OR / Ref #']];
@@ -1129,7 +1152,7 @@
               </div>
             </div>
             <div class="table-scroll">
-              <table>
+              <table class="buyer-schedule-table">
                 <thead>
                   <tr>
                     <th>Installment</th>
@@ -1143,6 +1166,9 @@
                 </thead>
                 <tbody id="ledgerBody"></tbody>
               </table>
+            </div>
+            <div class="buyer-schedule-toggle-wrap" id="buyerScheduleToggleWrap" hidden>
+              <button class="btn-ghost buyer-schedule-toggle" id="buyerScheduleToggleBtn" type="button" aria-expanded="false">View all</button>
             </div>
           </div>
 
