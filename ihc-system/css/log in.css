@@ -1,3 +1,21 @@
+/* ── Palette sampled from img/ihc logo.png ────────────────────────────────
+   dominant tones: orange #f7941e / #f09018, gold #fbc513 / #f0cc0c.
+   Neutrals are warmed toward those tones; every text pair below was checked
+   against WCAG 2.1 AA (4.5:1 body / 3:1 large) — see ratios in comments. */
+:root {
+    --logo-orange: #f7941e;      /* logo primary            */
+    --logo-gold: #fbc513;        /* logo secondary          */
+    --ink-900: #0f0c07;          /* page gradient — deepest */
+    --ink-800: #17120c;          /* page gradient — mid     */
+    --ink-700: #241b12;          /* media pane highlight    */
+    --surface: #fffcf8;          /* card / form pane        */
+    --surface-2: #fbf5ed;        /* demo panel              */
+    --line: #e7dccd;             /* borders on warm surface */
+    --text-strong: #1e1710;      /* 17.3:1 on --surface     */
+    --text: #443a2f;             /* 10.9:1 on --surface     */
+    --text-muted: #6a6053;       /*  6.0:1 on --surface     */
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -6,23 +24,32 @@
 }
 
 body {
-    background-color: #0f172a;
+    /* Subtle warm gradient built from the logo's orange/gold on a deep ink base:
+       the card and its logo pop against it (18.2:1 card vs mid tone). */
+    background:
+        radial-gradient(1200px 820px at 10% -12%, rgba(247, 148, 30, 0.17), transparent 62%),
+        radial-gradient(900px 700px at 104% 112%, rgba(251, 197, 19, 0.11), transparent 58%),
+        linear-gradient(165deg, var(--ink-800) 0%, var(--ink-900) 62%, #0b0906 100%);
+    background-color: var(--ink-900); /* fallback if gradients are unsupported */
     display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
+    /* Centering happens through .login-container's auto margins (see below):
+       flex `align-items:center` would push any content taller than the viewport
+       above the top edge, where it can no longer be scrolled to. */
     padding: 20px;
+    min-height: 100vh;
 }
 
 .login-container {
     display: flex;
     width: 100%;
     max-width: 900px;
-    height: 550px;
-    background: #ffffff;
+    margin: auto; /* centres the card on both axes and stays reachable when the page scrolls */
+    min-height: 550px; /* was `height: 550px` — the fixed height clipped the form, whose
+                          content overflowed upward underneath the corner logo (the overlap). */
+    background: var(--surface);
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 24px 44px -14px rgba(8, 5, 2, 0.6), 0 10px 18px -10px rgba(8, 5, 2, 0.5);
 }
 
 /* Left Form Pane */
@@ -32,46 +59,40 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 40px;
-    background: #ffffff;
-    position: relative; /* Base for absolute corner logo */
+    padding: 26px 40px;
+    background: var(--surface);
+    position: relative;
 }
 
-/* Upper-left Logo Positioning */
-.form-logo-header {
-    position: absolute;
-    top: 24px;
-    left: 28px;
-    margin: 0;
-}
-
-.portal-logo { /* logo on the upper left corner*/
-    height: 56px;
-    width: auto;
-    max-width: 160px;
-    object-fit: contain;
+/* Header logo — centred horizontally in the card, with breathing room below it
+   before the heading. The PNG has symmetric ~22% transparent side padding, so
+   centring the box also centres the visible mark. */
+.portal-logo {
     display: block;
+    width: 116px;
+    max-width: 42%;
+    height: auto;
+    object-fit: contain;
+    margin: 0 auto 12px; /* auto left/right = centred; 12px gap to "WELCOME BACK!" */
 }
 
 .form-wrapper {
     width: 100%;
     max-width: 360px;
-    padding-top: 16px;
 }
 
 /* Brand Header */
 .brand-header h2 {
     font-size: 24px;
     font-weight: 700;
-    color: #1e293b;
+    color: var(--text-strong); /* 17.3:1 on the warm card */
     margin-bottom: 6px;
-    padding-left: 30px;
 }
 
 .brand-header p {
     font-size: 14px;
-    color: #64748b;
-    margin-bottom: 24px;
+    color: var(--text-muted); /* 6.0:1 on the warm card */
+    margin-bottom: 20px;
 }
 
 /* Input Fields */
@@ -83,7 +104,7 @@ body {
     display: block;
     font-size: 13px;
     font-weight: 500;
-    color: #334155;
+    color: var(--text); /* 10.9:1 */
     margin-bottom: 6px;
 }
 
@@ -92,11 +113,18 @@ body {
     height: 42px;
     font-size: 14px;
     line-height: normal;
-    border: 1px solid #cbd5e1;
+    background: #ffffff; /* clean inset against the warm card */
+    color: var(--text-strong);
+    border: 1px solid var(--line);
     border-radius: 8px;
     outline: none;
     box-sizing: border-box;
     transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-group input::placeholder {
+    color: var(--text-muted); /* 6.2:1 on white — was the browser default grey */
+    opacity: 1;
 }
 
 .input-group input[type="email"] {
@@ -123,7 +151,7 @@ body {
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
-    color: #94a3b8;
+    color: var(--text-muted); /* was #94a3b8 (2.6:1) — now 6.2:1, visible UI control */
     font-size: 15px;
 }
 
@@ -140,7 +168,7 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
-    color: #475569;
+    color: var(--text); /* 10.9:1 on the card */
     cursor: pointer;
     user-select: none;
 }
@@ -187,10 +215,14 @@ body {
     display: none;
 }
 
-/* Right Media Pane with Video Background */
+/* Right Media Pane — static brand logo replaces the old "Waiting GIF.gif".
+   Warm ink gradient + a soft orange bloom sampled from the logo, so the
+   orange/gold mark reads at 7.4:1 against it. */
 .media-pane {
     flex: 1;
-    background: url('../img/Waiting GIF.gif') center/cover no-repeat;
+    background:
+        radial-gradient(circle at 50% 44%, rgba(247, 148, 30, 0.22), transparent 58%),
+        linear-gradient(165deg, var(--ink-700) 0%, var(--ink-800) 48%, var(--ink-900) 100%);
     position: relative;
     display: flex;
     align-items: flex-end;
@@ -198,23 +230,25 @@ body {
     overflow: hidden;
 }
 
-.media-video {
+.media-logo {
     position: absolute;
     top: 50%;
     left: 50%;
-    min-width: 100%;
-    min-height: 100%;
-    width: auto;
-    height: auto;
     transform: translate(-50%, -50%);
-    object-fit: cover;
-    z-index: 0;
+    width: min(56%, 240px);
+    height: auto;
+    max-height: 62%;
+    object-fit: contain;
+    z-index: 2; /* above the overlay so the logo stays crisp on the dark backdrop */
+    filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.35));
 }
 
 .media-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(30, 41, 59, 0.85));
+    /* Background is already dark — this is just a bottom vignette so the
+       caption stays readable over the logo glow. */
+    background: linear-gradient(180deg, rgba(12, 9, 6, 0) 45%, rgba(12, 9, 6, 0.82) 100%);
     z-index: 1;
 }
 
@@ -232,16 +266,16 @@ body {
 
 .media-content p {
     font-size: 14px;
-    color: #cbd5e1;
+    color: #e8e0d4; /* warm off-white — 10:1 on the pane, complements the logo tones */
     line-height: 1.5;
 }
 
 /* Demo Credentials */
 .demo-credentials {
-    margin-top: 24px;
-    padding: 16px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
     border-radius: 10px;
 }
 
@@ -250,14 +284,14 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.8px;
-    color: #94a3b8;
+    color: var(--text-muted); /* was #94a3b8 (2.4:1) — now 5.7:1 */
     margin-bottom: 10px;
 }
 
 .demo-grid {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 
 .demo-item {
@@ -285,7 +319,7 @@ body {
 
 .demo-role.clerk {
     background: #ecfdf5;
-    color: #059669;
+    color: #047857; /* was #059669 (3.6:1 at 9px) — now 5.2:1 */
 }
 
 .demo-role.client {
@@ -294,14 +328,14 @@ body {
 }
 
 .demo-email {
-    color: #475569;
+    color: var(--text); /* 10.5:1 on the demo panel */
     font-weight: 500;
     font-family: 'SF Mono', 'Consolas', monospace;
     font-size: 10px;
 }
 
 .demo-pass {
-    color: #94a3b8;
+    color: var(--text-muted); /* was #94a3b8 (2.4:1) — now 5.7:1 */
     font-family: 'SF Mono', 'Consolas', monospace;
     font-size: 10px;
 }
@@ -310,7 +344,6 @@ body {
 @media (max-width: 768px) {
     .login-container {
         flex-direction: column;
-        height: auto;
         max-width: 440px;
     }
 
@@ -319,6 +352,22 @@ body {
     }
 
     .form-pane {
-        padding: 70px 24px 32px;
+        /* 70px used to be reserved for the absolutely-positioned corner logo;
+           the logo now sits in the header flow, so normal padding is enough. */
+        padding: 40px 24px 32px;
+    }
+
+    .brand-header h2 {
+        font-size: 22px;
+    }
+}
+
+@media (max-width: 400px) {
+    .form-pane {
+        padding: 32px 20px 28px;
+    }
+
+    .portal-logo {
+        width: 104px;
     }
 }

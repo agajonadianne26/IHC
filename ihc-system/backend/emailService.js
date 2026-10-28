@@ -194,132 +194,85 @@ function buildReminderEmail(clientName, contractId, amountDue, dueDate, daysUnti
   const transaction = summary?.paymentTransaction || null;
   const isPostedPayment = Boolean(transaction);
   const numericDays = Number.isFinite(Number(daysUntil)) ? Number(daysUntil) : 0;
-  const urgency = isPostedPayment
-    ? `<p style="color:#047857;font-weight:700;font-size:16px;">The payment below was posted to the IHC ledger.</p>`
-    : numericDays < 0
-      ? (Math.abs(numericDays) >= 30
-        ? `<p style="color:#7f1d1d;font-weight:800;font-size:16px;">FINAL NOTICE — This payment is <strong>${Math.abs(numericDays)} day(s) overdue</strong>. Failure to settle may trigger account penalties.</p>`
-        : Math.abs(numericDays) >= 8
-          ? `<p style="color:#b45309;font-weight:700;font-size:16px;">SECOND NOTICE — This payment is now <strong>${Math.abs(numericDays)} day(s) overdue</strong>. Please settle at your earliest convenience.</p>`
-          : `<p style="color:#dc2626;font-weight:700;font-size:16px;">This payment is now <strong>${Math.abs(numericDays)} day(s) overdue</strong>.</p>`)
-      : `<p>Your upcoming payment is due in <strong>${numericDays} day(s)</strong>.</p>`;
-
   const safeClientName = escapeHtml(summary?.clientName || safeText(clientName));
   const safeCompanyName = escapeHtml(summary?.companyName || 'Imperial Homes Corporation');
   const displayContract = summary?.contractReference || safeText(contractId);
   const currentAmount = summary ? summary.currentPaymentDue : safeNumber(amountDue);
   const currentDueDate = summary?.nextDueDate || dueDate;
-  const showDownpaymentTerm = !summary || /downpayment/i.test(summary.nextPaymentType || '');
+  const monthlyPayment = summary ? summary.monthlyPayment : 0;
+  const projectReference = summary
+    ? [summary.projectName, summary.phase, summary.block ? `Block ${summary.block}` : '', summary.lot ? `Lot ${summary.lot}` : ''].filter(Boolean).join(' • ')
+    : '';
 
-  const row = (label, value, options = {}) => `
-    <tr${options.shaded ? ' style="background:#f8fafc;"' : ''}>
-      <td style="padding:9px 14px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;width:48%;">${escapeHtml(label)}</td>
-      <td style="padding:9px 14px;color:${options.color || '#1e293b'};font-weight:${options.bold ? 700 : 400};font-size:${options.fontSize || '14px'};text-align:right;border-bottom:1px solid #e2e8f0;">${escapeHtml(value)}</td>
+  // Clear, soft status indicators (tinted pills — no heavy color blocks).
+  const isOverdue = !isPostedPayment && numericDays < 0;
+  const status = isPostedPayment ? 'posted' : isOverdue ? 'overdue' : 'upcoming';
+  const statusPill = {
+    upcoming: { bg: '#fff7ed', text: '#b45309', border: '#fed7aa', label: numericDays > 0 ? `Due in ${numericDays} day(s)` : 'Due today' },
+    overdue: { bg: '#fef2f2', text: '#b91c1c', border: '#fecaca', label: `${Math.abs(numericDays)} day(s) overdue` },
+    posted: { bg: '#ecfdf5', text: '#047857', border: '#a7f3d0', label: 'Payment received' }
+  }[status];
+  const amountColor = isOverdue ? '#b91c1c' : '#0f172a';
+  const dueDateLabel = isOverdue ? 'Overdue since' : 'Due date';
+
+  // Simple two-column receipt row (posted-payment variant only).
+  const rrow = (label, value, shaded) => `
+    <tr${shaded ? ' style="background:#f8fafc;"' : ''}>
+      <td style="padding:10px 14px;color:#64748b;font-weight:600;border-bottom:1px solid #f1f5f9;width:52%;">${escapeHtml(label)}</td>
+      <td style="padding:10px 14px;color:#0f172a;font-weight:700;text-align:right;border-bottom:1px solid #f1f5f9;">${escapeHtml(value)}</td>
     </tr>`;
 
-  const legacyTable = `
-    <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-      ${row('Contract ID', displayContract, { shaded: true })}
-      ${row('Amount Due', formatCurrency(currentAmount), { color: '#dc2626', bold: true, fontSize: '16px' })}
-      ${row('Due Date', formatDate(currentDueDate), { shaded: true })}
-    </table>`;
+  // Focal point: the one payment the client needs to act on, in large type.
+  const focalAmount = isPostedPayment ? transaction.amountPaid : currentAmount;
+  const focalLabel = isPostedPayment ? 'Amount paid' : 'Current payment due';
+  const focalColor = isPostedPayment ? '#047857' : amountColor;
+  const heroCard = `
+    <div style="margin:0 0 18px;padding:26px 24px;border:1px solid #e2e8f0;border-radius:12px;background:#ffffff;text-align:center;">
+      <p style="margin:0;color:#64748b;font-size:12px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;">${escapeHtml(focalLabel)}</p>
+      <p style="margin:8px 0 0;color:${focalColor};font-size:40px;font-weight:800;line-height:1.05;">${escapeHtml(formatCurrency(focalAmount))}</p>
+      <p style="margin:18px 0 0;">
+        <span style="display:inline-block;padding:10px 20px;border-radius:10px;background:${statusPill.bg};color:${statusPill.text};border:1px solid ${statusPill.border};font-size:15px;font-weight:700;">${escapeHtml(isPostedPayment ? `Paid on ${formatDate(transaction.paymentDate)}` : `${dueDateLabel}: ${formatDate(currentDueDate)}`)}</span>
+      </p>
+      <p style="margin:12px 0 0;color:#64748b;font-size:13px;font-weight:600;">${escapeHtml(statusPill.label)}</p>
+      ${!isPostedPayment && monthlyPayment > 0 ? `
+      <p style="margin:20px 0 0;padding-top:16px;border-top:1px solid #eef2f7;color:#64748b;font-size:13px;font-weight:600;">Monthly payment
+        <strong style="color:#0f172a;font-size:17px;margin-left:6px;">${escapeHtml(formatCurrency(monthlyPayment))}</strong>
+      </p>` : ''}
+    </div>`;
 
-  const transactionTable = transaction ? `
-    <div style="margin:0 0 14px;padding:14px;border:1px solid #a7f3d0;border-radius:9px;background:#ecfdf5;">
-      <h3 style="color:#065f46;margin:0 0 9px;font-size:16px;">Posted Payment Transaction</h3>
-      <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #a7f3d0;border-radius:7px;overflow:hidden;">
-        ${row('Transaction reference', transaction.transactionReference || `PAY-${transaction.paymentId}`, { shaded: true })}
-        ${row('Payment type', transaction.installmentNumber != null ? `${transaction.paymentType} #${transaction.installmentNumber}` : transaction.paymentType, { bold: true })}
-        ${transaction.installmentNumber != null ? row('Installment no.', transaction.installmentNumber, { shaded: true }) : ''}
-        ${row(transaction.installmentNumber != null ? 'Installment Due Date' : 'Downpayment Due Date', formatDate(transaction.dueDate), { shaded: transaction.installmentNumber == null })}
-        ${row(transaction.installmentNumber != null ? 'Installment Amount Due' : 'Downpayment Amount Due', formatCurrency(transaction.amountDue), { bold: true })}
-        ${row(transaction.installmentNumber != null ? 'Installment Amount Paid' : 'Downpayment Amount Paid', formatCurrency(transaction.amountPaid), { color: '#047857', bold: true, fontSize: '16px', shaded: true })}
-        ${row('Payment date', formatDate(transaction.paymentDate), {})}
-        ${row('Payment method', transaction.paymentMethod, { shaded: true })}
-        ${row('OR / reference number', transaction.orNumber || transaction.invoiceNumber, { bold: true })}
-        ${row('Penalty', formatCurrency(transaction.penalty), { shaded: true })}
-        ${row('Interest', formatCurrency(transaction.interest), {})}
-        ${row('Principal', formatCurrency(transaction.principal), { shaded: true })}
-        ${row('Additional equity / advance', formatCurrency(transaction.additionalEquityAmount), {})}
-        ${row('Remaining balance', formatCurrency(transaction.remainingBalance), { bold: true, shaded: true })}
-        ${row('Updated account total due', formatCurrency(transaction.totalAmountDue), { bold: true })}
-        ${row('Payment status', transaction.paymentStatus, { bold: true, shaded: true })}
-        ${transaction.soaNumber ? row('Updated SOA', `${transaction.soaNumber}${transaction.soaAsOfDate ? ` • As of ${formatDate(transaction.soaAsOfDate)}` : ''}`, { shaded: true }) : ''}
-        ${transaction.checkNumber ? row('Check number', transaction.checkNumber) : ''}
-        ${transaction.externalReference ? row('Bank / wallet reference', transaction.externalReference, { shaded: true }) : ''}
-        ${transaction.postedByName ? row('Posted by', transaction.postedByName) : ''}
+  // Slim receipt for the posted-payment variant only — kept minimal on purpose.
+  const receipt = isPostedPayment ? `
+    <div style="margin:0 0 18px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+      <table style="width:100%;border-collapse:collapse;background:#ffffff;">
+        ${rrow('OR / Reference no.', transaction.orNumber || transaction.invoiceNumber || transaction.transactionReference || `PAY-${transaction.paymentId}`)}
+        ${transaction.paymentMethod ? rrow('Payment method', transaction.paymentMethod, true) : ''}
+        ${rrow('Remaining balance', formatCurrency(transaction.remainingBalance), !transaction.paymentMethod)}
       </table>
     </div>` : '';
 
-  let summaryTable = legacyTable;
-  if (summary) {
-    const otherCharges = summary.reservationOutstanding + summary.additionalCharges + summary.additionalEquityOutstanding;
-    const projectReference = [summary.projectName, summary.phase, summary.block ? `Block ${summary.block}` : '', summary.lot ? `Lot ${summary.lot}` : '']
-      .filter(Boolean)
-      .join(' • ');
-    summaryTable = `
-      <div style="margin:20px 0;padding:16px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;">
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px;">
-          <div>
-            <h3 style="color:#1e3a8a;margin:0;font-size:17px;">${isPostedPayment ? 'Updated SOA Summary' : 'Statement of Account Summary'}</h3>
-            <p style="color:#64748b;margin:4px 0 0;font-size:12px;">SOA ${escapeHtml(summary.soaNumber)}${summary.asOfDate ? ` • As of ${escapeHtml(formatDate(summary.asOfDate))}` : ''}${summary.validUntil ? ` • Valid until ${escapeHtml(formatDate(summary.validUntil))}` : ''}</p>
-          </div>
-          <span style="display:inline-block;padding:4px 8px;border-radius:999px;background:${summary.status === 'OVERDUE' ? '#fee2e2' : summary.status === 'SETTLED' ? '#d1fae5' : '#dbeafe'};color:${summary.status === 'OVERDUE' ? '#b91c1c' : summary.status === 'SETTLED' ? '#047857' : '#1d4ed8'};font-size:10px;font-weight:800;">${escapeHtml(summary.status || 'DUE')}</span>
-        </div>
-        ${projectReference ? `<p style="color:#475569;margin:0 0 10px;font-size:12px;"><strong>Project:</strong> ${escapeHtml(projectReference)}</p>` : ''}
-        ${transactionTable}
-        <table style="width:100%;border-collapse:collapse;background:#fff;border:1px solid #dbeafe;border-radius:8px;overflow:hidden;">
-          ${row('Total Contract Price', formatCurrency(summary.totalContractPrice), { shaded: true })}
-          ${row('Less: Discount', formatCurrency(summary.discount))}
-          ${row('Net Contract Price', formatCurrency(summary.netContractPrice), { shaded: true, bold: true })}
-          ${row('Equity', formatCurrency(summary.equity))}
-          ${isPostedPayment || !showDownpaymentTerm ? '' : row('Required Downpayment', formatCurrency(summary.requiredDownpayment), { shaded: true })}
-          ${row('Total Equity', formatCurrency(summary.totalEquity), { bold: true })}
-          ${row('Loanable Amount', formatCurrency(summary.loanableAmount), { shaded: true })}
-          ${row('Total Payments Made', formatCurrency(summary.totalPaymentsMade))}
-          ${row('Remaining Principal / Equity', formatCurrency(summary.remainingBalance), { shaded: true, bold: true })}
-          ${isPostedPayment ? '' : row('Current Payment', `${summary.nextPaymentType} — ${formatCurrency(summary.currentPaymentDue)}`)}
-          ${isPostedPayment ? '' : row('Current Payment Due Date', formatDate(summary.nextDueDate), { shaded: true })}
-          ${row('Interest', formatCurrency(summary.interest))}
-          ${row('Penalty', formatCurrency(summary.penalty), { shaded: true })}
-          ${row('Reservation / Other Charges', formatCurrency(otherCharges))}
-          ${row('Monthly Payment', formatCurrency(summary.monthlyPayment), { shaded: true })}
-          ${row('Applicable Interest Rate', `${Number(summary.annualInterestRate).toFixed(2)}% annual`)}
-          ${row('TOTAL AMOUNT DUE', formatCurrency(summary.totalAmountDue), { color: '#1d4ed8', bold: true, fontSize: '18px' })}
-        </table>
-        <p style="color:#475569;margin:12px 0 0;font-size:12px;line-height:1.5;">
-          ${isPostedPayment
-            ? 'The transaction above is the actual payment record selected from the IHC ledger. This email contains only the compact SOA summary; the complete detailed SOA and transaction history are available in your Client Dashboard.'
-            : 'This email contains only the summarized SOA. The complete detailed SOA, including the full installment schedule and transaction history, is available in your Client Dashboard.'}
-        </p>
-      </div>`;
-  }
-
   return `
-    <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-      <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:28px 32px;text-align:center;">
-        <h1 style="color:#fff;margin:0;font-size:22px;">${safeCompanyName}</h1>
-        <p style="color:#bfdbfe;margin:6px 0 0;font-size:13px;">Billing &amp; Accounts Receivable</p>
-        ${summary && summary.companyContact ? `<p style="color:#dbeafe;margin:3px 0 0;font-size:11px;">${escapeHtml(summary.companyContact)}</p>` : ''}
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:0 auto;background:#f4f6f9;border:1px solid #e5e9f0;border-radius:14px;overflow:hidden;">
+      <div style="background:#1f2a44;padding:26px 32px;text-align:center;border-bottom:4px solid #f7941e;">
+        <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:0.2px;">${safeCompanyName}</h1>
+        <p style="color:#c3ccdd;margin:6px 0 0;font-size:13px;">Billing &amp; Accounts Receivable</p>
+        ${summary && summary.companyContact ? `<p style="color:#94a1bd;margin:3px 0 0;font-size:11px;">${escapeHtml(summary.companyContact)}</p>` : ''}
       </div>
       <div style="padding:32px;">
-        <h2 style="color:#1e293b;margin:0 0 16px;font-size:20px;">${isPostedPayment ? 'Payment Posted' : 'Payment Reminder'}</h2>
-        <p style="color:#475569;margin:0 0 12px;">Dear <strong>${safeClientName}</strong>,</p>
-        <p style="color:#475569;margin:0 0 16px;">${isPostedPayment ? 'This notification confirms the payment transaction recorded by the IHC billing office.' : 'This is a friendly reminder regarding your account with ' + safeCompanyName + '.'}</p>
-        ${urgency}
-        ${summaryTable}
-        ${isPostedPayment
-          ? '<p style="color:#475569;margin:0 0 8px;">Please retain this notification for your records. The amount and payment type above reflect the posted ledger transaction.</p>'
-          : '<p style="color:#475569;margin:0 0 8px;">Please ensure your payment is made on or before the due date to avoid any late fees or penalties.</p>'}
-        ${isPostedPayment ? '' : '<p style="color:#475569;margin:0 0 24px;">If you have already made this payment, please disregard this notice. Thank you!</p>'}
-        <p style="text-align:center;margin:0 0 24px;">
-          <a href="${escapeHtml(getClientAccessUrl(recipientEmail))}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:6px;">Open Client Dashboard</a>
+        <h2 style="color:#1f2937;margin:0 0 16px;font-size:20px;">${isPostedPayment ? 'Payment Received' : 'Payment Reminder'}</h2>
+        <p style="color:#4b5563;margin:0 0 12px;">Dear <strong>${safeClientName}</strong>,</p>
+        <p style="color:#4b5563;margin:0 0 20px;">${isPostedPayment ? 'This confirms the payment recorded by the IHC billing office. Thank you!' : 'This is a friendly reminder regarding your account with ' + safeCompanyName + '.'}</p>
+        ${heroCard}
+        ${receipt}
+        ${projectReference ? `<p style="color:#6b7280;margin:0 0 20px;font-size:12px;"><strong>Project:</strong> ${escapeHtml(projectReference)}${displayContract ? ` &nbsp;•&nbsp; Contract ${escapeHtml(displayContract)}` : ''}</p>` : (displayContract ? `<p style="color:#6b7280;margin:0 0 20px;font-size:12px;">Contract ${escapeHtml(displayContract)}</p>` : '')}
+        <p style="text-align:center;margin:4px 0 8px;">
+          <a href="${escapeHtml(getClientAccessUrl(recipientEmail))}" style="display:inline-block;background:#f7941e;color:#1f2a44;text-decoration:none;font-weight:700;font-size:15px;padding:14px 30px;border-radius:8px;">View Statement &amp; Pay Online</a>
         </p>
-        ${isPostedPayment ? '' : `<p style="text-align:center;margin:0 0 24px;">
-          <a href="${escapeHtml(getAcknowledgementUrl(contractId, recipientEmail, installmentId))}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:6px;">Acknowledge Reminder</a>
+        <p style="text-align:center;margin:0 0 4px;font-size:12px;color:#9aa3b2;">Full statement, schedule &amp; history are in your client dashboard.</p>
+        ${isPostedPayment ? '' : `<p style="text-align:center;margin:18px 0 0;font-size:13px;">
+          <a href="${escapeHtml(getAcknowledgementUrl(contractId, recipientEmail, installmentId))}" style="color:#6b7280;text-decoration:underline;">I have already paid — acknowledge</a>
         </p>`}
-        <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 20px;">
-        <p style="color:#94a3b8;font-size:12px;margin:0;">This is a system-generated email from ${safeCompanyName}. For concerns, contact our Billing Department.</p>
+        <hr style="border:none;border-top:1px solid #e5e9f0;margin:24px 0 16px;">
+        <p style="color:#9aa3b2;font-size:12px;margin:0;text-align:center;">This is a system-generated email from ${safeCompanyName}. For concerns, contact our Billing Department.</p>
       </div>
     </div>
   `;
@@ -430,16 +383,16 @@ function buildPaymentReceiptEmail(
     ? (purpose || 'Scheduled Payment')
     : `${purpose || 'Installment'} #${installmentNumber}`;
   return `
-    <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#fbf5ed;border:1px solid #e7dccd;border-radius:12px;overflow:hidden;">
       <div style="background:linear-gradient(135deg,#065f46,#059669);padding:28px 32px;text-align:center;">
         <h1 style="color:#fff;margin:0;font-size:22px;">Imperial Homes Corporation</h1>
         <p style="color:#d1fae5;margin:6px 0 0;font-size:13px;">Official Payment Receipt</p>
       </div>
-      <div style="padding:32px;color:#475569;">
-        <h2 style="color:#1e293b;margin:0 0 16px;font-size:20px;">Payment received</h2>
+      <div style="padding:32px;color:#443a2f;">
+        <h2 style="color:#1e1710;margin:0 0 16px;font-size:20px;">Payment received</h2>
         <p>Dear <strong>${escapeHtml(clientName)}</strong>,</p>
         <p>Thank you. We have recorded your payment and updated the contract ledger. This email serves as your payment receipt; the current SOA summary is available in your Client Dashboard.</p>
-        <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fff;border:1px solid #e2e8f0;">
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#fff;border:1px solid #e7dccd;">
           <tr><td style="padding:10px 16px;font-weight:600;">Contract ID</td><td style="padding:10px 16px;">${escapeHtml(contractId)}</td></tr>
           <tr><td style="padding:10px 16px;font-weight:600;">Payment type</td><td style="padding:10px 16px;">${escapeHtml(typeLabel)}</td></tr>
           ${installmentNumber != null && installmentNumber !== '' ? `<tr><td style="padding:10px 16px;font-weight:600;">Installment no.</td><td style="padding:10px 16px;">${escapeHtml(installmentNumber)}</td></tr>` : ''}
@@ -463,7 +416,7 @@ function buildPaymentReceiptEmail(
         </table>
         <p style="margin-bottom:24px;">Receipt reference: <strong>PAY-${escapeHtml(paymentId)}</strong></p>
         <p style="text-align:center;"><a href="${escapeHtml(getClientAccessUrl(recipientEmail))}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:6px;">Open Client Dashboard / SOA Summary</a></p>
-        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0 16px;">
+        <hr style="border:none;border-top:1px solid #e7dccd;margin:24px 0 16px;">
         <p style="color:#94a3b8;font-size:12px;margin:0;">This is a system-generated receipt from Imperial Homes Corporation.</p>
       </div>
     </div>`;
