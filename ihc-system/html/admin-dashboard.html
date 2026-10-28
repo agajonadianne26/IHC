@@ -1409,30 +1409,6 @@
       .soa-info-grid { grid-template-columns: 1fr; }
     }
 
-    /* ==========================================
-       PRINT STYLES
-    ========================================== */
-    @media print {
-      body * { visibility: hidden !important; }
-      .soa-document, .soa-document * { visibility: visible !important; }
-      .soa-document {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        max-height: none;
-        overflow: visible;
-        padding: 24px 32px;
-      }
-      .soa-toolbar, .modal-overlay { background: none !important; backdrop-filter: none !important; }
-      .modal-overlay { position: absolute; }
-      .soa-modal {
-        box-shadow: none !important;
-        border-radius: 0 !important;
-        max-width: 100% !important;
-      }
-      @page { margin: 15mm; }
-    }
   </style>
   <link rel="stylesheet" href="../css/soa.css?v=1">
 </head>
@@ -2599,8 +2575,8 @@
             <td class="clerk-cell">${row.clerk}</td>
             <td>
               <div class="action-btns">
-                <button class="btn-print" onclick="printSOA(${globalIdx})" title="Print Statement of Account">
-                  Print SOA
+                <button class="btn-print" onclick="printSOA(${globalIdx})" title="View Statement of Account">
+                  View SOA
                 </button>
                 <button class="btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${globalIdx})" title="Send/Resend Payment Reminder">
                   Remind
