@@ -434,5 +434,125 @@
     }
   }
 
-  window.IHCSoa = { open, render };
+  function print() {
+    const soaDocument = document.querySelector('#soaDocument .ihc-soa-document');
+    if (!soaDocument) return;
+
+    const link = document.querySelector('link[href*="soa.css"]');
+    const cssTag = link ? `<link rel="stylesheet" href="${link.href}">` : '';
+    if (!link) console.warn('soa.css link not found; check the selector');
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      left: '-10000px',
+      top: '0',
+      width: '794px',
+      height: '1123px',
+      border: '0'
+    });
+    let printStarted = false;
+    const startPrint = () => {
+      if (printStarted) return;
+      printStarted = true;
+
+      const printWindow = iframe.contentWindow;
+      if (!printWindow) {
+        iframe.remove();
+        console.error('Could not open the SOA print window.');
+        return;
+      }
+
+      printWindow.focus();
+      try {
+        printWindow.print();
+      } catch (error) {
+        iframe.remove();
+        console.error('Could not print the Statement of Account.', error);
+        return;
+      }
+      window.setTimeout(() => iframe.remove(), 1000);
+    };
+    document.body.appendChild(iframe);
+
+    const printDocument = iframe.contentDocument;
+    if (!printDocument) {
+      iframe.remove();
+      throw new Error('Could not create the SOA print document.');
+    }
+
+    printDocument.open();
+    printDocument.write(`<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          ${cssTag}
+          <style>
+            @page { size: A4 portrait; margin: 0.4in 0; }
+            html, body { margin: 0; padding: 0; background: #fff; }
+            *, *::before, *::after { box-sizing: border-box; }
+            body * { visibility: visible !important; }
+            body > *:not(:has(#soaModal)) { display: block !important; }
+            .ihc-soa-document {
+              box-sizing: border-box;
+              max-width: none;
+              width: 100%;
+              margin: 0;
+              padding: 8mm;
+              box-shadow: none;
+              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact;
+            }
+            .ihc-soa-meta-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .ihc-soa-columns { grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); }
+            .ihc-soa-summary-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+            .ihc-soa-header { grid-template-columns: minmax(0, 1fr) auto; }
+            .ihc-soa-title { min-width: 0; }
+            .ihc-soa-table { table-layout: fixed; width: 100%; }
+            .ihc-soa-table-wrap { overflow: visible; }
+            .ihc-soa-table th,
+            .ihc-soa-table td { white-space: normal; overflow-wrap: anywhere; }
+            .ihc-soa-table .money { white-space: normal; }
+            .ihc-soa-table thead { display: table-header-group; }
+            .ihc-soa-table tr,
+            .ihc-soa-panel,
+            .ihc-soa-due,
+            .ihc-soa-notes,
+            .ihc-soa-signatures { break-inside: avoid; }
+            .ihc-soa-section-heading { break-after: avoid; }
+            .ihc-soa-table { min-width: 0 !important; }
+            .ihc-soa-table-wrap { width: 100% !important; max-width: 100% !important; overflow: hidden !important; }
+            .ihc-soa-table { width: 100% !important; max-width: 100% !important; min-width: 0 !important; table-layout: fixed !important; }
+            .ihc-soa-table th,
+            .ihc-soa-table td { min-width: 0 !important; padding-left: 2px !important; padding-right: 2px !important; overflow-wrap: anywhere !important; word-break: break-word; }
+          </style>
+        </head>
+        <body>${soaDocument.outerHTML}</body>
+      </html>`);
+    printDocument.close();
+
+    const stylesheetLink = printDocument.querySelector('link[rel="stylesheet"]');
+    const resourcesReady = [
+      ...(stylesheetLink && !stylesheetLink.sheet ? [
+        new Promise((resolve) => {
+          stylesheetLink.addEventListener('load', resolve, { once: true });
+          stylesheetLink.addEventListener('error', resolve, { once: true });
+        })
+      ] : []),
+      ...Array.from(printDocument.images)
+        .filter((image) => !image.complete)
+        .map((image) => new Promise((resolve) => {
+          image.addEventListener('load', resolve, { once: true });
+          image.addEventListener('error', resolve, { once: true });
+        }))
+    ];
+
+    Promise.race([
+      Promise.all(resourcesReady),
+      new Promise((resolve) => window.setTimeout(resolve, 2000))
+    ]).then(startPrint);
+  }
+
+  window.IHCSoa = { open, render, print };
 })();

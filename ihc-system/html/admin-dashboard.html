@@ -2280,7 +2280,7 @@
   <!-- ============================================
        JAVASCRIPT
   ============================================= -->
-  <script src="../js/soa.js?v=1"></script>
+  <script src="../js/soa.js?v=2"></script>
   <script>
   'use strict';
 
@@ -2575,8 +2575,8 @@
             <td class="clerk-cell">${row.clerk}</td>
             <td>
               <div class="action-btns">
-                <button class="btn-print" onclick="printSOA(${globalIdx})" title="View Statement of Account">
-                  View SOA
+                <button class="btn-print" onclick="printSOA(${globalIdx})" title="Print Statement of Account">
+                  Print SOA
                 </button>
                 <button class="btn-remind ${row.status === 'paid' ? 'btn-disabled' : ''}" onclick="sendReminder(${globalIdx})" title="Send/Resend Payment Reminder">
                   Remind
@@ -2753,7 +2753,7 @@
     });
 
     document.getElementById('doPrintSoa').addEventListener('click', () => {
-      window.print();
+      window.IHCSoa.print();
     });
 
     soaModal.addEventListener('click', (e) => {
