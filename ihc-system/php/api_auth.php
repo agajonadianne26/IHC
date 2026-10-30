@@ -79,7 +79,10 @@ try {
     if ($staff && $staff['password_hash'] !== null && $staff['password_hash'] !== ''
         && password_verify($password, $staff['password_hash'])) {
         $role = strtolower(trim((string)$staff['role']));
-        if ($role !== 'admin') $role = 'clerk'; // officers.role is 'clerk'|'admin'
+        // officers.role is 'admin' | 'clerk' | 'inventory_admin'. Preserve the
+        // inventory_admin role (Property Inventory manager, e.g. Ms. Rea) so it
+        // survives login; collapse anything unrecognized to clerk.
+        if (!in_array($role, ['admin', 'clerk', 'inventory_admin'], true)) $role = 'clerk';
         $name = (string)$staff['full_name'];
         $user = [
             'role' => $role,

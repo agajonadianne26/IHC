@@ -1138,20 +1138,34 @@
       font-size: 12px;
       font-weight: 600;
       box-shadow: var(--shadow-lg);
-      animation: slideIn 0.3s ease, fadeOut 0.3s ease 3s forwards;
+      /* Persistent toast: entrance animation only — NO fadeOut/auto-dismiss.
+         The toast stays visible until the user clicks the × Dismiss button. */
+      animation: slideIn 0.3s ease;
       max-width: 400px;
     }
 
     .toast i { flex-shrink: 0; }
 
+    .toast-close {
+      flex-shrink: 0;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .toast-close:hover { background: rgba(255,255,255,0.18); }
+    .toast-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
     @keyframes slideIn {
       from { opacity: 0; transform: translateX(40px); }
       to { opacity: 1; transform: translateX(0); }
-    }
-
-    @keyframes fadeOut {
-      from { opacity: 1; transform: translateX(0); }
-      to { opacity: 0; transform: translateX(40px); }
     }
 
     /* ==========================================
@@ -1410,7 +1424,7 @@
     }
 
   </style>
-  <link rel="stylesheet" href="../css/soa.css?v=1">
+  <link rel="stylesheet" href="../css/soa.css?v=2">
 </head>
 <body>
 
@@ -1829,12 +1843,13 @@
           <div class="subhead">
             <div>
               <h2>Property Inventory</h2>
-              <p>Master list of every property. Clerks see these as suggestions when they type a property address on the New Contract form.</p>
+              <p>Master list of every property. Clerks see these as suggestions when they type a property address on the New Contract form. <span id="invRoleNote" style="color:var(--text-muted);"></span></p>
             </div>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <input id="invSearch" type="text" placeholder="Search address, project, phase, block, lot"
                      style="height:38px; min-width:260px; border:1px solid var(--border); border-radius:6px; padding:0 12px; font-family:inherit; font-size:12px;">
-              <button class="btn-primary" id="invAddBtn" type="button">
+              <!-- RBAC: revealed by JS only for inventory_admin (admin = view-only) -->
+              <button class="btn-primary" id="invAddBtn" type="button" hidden>
                 <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Property
               </button>
             </div>
@@ -2154,12 +2169,12 @@
   </div>
 
   <!-- TOAST CONTAINER -->
-  <div class="toast-container" id="toastContainer"></div>
+  <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
   <!-- PRINT SOA MODAL -->
   <div class="modal-overlay" id="soaModal">
     <div class="soa-modal">
-      <div class="soa-toolbar">
+      <div class="soa-toolbar no-print">
         <button class="btn-close-modal" id="closeSoaModal">Close</button>
         <button class="btn-do-print" id="doPrintSoa">Print SOA</button>
       </div>
@@ -2203,12 +2218,13 @@
     </div>
   </div>
 
-  <!-- PROPERTY INVENTORY MODAL -->
+  <!-- PROPERTY INVENTORY MODAL — dual mode: read-only "View" for every role;
+       editable Add/Edit form revealed by JS only for inventory_admin. -->
   <div class="modal-overlay" id="invModal">
     <div class="inv-modal">
       <div class="inv-modal-head">
         <div>
-          <h3 id="invModalTitle">Add Property</h3>
+          <h3 id="invModalTitle">Property Details</h3>
           <p>Phase, block and lot here power the New Contract autofill.</p>
         </div>
         <button class="inv-modal-close" id="invModalClose" type="button" aria-label="Close">&times;</button>
@@ -2216,48 +2232,50 @@
       <div class="inv-modal-body">
         <div class="inv-form-grid">
           <div class="inv-form-group full">
-            <label for="invLabel">Property Address <span style="color:#dc2626;">*</span></label>
-            <input type="text" id="invLabel" placeholder="e.g., Block 1 Lot 2, Sample Subdivision, City" autocomplete="off">
-            <small class="inv-hint">Must be unique. This exact text is what clerks see in the New Contract suggestions.</small>
+            <label for="invLabel">Property Address <span id="invLabelReq" style="color:#dc2626;" hidden>*</span></label>
+            <input type="text" id="invLabel" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
+            <small class="inv-hint" id="invLabelHint">Read-only record.</small>
           </div>
           <div class="inv-form-group">
             <label for="invProject">Project Name</label>
-            <input type="text" id="invProject" placeholder="e.g., Sample Subdivision" autocomplete="off">
+            <input type="text" id="invProject" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
           </div>
           <div class="inv-form-group">
             <label for="invPhase">Phase</label>
-            <input type="text" id="invPhase" placeholder="e.g., Phase 1" autocomplete="off">
+            <input type="text" id="invPhase" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
           </div>
           <div class="inv-form-group">
             <label for="invBlock">Block</label>
-            <input type="text" id="invBlock" placeholder="e.g., Block 1" autocomplete="off">
+            <input type="text" id="invBlock" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
           </div>
           <div class="inv-form-group">
             <label for="invLot">Lot</label>
-            <input type="text" id="invLot" placeholder="e.g., Lot 2" autocomplete="off">
+            <input type="text" id="invLot" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
           </div>
           <div class="inv-form-group">
             <label for="invModel">Model Type</label>
-            <input type="text" id="invModel" placeholder="e.g., 2-storey" autocomplete="off">
+            <input type="text" id="invModel" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
           </div>
           <div class="inv-form-group">
             <label for="invLotArea">Lot Area</label>
-            <input type="text" id="invLotArea" placeholder="e.g., 150 sqm" autocomplete="off">
+            <input type="text" id="invLotArea" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
           </div>
           <div class="inv-form-group full">
             <label for="invFloorArea">Floor Area</label>
-            <input type="text" id="invFloorArea" placeholder="e.g., 120 sqm" autocomplete="off">
+            <input type="text" id="invFloorArea" readonly style="background:#f6f7f9; cursor:default;" autocomplete="off">
           </div>
         </div>
         <div class="inv-hint" id="invFormStatus" style="margin-top:12px;"></div>
       </div>
       <div class="inv-modal-foot">
-        <button class="btn-cancel-inv" id="invCancelBtn" type="button">Cancel</button>
-        <button class="btn-save-inv" id="invSaveBtn" type="button">Save Property</button>
+        <button class="btn-cancel-inv" id="invCancelBtn" type="button">Close</button>
+        <!-- RBAC: revealed by JS only for inventory_admin -->
+        <button class="btn-save-inv" id="invSaveBtn" type="button" hidden>Save Property</button>
       </div>
     </div>
   </div>
 
+  <!-- Inventory change confirmation (delete / mark SOLD) — inventory_admin only -->
   <div class="modal-overlay" id="invConfirmModal" role="presentation">
     <div class="inv-modal" style="max-width:440px;" role="dialog" aria-modal="true" aria-labelledby="invConfirmTitle" aria-describedby="invConfirmMessage">
       <div class="inv-modal-head">
@@ -2287,7 +2305,8 @@
   document.addEventListener('DOMContentLoaded', () => {
 
     /* ==========================================
-       SESSION GUARD — Admin only
+       SESSION GUARD — Admin console staff only
+       (admin + inventory_admin, e.g. Ms. Rea who manages Property Inventory)
     ========================================== */
     const stored = localStorage.getItem('IHC_USER');
     if (!stored) {
@@ -2305,12 +2324,23 @@
       return;
     }
 
-    if (currentUser.role !== 'admin') {
+    const isAdmin = currentUser.role === 'admin';
+    if (!isAdmin && currentUser.role !== 'inventory_admin') {
       window.location.href = currentUser.role === 'clerk'
         ? 'clerk-dashboard.html'
         : '../log in.html';
       return;
     }
+
+    /* Role scope — inventory_admin (Property Inventory manager) sees ONLY the
+       Property Inventory module. Financial dashboards, contracts, posting,
+       clerks & clients, notifications, reports, audit logs, password requests
+       and settings are hidden and unreachable for her (see applyRoleScope()
+       at the end of init). The server enforces the same boundary on the
+       create/edit/delete/status-change endpoints regardless of what the UI
+       shows. */
+    const ROLE_SCOPE_PAGES = isAdmin ? null : ['properties']; // null = all pages
+    const canAccessPage = (page) => ROLE_SCOPE_PAGES === null || ROLE_SCOPE_PAGES.includes(page);
 
     // Populate user data into sidebar & header
     const userInitials = currentUser.avatar || currentUser.name.split(' ').map(n => n[0]).join('');
@@ -2627,25 +2657,36 @@
       });
     });
 
-    // Initial render (empty until loadAdminData fills contracts), then load
+    // Initial render (empty until loadAdminData fills contracts), then load.
+    // inventory_admin skips the financial overview (out of her scope).
     renderTable(contracts);
     updateCounts();
-    loadAdminData();
+    if (isAdmin) loadAdminData();
 
     /* ==========================================
-       REMINDER TOAST
+       REMINDER TOAST — PERSISTENT
+       No auto-dismiss timer and no fade-out: the
+       toast stays on screen until the user clicks
+       its × / Dismiss button (aria-labelled, keyboard
+       focusable). Announced politely via the
+       container's role="status" + aria-live.
     ========================================== */
     function showToast(message, type) {
       const container = document.getElementById('toastContainer');
       const toast = document.createElement('div');
       toast.className = 'toast';
       if (type === 'info') toast.style.background = '#1e40af';
-      toast.innerHTML = `<i data-lucide="${type === 'info' ? 'info' : 'check-circle'}" style="width:18px;height:18px;"></i> ${message}`;
+      toast.innerHTML = `<i data-lucide="${type === 'info' ? 'info' : 'check-circle'}" style="width:18px;height:18px;"></i> <span>${message}</span>`;
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'toast-close';
+      closeBtn.setAttribute('aria-label', 'Dismiss notification');
+      closeBtn.title = 'Dismiss';
+      closeBtn.innerHTML = '&times;';
+      closeBtn.addEventListener('click', () => toast.remove());
+      toast.appendChild(closeBtn);
       container.appendChild(toast);
       lucide.createIcons();
-      setTimeout(() => {
-        if (toast.parentNode) toast.remove();
-      }, 3500);
     }
 
     // Mirrors the clerk flow: build the compact SOA summary from the server
@@ -2777,6 +2818,10 @@
     };
 
     function showView(name) {
+      // Role scope: inventory_admin may only open Property Inventory. Any
+      // out-of-scope page (deep link, stale handler, etc.) is redirected.
+      if (!canAccessPage(name)) name = 'properties';
+
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       const target = document.querySelector('.view[data-view="' + name + '"]');
       if (target) target.classList.add('active');
@@ -3922,15 +3967,25 @@
        PROPERTY INVENTORY — master list backing
        the clerk New Contract address <-> phase /
        block / lot autofill.
+       GRANULAR RBAC:
+         admin           -> view-only (list, filters, search, shared
+                            read-only "View" details modal). All write
+                            controls stay hidden.
+         inventory_admin -> full CRUD (Add Property, Edit, Delete,
+                            Mark SOLD) plus the same View action.
+       The server enforces the same matrix: create_unit / update_unit /
+       delete_unit accept inventory_admin only and 403 everyone else.
     ========================================== */
+    const canManageInventory = currentUser.role === 'inventory_admin';
     const invBody = document.getElementById('invBody');
     const invCountsBox = document.getElementById('invCounts');
     const invSearch = document.getElementById('invSearch');
     const invModal = document.getElementById('invModal');
-    const invConfirmModal = document.getElementById('invConfirmModal');
-    const invConfirmSubmit = document.getElementById('invConfirmSubmit');
+    const invAddBtn = document.getElementById('invAddBtn');
     const invSaveBtn = document.getElementById('invSaveBtn');
     const invFormStatus = document.getElementById('invFormStatus');
+    const invConfirmModal = document.getElementById('invConfirmModal');
+    const invConfirmSubmit = document.getElementById('invConfirmSubmit');
     const invFields = {
       displayLabel: document.getElementById('invLabel'),
       project:     document.getElementById('invProject'),
@@ -3956,6 +4011,18 @@
       if (status === 'ON HOLD' || status === 'RESERVED') return 'warn';
       return 'danger';
     }
+
+    // RBAC view layer — reveal write controls only for inventory_admin.
+    // (They ship hidden in the markup so an admin session can never see them.)
+    (function applyInventoryRoleUI() {
+      const note = document.getElementById('invRoleNote');
+      if (canManageInventory) {
+        if (invAddBtn) invAddBtn.hidden = false;
+        if (note) note.textContent = 'You can add, edit and delete property records.';
+      } else if (note) {
+        note.textContent = 'You have view-only access \u2014 records are managed by the Property Inventory administrator.';
+      }
+    })();
 
     async function loadPropertyUnits() {
       if (!invBody) return;
@@ -3999,8 +4066,8 @@
       if (!invRows.length) {
         invBody.innerHTML = '<tr><td colspan="8">' +
           '<div class="empty-state"><i data-lucide="building-2"></i>' +
-          '<strong>No properties yet</strong>' +
-          '<small>Add one so clerks get Phase / Block / Lot filled in automatically.</small></div></td></tr>';
+          '<strong>No properties found</strong>' +
+          '<small>Properties appear here once enrolled in the inventory by the system administrator.</small></div></td></tr>';
         lucide.createIcons();
         return;
       }
@@ -4021,11 +4088,16 @@
           '<td>' + (modelBits || '<span class="inv-muted">&mdash;</span>') + '</td>' +
           '<td><span class="row-status ' + invStatusClass(u.status) + '"><span class="dot"></span>' + invEsc(u.status) + '</span></td>' +
           '<td><div class="action-btns inv-actions">' +
-            '<button class="inv-link" onclick="window.editPropertyUnit(' + Number(u.id) + ')">Edit</button>' +
-            (u.status !== 'SOLD'
-              ? '<button class="inv-link" onclick="window.markPropertySold(' + Number(u.id) + ')">Mark SOLD</button>'
+            // Shared read-only View — every role.
+            '<button class="inv-link" onclick="window.viewPropertyUnit(' + Number(u.id) + ')">View</button>' +
+            // Write controls — inventory_admin only (server rejects others).
+            (canManageInventory
+              ? '<button class="inv-link" onclick="window.editPropertyUnit(' + Number(u.id) + ')">Edit</button>' +
+                (u.status !== 'SOLD'
+                  ? '<button class="inv-link" onclick="window.markPropertySold(' + Number(u.id) + ')">Mark SOLD</button>'
+                  : '') +
+                '<button class="inv-link danger" onclick="window.deletePropertyUnit(' + Number(u.id) + ')">Delete</button>'
               : '') +
-            '<button class="inv-link danger" onclick="window.deletePropertyUnit(' + Number(u.id) + ')">Delete</button>' +
           '</div></td>' +
         '</tr>';
       }).join('');
@@ -4033,17 +4105,32 @@
       lucide.createIcons();
     }
 
-    function resetInvForm() {
-      Object.values(invFields).forEach((el) => { el.value = ''; });
-      invFormStatus.textContent = '';
-      invFormStatus.style.color = '';
-    }
-
-    function openInvModal(unit) {
-      invEditId = unit ? Number(unit.id) : null;
-      document.getElementById('invModalTitle').textContent = unit ? 'Edit Property' : 'Add Property';
-      invSaveBtn.textContent = unit ? 'Save Changes' : 'Save Property';
-      resetInvForm();
+    /* Modal — dual mode:
+       editable=true  -> Add/Edit form (inventory_admin only; the flag is
+                         ANDed with canManageInventory so no code path can
+                         open an editable form for a plain admin session)
+       editable=false -> shared read-only details view (every role) */
+    function openInvModal(unit, editable) {
+      const canEdit = Boolean(editable && canManageInventory);
+      invEditId = canEdit && unit ? Number(unit.id) : null;
+      Object.values(invFields).forEach((el) => {
+        el.readOnly = !canEdit;
+        el.style.background = canEdit ? '' : '#f6f7f9';
+        el.style.cursor = canEdit ? '' : 'default';
+        el.value = '';
+      });
+      document.getElementById('invModalTitle').textContent = canEdit
+        ? (unit ? 'Edit Property' : 'Add Property')
+        : 'Property Details';
+      document.getElementById('invLabelReq').hidden = !canEdit;
+      document.getElementById('invLabelHint').textContent = canEdit
+        ? 'Must be unique. This exact text is what clerks see in the New Contract suggestions.'
+        : 'Read-only record \u2014 contact the Property Inventory administrator to request changes.';
+      if (invFormStatus) { invFormStatus.textContent = ''; invFormStatus.style.color = ''; }
+      if (invSaveBtn) {
+        invSaveBtn.hidden = !canEdit;
+        invSaveBtn.textContent = unit ? 'Save Changes' : 'Save Property';
+      }
       if (unit) {
         invFields.displayLabel.value = unit.displayLabel || '';
         invFields.project.value     = unit.project || '';
@@ -4055,14 +4142,22 @@
         invFields.floorArea.value   = unit.floorArea || '';
       }
       invModal.classList.add('visible');
-      invFields.displayLabel.focus();
+      if (canEdit) invFields.displayLabel.focus();
     }
 
     function closeInvModal() {
       invModal.classList.remove('visible');
       invEditId = null;
+      Object.values(invFields).forEach((el) => { el.value = ''; });
     }
 
+    // Shared read-only View action — available to every role.
+    window.viewPropertyUnit = (id) => {
+      const unit = invRows.find((u) => Number(u.id) === Number(id));
+      if (unit) openInvModal(unit, false);
+    };
+
+    // ---- Confirmation dialog (delete / mark SOLD — inventory_admin only) ----
     function closeInvConfirmation(confirmed) {
       if (!resolveInvConfirmation) return;
       const resolve = resolveInvConfirmation;
@@ -4095,12 +4190,16 @@
       if (e.key === 'Escape' && invConfirmModal.classList.contains('visible')) closeInvConfirmation(false);
     });
 
+    // ---- inventory_admin-only write actions. Each is double-guarded in JS and
+    //      the server re-checks the role on every mutation (403 otherwise). ----
     window.editPropertyUnit = (id) => {
+      if (!canManageInventory) return;
       const unit = invRows.find((u) => Number(u.id) === Number(id));
-      if (unit) openInvModal(unit);
+      if (unit) openInvModal(unit, true);
     };
 
     window.markPropertySold = async (id) => {
+      if (!canManageInventory) return;
       const unit = invRows.find((u) => Number(u.id) === Number(id));
       if (!unit) return;
       const confirmed = await confirmInventoryAction({
@@ -4131,6 +4230,7 @@
     };
 
     window.deletePropertyUnit = async (id) => {
+      if (!canManageInventory) return;
       const unit = invRows.find((u) => Number(u.id) === Number(id));
       if (!unit) return;
       const confirmed = await confirmInventoryAction({
@@ -4159,7 +4259,10 @@
       }
     };
 
-    document.getElementById('invAddBtn')?.addEventListener('click', () => openInvModal(null));
+    invAddBtn?.addEventListener('click', () => {
+      if (!canManageInventory) return;   // RBAC: admin sessions never add
+      openInvModal(null, true);
+    });
     document.getElementById('invModalClose')?.addEventListener('click', closeInvModal);
     document.getElementById('invCancelBtn')?.addEventListener('click', closeInvModal);
     invModal?.addEventListener('click', (e) => { if (e.target === invModal) closeInvModal(); });
@@ -4170,6 +4273,7 @@
     });
 
     invSaveBtn?.addEventListener('click', async () => {
+      if (!canManageInventory) return;   // RBAC: admin sessions never save
       const displayLabel = invFields.displayLabel.value.trim();
       if (!displayLabel) {
         invFormStatus.textContent = 'Property address is required.';
@@ -4288,7 +4392,7 @@
       try{
         const res=await fetch(API_BASE+'/php/api_holding_reservation.php?action=unit_status_update', {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ action:'unit_status_update', unitId: unit.id, status:'SOLD', unitLabel: unit.display_label, reason:'Marked SOLD from admin panel' })
+          body: JSON.stringify({ action:'unit_status_update', unitId: unit.id, status:'SOLD', unitLabel: unit.display_label, reason:'Marked SOLD from admin panel', actorId: currentUser.officerId || '', actorName: currentUser.name || currentUser.email || '' })
         });
         const d=await res.json();
         if(!d.success) throw new Error(d.message||'Failed');
@@ -4470,8 +4574,56 @@ const closeTempPw = () => {
 });
   document.getElementById('pwRefreshBtn')?.addEventListener('click', () => loadPasswordRequests());
 
-loadPasswordRequests(true);                           // badge + toast on dashboard load
-setInterval(() => loadPasswordRequests(true), 60000); // keep the badge fresh
+    // Password Requests badge polling — admin only (system user management is
+    // out of scope for inventory_admin, whose sidebar link to it is hidden).
+    if (isAdmin) {
+      loadPasswordRequests(true);                           // badge + toast on dashboard load
+      setInterval(() => loadPasswordRequests(true), 60000); // keep the badge fresh
+    }
+
+    /* ==========================================
+       ROLE SCOPE — applied last, once every view & handler is wired
+       inventory_admin (Property Inventory manager, e.g. Ms. Rea) is limited
+       to the Property Inventory module. Out-of-scope sidebar entries (system
+       user management, financial dashboards, posting, auditing, settings)
+       are hidden and their now-empty section labels removed; she lands on
+       the Property Inventory view. The server enforces the same boundary on
+       the create/edit/delete/status-change endpoints regardless of what the
+       UI shows.
+    ========================================== */
+    function applyRoleScope() {
+      if (isAdmin) return; // full admin sees everything
+
+      // 1) Hide every out-of-scope sidebar link.
+      document.querySelectorAll('.sidebar-link').forEach(link => {
+        if (!canAccessPage(link.dataset.page || '')) link.style.display = 'none';
+      });
+
+      // 2) Hide any section label ("Main", "Management", "System") whose links
+      //    are now all hidden, so no orphan headings remain.
+      document.querySelectorAll('.sidebar-section-label').forEach(label => {
+        let sibling = label.nextElementSibling, hasVisible = false;
+        while (sibling && !sibling.classList.contains('sidebar-section-label')) {
+          if (sibling.classList.contains('sidebar-link') && sibling.style.display !== 'none') {
+            hasVisible = true; break;
+          }
+          sibling = sibling.nextElementSibling;
+        }
+        if (!hasVisible) label.style.display = 'none';
+      });
+
+      // 3) Reflect her role in the sidebar footer.
+      const roleLabel = document.querySelector('.sidebar-admin-info small');
+      if (roleLabel) roleLabel.textContent = 'Inventory Administrator';
+
+      // 4) Hide the password-request badge if it somehow rendered.
+      const pwBadge = document.getElementById('pwBadge');
+      if (pwBadge) pwBadge.style.display = 'none';
+
+      // 5) Land on the only view she may use.
+      showView('properties');
+    }
+    applyRoleScope();
 
     /* ==========================================
        LUCIDE ICONS INIT

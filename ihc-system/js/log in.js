@@ -171,6 +171,12 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'admin':
         window.location.href = 'html/admin-dashboard.html';
         break;
+      case 'inventory_admin':
+        // Property Inventory management lives under the admin section. The
+        // admin dashboard scopes the UI down to the Property Inventory view
+        // for this role (see applyRoleScope in admin-dashboard.html).
+        window.location.href = 'html/admin-dashboard.html';
+        break;
       case 'clerk':
         window.location.href = 'html/clerk-dashboard.html';
         break;
