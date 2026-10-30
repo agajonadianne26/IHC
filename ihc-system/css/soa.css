@@ -458,27 +458,63 @@
 }
 
 @media print {
-  @page { size: A4 landscape; margin: 0; }
+  /* Strict single-page budget: the @page margin supplies the gutters,
+     so the document itself carries NO extra padding (no double margins,
+     no edge-flush content that makes printers emit a blank 2nd page). */
+  @page { size: auto; margin: 8mm 10mm; }
 
   html,
   body {
     height: auto !important;
+    max-height: none !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
     background: #fff !important;
   }
 
-  body > *:not(#soaModal) {
+  /* A closed SOA modal must never print (prevents blank pages on plain Ctrl+P). */
+  #soaModal:not(.visible) {
     display: none !important;
   }
 
+  /* While the SOA modal is open, suppress the page behind it: layout,
+     sidebar, topbar, toasts, other modals, off-screen report wrappers.
+     :has() keeps plain Ctrl+P (modal closed) printing the page itself. */
+  body:has(#soaModal.visible) > *:not(#soaModal) {
+    display: none !important;
+  }
+
+  .no-print,
+  .soa-toolbar,
+  .toast-container,
+  .sidebar-overlay {
+    display: none !important;
+  }
+
+  /* Neutralise everything that repeats, shifts, or clips content per page:
+     transforms (legacy .soa-modal scale), backdrop-filter (modal-overlay blur),
+     animations and transitions. */
+  #soaModal,
+  #soaModal * {
+    transform: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+    animation: none !important;
+    transition: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Flatten the overlay -> modal -> scroll-wrapper stack into one static,
+     auto-height flow column. */
   #soaModal,
   #soaModal .soa-modal,
   #soaModal .soa-document {
     position: static !important;
     inset: auto !important;
     display: block !important;
+    float: none !important;
     width: 100% !important;
     max-width: none !important;
     height: auto !important;
@@ -488,28 +524,25 @@
     padding: 0 !important;
     opacity: 1 !important;
     visibility: visible !important;
-    transition: none !important;
     border: 0 !important;
     border-radius: 0 !important;
-    box-shadow: none !important;
     background: #fff !important;
-  }
-
-  #soaModal .soa-toolbar {
-    display: none !important;
   }
 
   .ihc-soa-document {
     position: static !important;
-    inset: auto !important;
     display: block !important;
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: none !important;
     margin: 0 !important;
-    padding: 8mm !important;
+    padding: 0 !important;
     background: #fff !important;
     box-shadow: none !important;
+    font-size: 8.5pt;
+    line-height: 1.25;
+    /* The article may span pages (long schedules); individual blocks below
+       avoid breaks so nothing straddles the fold. */
     break-inside: auto !important;
     page-break-inside: auto !important;
     print-color-adjust: exact;
@@ -523,25 +556,69 @@
     -webkit-print-color-adjust: exact;
   }
 
-  .ihc-soa-panel,
-  .ihc-soa-finance-card,
-  .ihc-soa-summary-card,
-  .ihc-soa-notes,
-  .ihc-soa-signatures,
-  .ihc-soa-due,
-  .ihc-soa-table tr {
+  /* ---- Compact header / meta panels (keep them on one fragment) ---- */
+  .ihc-soa-header {
+    gap: 16px;
+    padding-bottom: 7px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  .ihc-soa-brand img { width: 46px; height: 46px; }
+  .ihc-soa-brand h1 { font-size: 13pt; }
+  .ihc-soa-brand p { margin-top: 1px; font-size: 6.5pt; }
+  .ihc-soa-title { min-width: 0; }
+  .ihc-soa-title h2 { font-size: 12pt; }
+  .ihc-soa-title p { margin-top: 2px; font-size: 7pt; }
 
+  .ihc-soa-meta-grid {
+    gap: 6px;
+    margin-top: 7px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .ihc-soa-panel {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .ihc-soa-panel-title { padding: 3px 6px; font-size: 6.5pt; }
+  .ihc-soa-panel-body { padding: 5px 6px; }
+  .ihc-soa-field-grid { gap: 2px 8px; }
+  .ihc-soa-field label { margin-bottom: 0; font-size: 5.5pt; }
+  .ihc-soa-field span { font-size: 7pt; }
+
+  /* ---- Sections ---- */
+  .ihc-soa-section { margin-top: 7px; }
+  .ihc-soa-section.compact { margin-top: 5px; }
   .ihc-soa-section-heading {
+    margin-bottom: 3px;
+    padding: 2px 6px;
     break-after: avoid;
     page-break-after: avoid;
   }
+  .ihc-soa-section-heading h3 { font-size: 7.5pt; }
+  .ihc-soa-section-heading span { font-size: 6pt; }
 
+  .ihc-soa-columns { gap: 8px; }
+
+  .ihc-soa-kv th,
+  .ihc-soa-kv td { padding: 1.5px 6px; font-size: 7.5pt; }
+  .ihc-soa-kv tr { break-inside: avoid; page-break-inside: avoid; }
+  .ihc-soa-kv tr.total th,
+  .ihc-soa-kv tr.total td { font-size: 8.5pt; }
+
+  .ihc-soa-finance-card { break-inside: avoid; page-break-inside: avoid; }
+  .ihc-soa-finance-card + .ihc-soa-finance-card { margin-top: 5px; }
+  .ihc-soa-finance-head { padding: 3px 6px; font-size: 6.5pt; }
+  .ihc-soa-finance-item { padding: 3px 6px; }
+  .ihc-soa-finance-item label { font-size: 5.5pt; }
+  .ihc-soa-finance-item strong { margin-top: 0; font-size: 7.5pt; }
+
+  /* ---- Schedule tables: fixed layout so 10-11 columns fit any page width,
+     rows kept whole, headers repeat only when a schedule genuinely spills ---- */
   .ihc-soa-table-wrap {
     width: 100% !important;
     overflow: visible !important;
+    border-radius: 0;
   }
 
   .ihc-soa-table {
@@ -549,7 +626,14 @@
     min-width: 0 !important;
     max-width: 100% !important;
     table-layout: fixed !important;
+    font-size: 7pt;
   }
+
+  .ihc-soa-table thead { display: table-header-group; }
+  .ihc-soa-table tfoot { display: table-footer-group; }
+  .ihc-soa-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .ihc-soa-table th { padding: 2px 3px; font-size: 6pt; }
+  .ihc-soa-table td { padding: 1.5px 3px; }
 
   .ihc-soa-table th,
   .ihc-soa-table td {
@@ -561,7 +645,52 @@
     white-space: normal !important;
   }
 
-  .ihc-soa-table thead {
-    display: table-header-group;
+  .ihc-soa-status { min-width: 0; padding: 1px 3px; font-size: 5.5pt; }
+
+  /* ---- Summary, due box, notes, signatures, footer ---- */
+  .ihc-soa-summary-grid { gap: 8px; }
+  .ihc-soa-summary-card { break-inside: avoid; page-break-inside: avoid; }
+  .ihc-soa-summary-card h3 { padding: 3px 6px; font-size: 7pt; }
+  .ihc-soa-summary-card .ihc-soa-kv th,
+  .ihc-soa-summary-card .ihc-soa-kv td { padding: 1.5px 6px; }
+
+  .ihc-soa-due {
+    gap: 12px;
+    margin-top: 8px;
+    padding: 7px 10px;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
+  .ihc-soa-due h3 { font-size: 9pt; }
+  .ihc-soa-due p { margin-top: 1px; font-size: 6pt; }
+  .ihc-soa-due-total span { font-size: 6pt; }
+  .ihc-soa-due-total strong { font-size: 14pt; }
+
+  .ihc-soa-notes {
+    margin-top: 7px;
+    padding: 5px 8px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .ihc-soa-notes h3 { margin-bottom: 2px; font-size: 7pt; }
+  .ihc-soa-notes li { margin: 1px 0; font-size: 6pt; }
+
+  .ihc-soa-signatures {
+    gap: 50px;
+    margin-top: 12px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .ihc-soa-signature h3 { margin-bottom: 10px; font-size: 7pt; }
+  .ihc-soa-signature-line strong { font-size: 7.5pt; }
+  .ihc-soa-signature-line span { font-size: 6pt; }
+
+  .ihc-soa-footer {
+    margin-top: 8px;
+    padding-top: 4px;
+    font-size: 5.5pt;
+  }
+
+  .ihc-soa-loading,
+  .ihc-soa-error { min-height: 0; padding: 20px; }
 }
