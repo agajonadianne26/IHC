@@ -17,7 +17,7 @@
       --sidebar-hover: #1e293b;
       --sidebar-active: #1e293b;
       --sidebar-active-border: #10b981;
-      --sidebar-width: 260px;
+      --sidebar-width: 280px;
       --sidebar-collapsed: 72px;
 
       --bg-main: #f1f5f9;
@@ -1453,7 +1453,7 @@
         <a class="sidebar-link" href="#" data-page="notifications">
           <i data-lucide="bell"></i>
           <span>Notifications Log</span>
-          <span class="nav-badge">3</span>
+          <span class="nav-badge" id="notificationBadge">3</span>
         </a>
         <a class="sidebar-link" href="#" data-page="properties">
           <i data-lucide="building-2"></i>
@@ -2331,6 +2331,12 @@
     let contracts = [];            // Payment Monitoring ledger rows
     let registerContracts = [];    // Contracts Register rows
     let notificationsData = [];    // Notifications Log rows
+    const notificationBadge = document.getElementById('notificationBadge');
+    const notificationViewedKey = 'IHC_ADMIN_NOTIFICATION_LOG_VIEWED_' +
+      String(currentUser.officerId || currentUser.id || currentUser.email || 'default');
+    if (localStorage.getItem(notificationViewedKey) === 'true' && notificationBadge) {
+      notificationBadge.style.display = 'none';
+    }
     let adminKpis = null;          // KPI cards from the server
     let cashFlowChartInstance = null;
     let agingChartInstance = null;
@@ -2796,7 +2802,11 @@
       if (name === 'contracts') renderContracts();
       if (name === 'schedules') renderScheduleSelect();
       if (name === 'clerks') loadTeam();
-      if (name === 'notifications') renderNotifications();
+      if (name === 'notifications') {
+        localStorage.setItem(notificationViewedKey, 'true');
+        if (notificationBadge) notificationBadge.style.display = 'none';
+        renderNotifications();
+      }
       if (name === 'properties') loadPropertyUnits();
       if (name === 'reports') { loadRemittances(); loadReconciliation(); loadForecast(); }
       if (name === 'audit') loadAuditLogs();
@@ -3104,7 +3114,15 @@
     function toImgData(canvas) {
       if (!canvas) return '';
       try {
-        const data = canvas.toDataURL('image/jpeg', 0.95);
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = canvas.width;
+        exportCanvas.height = canvas.height;
+        const context = exportCanvas.getContext('2d');
+        if (!context) throw new Error('Could not prepare the report chart image.');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        context.drawImage(canvas, 0, 0);
+        const data = exportCanvas.toDataURL('image/jpeg', 0.95);
         return data && data.length > 64 ? data : '';
       } catch (e) { return ''; }
     }
@@ -3294,17 +3312,37 @@
       // Fill every template first (charts included), then merge into one document.
       const prepared = types.map(t => prepareReport(t)).filter(Boolean);
       const wrapper = document.createElement('div');
-      wrapper.id = 'reportCombined';
-      wrapper.style.cssText = 'position:fixed; left:-10000px; top:0; width:780px; background:#ffffff; font-family:Arial,Helvetica,sans-serif; color:#0f172a;';
+      wrapper.style.cssText = 'box-sizing:border-box; width:780px; max-width:100%; background:#ffffff; font-family:Arial,Helvetica,sans-serif; color:#0f172a; overflow-wrap:anywhere; word-break:break-word;';
       prepared.forEach((p, i) => {
         const src = document.getElementById(p.elementId);
         if (!src) return;
         const clone = src.cloneNode(true);
         clone.removeAttribute('id');
-        if (i > 0) clone.style.pageBreakBefore = 'always';
+        clone.style.boxSizing = 'border-box';
+        clone.style.pageBreakInside = 'auto';
+        if (i > 0) {
+          clone.style.pageBreakBefore = 'always';
+          clone.style.breakBefore = 'page';
+        }
+        clone.querySelectorAll('table').forEach(table => {
+          table.style.width = '100%';
+          table.style.maxWidth = '100%';
+          table.style.tableLayout = 'fixed';
+          table.querySelectorAll('th, td').forEach(cell => {
+            cell.style.overflowWrap = 'anywhere';
+            cell.style.wordBreak = 'break-word';
+            cell.style.whiteSpace = 'normal';
+          });
+          table.querySelectorAll('tr').forEach(row => {
+            row.style.pageBreakInside = 'avoid';
+            row.style.breakInside = 'avoid';
+          });
+        });
         wrapper.appendChild(clone);
       });
-      document.body.appendChild(wrapper);
+      const templateHost = document.getElementById('reportTemplates');
+      if (!templateHost) throw new Error('Report templates are unavailable.');
+      templateHost.appendChild(wrapper);
       try {
         await exportElementToPdf(wrapper, 'IHC-Reports-' + fileDate + '.pdf', ['css', 'legacy']);
       } finally {

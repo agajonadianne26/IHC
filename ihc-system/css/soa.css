@@ -456,3 +456,34 @@
   .ihc-soa-due { grid-template-columns: 1fr; }
   .ihc-soa-due-total { text-align: left; }
 }
+
+@media print {
+  .ihc-soa-document { font-size: 12px; }
+  .ihc-soa-brand h1 { font-size: 22px; }
+  .ihc-soa-brand p { font-size: 10.5px; }
+  .ihc-soa-title h2 { font-size: 20px; }
+  .ihc-soa-panel-title,
+  .ihc-soa-finance-head { font-size: 11px; }
+  .ihc-soa-field label,
+  .ihc-soa-finance-item label { font-size: 9px; }
+  .ihc-soa-field span,
+  .ihc-soa-finance-item strong { font-size: 11px; }
+  .ihc-soa-section-heading h3,
+  .ihc-soa-summary-card h3,
+  .ihc-soa-notes h3,
+  .ihc-soa-signature h3,
+  .ihc-soa-signature-line strong { font-size: 11px; }
+  .ihc-soa-section-heading span,
+  .ihc-soa-due p,
+  .ihc-soa-due-total span,
+  .ihc-soa-signature-line span { font-size: 9px; }
+  .ihc-soa-kv tr.total th,
+  .ihc-soa-kv tr.total td { font-size: 13px; }
+  .ihc-soa-table { font-size: 9px; }
+  .ihc-soa-table th { font-size: 8px; }
+  .ihc-soa-status { font-size: 8px; }
+  .ihc-soa-due h3 { font-size: 15px; }
+  .ihc-soa-due-total strong { font-size: 20px; }
+  .ihc-soa-notes li { font-size: 10px; }
+  .ihc-soa-footer { font-size: 8px; }
+}
