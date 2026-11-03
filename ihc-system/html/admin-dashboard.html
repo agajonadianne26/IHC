@@ -58,6 +58,11 @@
     ========================================== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Author styles like .btn-primary set display, which would otherwise
+       override the browser's [hidden] rule and expose admin-only-hidden
+       controls (e.g. Add Property). */
+    [hidden] { display: none !important; }
+
     body {
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: var(--bg-main);
