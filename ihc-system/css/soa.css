@@ -287,6 +287,12 @@
   font-size: 7.6px;
   font-variant-numeric: tabular-nums;
 }
+.ihc-soa-equity-table {
+  min-width: 900px;
+}
+.ihc-soa-equity-table td {
+  white-space: nowrap;
+}
 .ihc-soa-table th {
   padding: 5px 4px;
   border-right: 1px solid #dbe3ee;
@@ -444,7 +450,7 @@
 }
 .ihc-soa-error { color: var(--soa-red); }
 
-@media (max-width: 760px) {
+@media screen and (max-width: 760px) {
   #soaModal .soa-document { padding: 10px; }
   .ihc-soa-document { padding: 20px 16px; }
   .ihc-soa-header,
@@ -558,15 +564,30 @@
 
   /* ---- Compact header / meta panels (keep them on one fragment) ---- */
   .ihc-soa-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
     gap: 16px;
     padding-bottom: 7px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  .ihc-soa-brand {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .ihc-soa-title {
+    flex: 0 0 auto !important;
+    align-self: flex-start !important;
+    justify-self: end !important;
+    min-width: 285px !important;
+    margin-left: auto !important;
+    text-align: right !important;
+  }
   .ihc-soa-brand img { width: 46px; height: 46px; }
   .ihc-soa-brand h1 { font-size: 13pt; }
   .ihc-soa-brand p { margin-top: 1px; font-size: 6.5pt; }
-  .ihc-soa-title { min-width: 0; }
   .ihc-soa-title h2 { font-size: 12pt; }
   .ihc-soa-title p { margin-top: 2px; font-size: 7pt; }
 
@@ -643,6 +664,37 @@
 
   .ihc-soa-table .money {
     white-space: normal !important;
+  }
+
+  .ihc-soa-equity-table {
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    font-size: 6.5pt !important;
+  }
+  .ihc-soa-equity-table th:nth-child(1),
+  .ihc-soa-equity-table td:nth-child(1) { width: 8%; }
+  .ihc-soa-equity-table th:nth-child(2),
+  .ihc-soa-equity-table td:nth-child(2),
+  .ihc-soa-equity-table th:nth-child(3),
+  .ihc-soa-equity-table td:nth-child(3) { width: 10%; }
+  .ihc-soa-equity-table th:nth-child(4),
+  .ihc-soa-equity-table td:nth-child(4),
+  .ihc-soa-equity-table th:nth-child(5),
+  .ihc-soa-equity-table td:nth-child(5) { width: 11%; }
+  .ihc-soa-equity-table th:nth-child(6),
+  .ihc-soa-equity-table td:nth-child(6),
+  .ihc-soa-equity-table th:nth-child(7),
+  .ihc-soa-equity-table td:nth-child(7),
+  .ihc-soa-equity-table th:nth-child(8),
+  .ihc-soa-equity-table td:nth-child(8) { width: 8%; }
+  .ihc-soa-equity-table th:nth-child(9),
+  .ihc-soa-equity-table td:nth-child(9) { width: 14%; }
+  .ihc-soa-equity-table th:nth-child(10),
+  .ihc-soa-equity-table td:nth-child(10) { width: 12%; }
+  .ihc-soa-equity-table td {
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
   }
 
   .ihc-soa-status { min-width: 0; padding: 1px 3px; font-size: 5.5pt; }
