@@ -181,14 +181,17 @@
       font-size: 14px;
       font-weight: 700;
       color: #fff;
-      white-space: nowrap;
+      /* nowrap clipped "Imperial Homes Corporation" — let the brand wrap */
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .sidebar-brand-text small {
       display: block;
       font-size: 10px;
       color: var(--text-sidebar);
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .sidebar-nav {
@@ -2230,7 +2233,7 @@
       <div class="inv-modal-head">
         <div>
           <h3 id="invModalTitle">Property Details</h3>
-          <p>Phase, block and lot here power the New Contract autofill.</p>
+          <p>Phase, block and lot here power the New Contract autofill — type a full address and they fill in automatically.</p>
         </div>
         <button class="inv-modal-close" id="invModalClose" type="button" aria-label="Close">&times;</button>
       </div>
@@ -2304,6 +2307,7 @@
        JAVASCRIPT
   ============================================= -->
   <script src="../js/soa.js?v=1"></script>
+  <script src="../js/property-address.js?v=1"></script>
   <script>
   'use strict';
 
@@ -4176,6 +4180,9 @@
         el.style.background = canEdit ? '' : '#f6f7f9';
         el.style.cursor = canEdit ? '' : 'default';
         el.value = '';
+        // Drop stale autofill marks so a fresh Add/Edit never inherits
+        // the previous record's auto-filled parts.
+        IHCPropertyAddress.detach(el);
       });
       document.getElementById('invModalTitle').textContent = canEdit
         ? (unit ? 'Edit Property' : 'Add Property')
@@ -4206,8 +4213,27 @@
     function closeInvModal() {
       invModal.classList.remove('visible');
       invEditId = null;
-      Object.values(invFields).forEach((el) => { el.value = ''; });
+      Object.values(invFields).forEach((el) => { el.value = ''; IHCPropertyAddress.detach(el); });
     }
+
+    // ---- Address autofill (Add / Edit Property) ----
+    // Typing a full address in the Property Address box fills the matching
+    // Phase / Block / Lot / Project parts, using the SAME parser the clerk
+    // New Contract form uses (js/property-address.js). Hand-typed part
+    // values are never overwritten: only empty fields or ones we filled
+    // ourselves are updated, and typing in a part field detaches it.
+    invFields.displayLabel?.addEventListener('input', () => {
+      if (invFields.displayLabel.readOnly) return;
+      IHCPropertyAddress.autofill({
+        phase: invFields.phase,
+        block: invFields.block,
+        lot: invFields.lot,
+        project: invFields.project
+      }, invFields.displayLabel.value);
+    });
+    [invFields.phase, invFields.block, invFields.lot, invFields.project].forEach((el) => {
+      el?.addEventListener('input', () => IHCPropertyAddress.detach(el));
+    });
 
     // Shared read-only View action — available to every role.
     window.viewPropertyUnit = (id) => {

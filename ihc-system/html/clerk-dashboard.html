@@ -153,14 +153,17 @@
       font-size: 14px;
       font-weight: 700;
       color: #fff;
-      white-space: nowrap;
+      /* nowrap clipped "Imperial Homes Corporation" — let the brand wrap */
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .sidebar-brand-text small {
       display: block;
       font-size: 10px;
       color: var(--text-sidebar);
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .sidebar-nav {
@@ -2739,6 +2742,7 @@
   ============================================= -->
   <script src="../js/portal-store.js"></script>
   <script src="../js/soa.js?v=1"></script>
+  <script src="../js/property-address.js?v=1"></script>
   <script>
   'use strict';
 
@@ -5138,46 +5142,24 @@
     // Free-typed full address -> Phase/Block/Lot/Project. Lets the clerk
     // type (or paste) a complete address once — e.g. "Phase 3, Block 12,
     // Lot 5, Mabuhay Street, Soldier's Hills Subdivision, ..." — and have
-    // the matching part fields fill in automatically.
-    function parseAddressParts(text) {
-      const out = {};
-      const phase = text.match(/(?:phase|ph)\.?\s*[-:]?\s*([\w-]+)/i);
-      if (phase) out.phase = 'Phase ' + phase[1];
-      const block = text.match(/(?:block|blk)\.?\s*[-:]?\s*([\w-]+)/i);
-      if (block) out.block = 'Block ' + block[1];
-      const lot = text.match(/lot\s*[-:]?\s*([\w-]+)/i);
-      if (lot) out.lot = 'Lot ' + lot[1];
-      const sub = String(text).split(',').map((s) => s.trim())
-        .find((s) => /subdivision|village|homes|estates|residences|township|subd\.?/i.test(s));
-      if (sub) out.project = sub;
-      return out;
-    }
-
+    // the matching part fields fill in automatically. The parser itself
+    // lives in js/property-address.js so the Property Inventory Add form
+    // splits an address exactly the same way.
     function autoFillAddressParts() {
-      const parts = parseAddressParts(ncFields.address.value);
-      const targets = [
-        [ncFields.phase, parts.phase],
-        [ncFields.blockNo, parts.block],
-        [ncFields.lotNo, parts.lot],
-        [ncFields.projectName, parts.project]
-      ];
-      let any = false;
-      targets.forEach(([el, val]) => {
-        if (!val) return;
-        // Never overwrite something the clerk typed by hand — only empty
-        // fields or values we auto-filled ourselves.
-        if (el.value.trim() !== '' && el.dataset.addrAuto !== '1') return;
-        el.value = val;
-        el.dataset.addrAuto = '1';
-        any = true;
+      const changed = IHCPropertyAddress.autofill({
+        phase: ncFields.phase,
+        block: ncFields.blockNo,
+        lot: ncFields.lotNo,
+        project: ncFields.projectName
+      }, ncFields.address.value);
+      changed.forEach((el) => {
         const field = el.closest('.nc-field');
-        if (field) {
-          field.classList.remove('from-link');
-          void field.offsetWidth;
-          field.classList.add('from-link');
-        }
+        if (!field) return;
+        field.classList.remove('from-link');
+        void field.offsetWidth;
+        field.classList.add('from-link');
       });
-      if (any) validateForm();
+      if (changed.length) validateForm();
     }
 
     // Typing in any part field by hand detaches it from the address parse,
