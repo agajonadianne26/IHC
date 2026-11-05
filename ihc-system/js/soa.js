@@ -112,7 +112,7 @@
 
     return `
       <div class="ihc-soa-table-wrap">
-        <table class="ihc-soa-table">
+        <table class="ihc-soa-table ihc-soa-equity-table">
           <thead>
             <tr>
               <th>Installment Number</th><th>Due Date</th><th>Payment Date</th>

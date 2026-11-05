@@ -181,14 +181,17 @@
       font-size: 14px;
       font-weight: 700;
       color: #fff;
-      white-space: nowrap;
+      /* nowrap clipped "Imperial Homes Corporation" — let the brand wrap */
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .sidebar-brand-text small {
       display: block;
       font-size: 10px;
       color: var(--text-sidebar);
-      white-space: nowrap;
+      white-space: normal;
+      overflow-wrap: break-word;
     }
 
     .sidebar-nav {
@@ -1429,7 +1432,7 @@
     }
 
   </style>
-  <link rel="stylesheet" href="../css/soa.css?v=2">
+  <link rel="stylesheet" href="../css/soa.css?v=4">
 </head>
 <body>
 
@@ -2230,7 +2233,7 @@
       <div class="inv-modal-head">
         <div>
           <h3 id="invModalTitle">Property Details</h3>
-          <p>Phase, block and lot here power the New Contract autofill.</p>
+          <p>Phase, block and lot here power the New Contract autofill — type a full address and they fill in automatically.</p>
         </div>
         <button class="inv-modal-close" id="invModalClose" type="button" aria-label="Close">&times;</button>
       </div>
@@ -2304,6 +2307,7 @@
        JAVASCRIPT
   ============================================= -->
   <script src="../js/soa.js?v=1"></script>
+  <script src="../js/property-address.js?v=1"></script>
   <script>
   'use strict';
 
@@ -3154,7 +3158,14 @@
     function toImgData(canvas) {
       if (!canvas) return '';
       try {
-        const data = canvas.toDataURL('image/jpeg', 0.95);
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = canvas.width;
+        exportCanvas.height = canvas.height;
+        const context = exportCanvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        context.drawImage(canvas, 0, 0);
+        const data = exportCanvas.toDataURL('image/jpeg', 0.95);
         return data && data.length > 64 ? data : '';
       } catch (e) { return ''; }
     }
@@ -3318,15 +3329,20 @@
       return { elementId: elementId, filename: filename };
     }
 
-    async function exportElementToPdf(el, filename, pagebreakMode) {
+    async function exportElementToPdf(el, filename, pagebreakMode, orientation) {
       if (!el) throw new Error('Report template not found');
       if (typeof html2pdf === 'undefined') throw new Error('PDF library not loaded');
       await html2pdf().set({
         margin: [10, 10, 10, 10],
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: orientation || 'portrait' },
         pagebreak: { mode: pagebreakMode || ['avoid-all', 'css', 'legacy'] }
       }).from(el).save();
     }
@@ -3343,22 +3359,63 @@
       const fileDate = fmtDateFile(new Date());
       // Fill every template first (charts included), then merge into one document.
       const prepared = types.map(t => prepareReport(t)).filter(Boolean);
+      if (prepared.length !== types.length) throw new Error('Could not prepare all four reports');
+      const sources = prepared.map(p => {
+        const source = document.getElementById(p.elementId);
+        if (!source) throw new Error('Report template not found: ' + p.elementId);
+        return source;
+      });
       const wrapper = document.createElement('div');
       wrapper.id = 'reportCombined';
-      wrapper.style.cssText = 'position:fixed; left:-10000px; top:0; width:780px; background:#ffffff; font-family:Arial,Helvetica,sans-serif; color:#0f172a;';
+      wrapper.style.cssText = 'width:100%; max-width:100%; box-sizing:border-box; margin:0 auto; background:#ffffff; font-family:Arial,Helvetica,sans-serif; color:#0f172a; -webkit-print-color-adjust:exact; print-color-adjust:exact;';
+      const printStyles = document.createElement('style');
+      printStyles.textContent = '@page { size: A4 portrait; margin: 10mm; } @media print { #reportCombined, #reportCombined * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }';
+      document.head.appendChild(printStyles);
       prepared.forEach((p, i) => {
-        const src = document.getElementById(p.elementId);
-        if (!src) return;
-        const clone = src.cloneNode(true);
+        const clone = sources[i].cloneNode(true);
         clone.removeAttribute('id');
-        if (i > 0) clone.style.pageBreakBefore = 'always';
+        clone.style.width = '100%';
+        clone.style.maxWidth = '100%';
+        clone.style.boxSizing = 'border-box';
+        clone.style.setProperty('-webkit-print-color-adjust', 'exact');
+        clone.style.setProperty('print-color-adjust', 'exact');
+        if (i > 0) {
+          clone.style.pageBreakBefore = 'always';
+          clone.style.breakBefore = 'page';
+        }
+        clone.querySelectorAll('table').forEach(table => {
+          table.style.width = '100%';
+          table.style.maxWidth = '100%';
+          table.style.tableLayout = 'fixed';
+          table.style.boxSizing = 'border-box';
+          table.style.fontSize = '10px';
+          table.querySelectorAll('th, td').forEach(cell => {
+            cell.style.boxSizing = 'border-box';
+            cell.style.padding = '6px';
+            cell.style.setProperty('white-space', 'normal', 'important');
+            cell.style.wordWrap = 'break-word';
+            cell.style.overflowWrap = 'break-word';
+          });
+        });
+        clone.querySelectorAll('div[style*="grid-template-columns"]').forEach(grid => {
+          grid.style.display = 'grid';
+          grid.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
+          grid.style.maxWidth = '100%';
+          grid.style.boxSizing = 'border-box';
+          grid.querySelectorAll(':scope > *').forEach(card => {
+            card.style.minWidth = '0';
+            card.style.boxSizing = 'border-box';
+          });
+        });
         wrapper.appendChild(clone);
       });
-      document.body.appendChild(wrapper);
       try {
-        await exportElementToPdf(wrapper, 'IHC-Reports-' + fileDate + '.pdf', ['css', 'legacy']);
+        document.body.appendChild(wrapper);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await exportElementToPdf(wrapper, 'IHC-Reports-' + fileDate + '.pdf', ['css', 'legacy'], 'portrait');
       } finally {
         wrapper.remove();
+        printStyles.remove();
       }
     }
 
@@ -4123,6 +4180,9 @@
         el.style.background = canEdit ? '' : '#f6f7f9';
         el.style.cursor = canEdit ? '' : 'default';
         el.value = '';
+        // Drop stale autofill marks so a fresh Add/Edit never inherits
+        // the previous record's auto-filled parts.
+        IHCPropertyAddress.detach(el);
       });
       document.getElementById('invModalTitle').textContent = canEdit
         ? (unit ? 'Edit Property' : 'Add Property')
@@ -4153,8 +4213,27 @@
     function closeInvModal() {
       invModal.classList.remove('visible');
       invEditId = null;
-      Object.values(invFields).forEach((el) => { el.value = ''; });
+      Object.values(invFields).forEach((el) => { el.value = ''; IHCPropertyAddress.detach(el); });
     }
+
+    // ---- Address autofill (Add / Edit Property) ----
+    // Typing a full address in the Property Address box fills the matching
+    // Phase / Block / Lot / Project parts, using the SAME parser the clerk
+    // New Contract form uses (js/property-address.js). Hand-typed part
+    // values are never overwritten: only empty fields or ones we filled
+    // ourselves are updated, and typing in a part field detaches it.
+    invFields.displayLabel?.addEventListener('input', () => {
+      if (invFields.displayLabel.readOnly) return;
+      IHCPropertyAddress.autofill({
+        phase: invFields.phase,
+        block: invFields.block,
+        lot: invFields.lot,
+        project: invFields.project
+      }, invFields.displayLabel.value);
+    });
+    [invFields.phase, invFields.block, invFields.lot, invFields.project].forEach((el) => {
+      el?.addEventListener('input', () => IHCPropertyAddress.detach(el));
+    });
 
     // Shared read-only View action — available to every role.
     window.viewPropertyUnit = (id) => {
@@ -4640,7 +4719,7 @@ const closeTempPw = () => {
   <script src="../js/html2pdf.bundle.min.js?v=1"></script>
 
   <!-- HIDDEN PDF REPORT TEMPLATES -->
-  <div id="reportTemplates" style="position:fixed; left:-10000px; top:0; width:780px; font-family:Arial,Helvetica,sans-serif; color:#0f172a; background:#fff;">
+  <div id="reportTemplates" style="position:fixed; left:-10000px; top:0; width:100%; max-width:100%; box-sizing:border-box; font-family:Arial,Helvetica,sans-serif; color:#0f172a; background:#fff;">
 
     <!-- COLLECTION SUMMARY -->
     <div id="tpl-collection-summary" style="padding:20px 24px;">
@@ -4709,7 +4788,7 @@ const closeTempPw = () => {
     </div>
 
     <!-- CASH FLOW FORECAST -->
-    <div id="tpl-cashflow" style="padding:20px 24px;">
+    <div id="tpl-cashflow" style="padding:20px 24px; background:#fff;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e5e7eb; padding-bottom:12px; margin-bottom:18px;">
         <div>
           <h1 style="margin:0; font-size:18px; font-weight:700;">Cash Flow Forecast Report</h1>
@@ -4746,7 +4825,7 @@ const closeTempPw = () => {
     </div>
 
     <!-- AGING OF ACCOUNTS -->
-    <div id="tpl-aging" style="padding:20px 24px;">
+    <div id="tpl-aging" style="padding:20px 24px; background:#fff;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #e5e7eb; padding-bottom:12px; margin-bottom:18px;">
         <div>
           <h1 style="margin:0; font-size:18px; font-weight:700;">Aging of Accounts Report</h1>
