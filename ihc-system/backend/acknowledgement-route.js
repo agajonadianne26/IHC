@@ -208,7 +208,7 @@ router.get('/api/contracts/:id/acknowledgment-status', async (req, res) => {
 
 router.get('/api/reminders/acknowledge', async (req, res) => {
   const payload = verifyToken(req.query.token);
-  const dashboardUrl = process.env.CLIENT_DASHBOARD_URL || 'http://localhost/ihc-system/html/client-dashboard.html';
+  const dashboardUrl = process.env.CLIENT_DASHBOARD_URL || 'http://localhost/IHC/ihc-system/html/client-dashboard.html';
 
   if (!payload) return res.status(400).send('This acknowledgment link is invalid.');
 

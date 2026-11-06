@@ -4,7 +4,7 @@ const { sendPaymentReminder } = require('./emailService');
 const { sendPaymentReminderSms } = require('./smsService');
 require('dotenv').config();
 
-const PHP_API_BASE = String(process.env.PHP_API_BASE || 'http://localhost/ihc-system').replace(/\/+$/, '');
+const PHP_API_BASE = String(process.env.PHP_API_BASE || 'http://localhost/IHC/ihc-system').replace(/\/+$/, '');
 function dateInTimeZone(date, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,

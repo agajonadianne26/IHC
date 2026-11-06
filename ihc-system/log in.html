@@ -14,7 +14,7 @@
          the canonical URL first, preserving any query string/hash. -->
     <script>
         if (window.location.origin !== 'http://localhost') {
-            window.location.replace('http://localhost/ihc-system/log%20in.html' + window.location.search + window.location.hash);
+            window.location.replace('http://localhost/IHC/ihc-system/log%20in.html' + window.location.search + window.location.hash);
         }
     </script>
     
@@ -161,7 +161,7 @@
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const PW_API = 'http://localhost/ihc-system/php/api_password.php';
+  const PW_API = 'http://localhost/IHC/ihc-system/php/api_password.php';
   let pending = null, changeResolve = null;
 
   const setMsg = (el, text, cls) => { el.textContent = text; el.className = 'pw-msg ' + (cls || ''); };

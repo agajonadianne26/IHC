@@ -150,7 +150,7 @@ function normalizeSoaSummary(summary) {
 }
 
 function getClientAccessUrl(recipientEmail) {
-  const loginUrl = process.env.CLIENT_LOGIN_URL || 'http://localhost/ihc-system/log%20in.html';
+  const loginUrl = process.env.CLIENT_LOGIN_URL || 'http://localhost/IHC/ihc-system/log%20in.html';
   const url = new URL(loginUrl);
   url.searchParams.set('redirect', 'client-dashboard');
   url.searchParams.set('email', recipientEmail);
