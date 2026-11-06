@@ -3099,6 +3099,12 @@
         });
         const data = await res.json();
         if (!data.success) {
+          // Deleted/disabled account: revoke the stale client-side session.
+          if (res.status === 403) {
+            localStorage.removeItem('IHC_USER');
+            window.location.replace('../log in.html');
+            return;
+          }
           showToast(data.message || 'Failed to load assigned clients.', 'info');
           return;
         }

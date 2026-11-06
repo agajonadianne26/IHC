@@ -1984,7 +1984,10 @@
               <h2>Clerks &amp; Clients</h2>
               <p>Every staff account with the clients they enrolled. Expand a clerk to see that clerk's contracts.</p>
             </div>
-            <button class="btn-primary" id="refreshTeamBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh</button>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn-primary" id="addClerkBtn" type="button" hidden><i data-lucide="user-plus" style="width:14px;height:14px;"></i> Add Clerk</button>
+              <button class="btn-primary" id="refreshTeamBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh</button>
+            </div>
           </div>
 
           <div class="table-section" style="margin-bottom:24px;">
@@ -1999,10 +2002,11 @@
                     <th scope="col">Outstanding</th>
                     <th scope="col">Rate</th>
                     <th scope="col">Overdue</th>
+                    <th scope="col">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="teamBody">
-                  <tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>
+                  <tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2299,6 +2303,40 @@
       <div class="inv-modal-foot">
         <button class="btn-cancel-inv" id="invConfirmCancel" type="button">Cancel</button>
         <button class="btn-save-inv" id="invConfirmSubmit" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staff account modal — admin only: add / edit a clerk -->
+  <div class="modal-overlay" id="staffModal" role="presentation">
+    <div class="inv-modal" style="max-width:460px;" role="dialog" aria-modal="true" aria-labelledby="staffModalTitle">
+      <div class="inv-modal-head">
+        <div>
+          <h3 id="staffModalTitle">Add Clerk</h3>
+          <p>Clerk accounts can sign in and manage their assigned clients.</p>
+        </div>
+        <button class="inv-modal-close" id="staffModalClose" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="inv-modal-body">
+        <div class="inv-form-grid" style="grid-template-columns:1fr;">
+          <div class="inv-form-group">
+            <label for="staffName">Full Name</label>
+            <input type="text" id="staffName" maxlength="100" autocomplete="off">
+          </div>
+          <div class="inv-form-group">
+            <label for="staffEmail">Email Address</label>
+            <input type="email" id="staffEmail" maxlength="255" autocomplete="off">
+          </div>
+          <div class="inv-form-group">
+            <label for="staffPassword">Password <span id="staffPasswordHint" style="font-weight:400;color:var(--text-secondary);"></span></label>
+            <input type="password" id="staffPassword" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="inv-hint" id="staffFormStatus" style="margin-top:12px;"></div>
+      </div>
+      <div class="inv-modal-foot">
+        <button class="btn-cancel-inv" id="staffCancelBtn" type="button">Cancel</button>
+        <button class="btn-save-inv" id="staffSaveBtn" type="button">Save Clerk</button>
       </div>
     </div>
   </div>
@@ -3876,6 +3914,141 @@
     ========================================== */
     const teamEsc = (s)=>String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     let teamData = null;
+    const canManageStaff = currentUser.role === 'admin';
+    let editingStaffId = null;
+
+    // Staff account modal (admin only)
+    const staffModal = document.getElementById('staffModal');
+    const staffFields = {
+      name: document.getElementById('staffName'),
+      email: document.getElementById('staffEmail'),
+      password: document.getElementById('staffPassword')
+    };
+    const staffFormStatus = document.getElementById('staffFormStatus');
+    const staffPasswordHint = document.getElementById('staffPasswordHint');
+    const addClerkBtn = document.getElementById('addClerkBtn');
+
+    (function applyStaffRoleUI() {
+      // Write controls ship hidden; only a real admin session reveals them.
+      if (addClerkBtn) addClerkBtn.hidden = !canManageStaff;
+    })();
+
+    function setStaffStatus(text, isError) {
+      if (!staffFormStatus) return;
+      staffFormStatus.textContent = text || '';
+      staffFormStatus.style.color = isError ? '#dc2626' : '';
+    }
+
+    function openStaffModal(staff) {
+      if (!canManageStaff || !staffModal) return;
+      editingStaffId = staff ? Number(staff.officerId) : null;
+      document.getElementById('staffModalTitle').textContent = staff ? 'Edit Clerk' : 'Add Clerk';
+      staffFields.name.value = staff ? (staff.name || '') : '';
+      staffFields.email.value = staff ? (staff.email || '') : '';
+      staffFields.password.value = '';
+      staffPasswordHint.textContent = staff
+        ? '(leave blank to keep the current password)'
+        : '(at least 8 characters)';
+      setStaffStatus('');
+      staffModal.classList.add('visible');
+      staffFields.name.focus();
+    }
+
+    function closeStaffModal() {
+      if (!staffModal) return;
+      staffModal.classList.remove('visible');
+      editingStaffId = null;
+      Object.values(staffFields).forEach((el) => { if (el) el.value = ''; });
+      setStaffStatus('');
+    }
+
+    async function saveStaffAccount() {
+      if (!canManageStaff) return;
+      const fullName = staffFields.name.value.trim();
+      const email = staffFields.email.value.trim();
+      const password = staffFields.password.value;
+      const action = editingStaffId ? 'staff_update' : 'staff_create';
+
+      if (!fullName) { setStaffStatus('Full name is required.', true); staffFields.name.focus(); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setStaffStatus('Enter a valid email address.', true); staffFields.email.focus(); return; }
+      if (!editingStaffId && password.length < 8) { setStaffStatus('Password must be at least 8 characters.', true); staffFields.password.focus(); return; }
+      if (editingStaffId && password !== '' && password.length < 8) { setStaffStatus('The new password must be at least 8 characters.', true); staffFields.password.focus(); return; }
+
+      const saveBtn = document.getElementById('staffSaveBtn');
+      saveBtn.disabled = true;
+      setStaffStatus(editingStaffId ? 'Saving changes…' : 'Creating account…');
+      try {
+        const res = await fetch(API_BASE + '/php/api_admin.php?action=' + action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action,
+            staffId: editingStaffId,
+            fullName,
+            email,
+            password,
+            actorId: currentUser.officerId || '',
+            actorName: currentUser.name || currentUser.email || ''
+          })
+        });
+        const data = await res.json().catch(() => ({ success: false, message: 'Server error (HTTP ' + res.status + ').' }));
+        if (!res.ok || !data.success) throw new Error(data.message || 'Could not save the clerk account.');
+        closeStaffModal();
+        showToast(data.message, 'success');
+        await loadTeam();
+        loadAuditLog();
+      } catch (err) {
+        setStaffStatus(err.message, true);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    async function deleteClerkAccount(officerId, name, clientCount) {
+      if (!canManageStaff) return;
+      const extra = clientCount > 0
+        ? ' Their ' + clientCount + ' assigned client' + (clientCount === 1 ? '' : 's') + ' will become unassigned until you reassign them.'
+        : '';
+      const confirmed = await confirmInventoryAction({
+        title: 'Delete clerk account',
+        property: name,
+        message: 'This permanently removes the account and immediately revokes sign-in access.' + extra,
+        confirmLabel: 'Delete Clerk',
+        danger: true
+      });
+      if (!confirmed) return;
+      try {
+        const res = await fetch(API_BASE + '/php/api_admin.php?action=staff_delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'staff_delete',
+            staffId: Number(officerId),
+            actorId: currentUser.officerId || '',
+            actorName: currentUser.name || currentUser.email || ''
+          })
+        });
+        const data = await res.json().catch(() => ({ success: false, message: 'Server error (HTTP ' + res.status + ').' }));
+        if (!res.ok || !data.success) throw new Error(data.message || 'Could not delete the clerk account.');
+        showToast(data.message, 'success');
+        await loadTeam();
+        loadAuditLog();
+      } catch (err) {
+        showToast(err.message, 'info');
+      }
+    }
+
+    document.getElementById('addClerkBtn')?.addEventListener('click', () => openStaffModal(null));
+    document.getElementById('staffModalClose')?.addEventListener('click', closeStaffModal);
+    document.getElementById('staffCancelBtn')?.addEventListener('click', closeStaffModal);
+    document.getElementById('staffSaveBtn')?.addEventListener('click', saveStaffAccount);
+    staffModal?.addEventListener('click', (e) => { if (e.target === staffModal) closeStaffModal(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && staffModal?.classList.contains('visible')) closeStaffModal();
+    });
+    staffFields.password?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); saveStaffAccount(); }
+    });
 
     const STATUS_LABEL = { paid:'Settled', current:'Current', 'due-soon':'Due Soon', overdue:'Overdue' };
     const STATUS_CLASS  = { paid:'ok', current:'ok', 'due-soon':'warn', overdue:'danger' };
@@ -3913,7 +4086,7 @@
       const unassigned = teamData.unassigned || [];
 
       if(!groups.length && !unassigned.length){
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">No staff accounts found.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">No staff accounts found.</td></tr>';
         return;
       }
 
@@ -3921,10 +4094,19 @@
         const initials = teamEsc(g.name.split(/\s+/).map(p=>p[0]||'').join('').slice(0,2).toUpperCase());
         const rateCls = g.collectionRate >= 50 ? 'ok' : (g.collectionRate >= 20 ? 'warn' : 'danger');
         const roleTag = g.role === 'admin'
-          ? '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:#e0e7ff;color:#3730a3;margin-left:6px;">ADMIN</span>' : '';
+          ? '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:#e0e7ff;color:#3730a3;margin-left:6px;">ADMIN</span>'
+          : (g.role === 'inventory_admin'
+            ? '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:#fef3c7;color:#92400e;margin-left:6px;">INVENTORY</span>'
+            : '');
         const chevron = g.clientCount
           ? '<i data-lucide="chevron-down" class="team-chevron" style="width:15px;height:15px;color:var(--text-muted);"></i>'
           : '';
+        const actions = (canManageStaff && g.role === 'clerk')
+          ? '<td style="white-space:nowrap;">'
+            + '<button type="button" class="team-edit-btn" data-staff-id="'+teamEsc(g.officerId)+'" style="height:28px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;margin-right:5px;">Edit</button>'
+            + '<button type="button" class="team-delete-btn" data-staff-id="'+teamEsc(g.officerId)+'" data-staff-name="'+teamEsc(g.name)+'" data-staff-clients="'+Number(g.clientCount||0)+'" style="height:28px;padding:0 10px;border:1px solid #fecaca;border-radius:6px;background:#fff;font-size:11px;font-weight:600;color:#b91c1c;cursor:pointer;">Delete</button>'
+            + '</td>'
+          : '<td><span style="color:var(--text-muted);">—</span></td>';
         return '<tr class="team-head-row" data-clerk="'+teamEsc(g.officerId)+'" style="cursor:'+(g.clientCount?'pointer':'default')+';">'
           + '<td><div style="display:flex;align-items:center;gap:9px;">'
             + '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">'+initials+'</div>'
@@ -3936,9 +4118,10 @@
           + '<td style="white-space:nowrap; font-weight:600;">'+formatPHP(g.outstanding)+'</td>'
           + '<td><span class="row-status '+rateCls+'"><span class="dot"></span>'+g.collectionRate+'%</span></td>'
           + '<td>'+(g.overdueCount ? '<span class="row-status danger"><span class="dot"></span>'+g.overdueCount+'</span>' : '<span style="color:var(--text-muted);">0</span>')+'</td>'
+          + actions
           + '</tr>'
           + '<tr class="team-detail-row" data-detail="'+teamEsc(g.officerId)+'" style="display:none;">'
-            + '<td colspan="7" style="background:#f8fafc; padding:0;">'
+            + '<td colspan="8" style="background:#f8fafc; padding:0;">'
               + '<div style="padding:14px 18px; border-left:3px solid var(--accent-blue);">'
                 + '<table class="data-table" style="min-width:0;"><thead><tr>'
                   + '<th scope="col">Client</th><th scope="col">Property</th><th scope="col">Contract</th>'
@@ -3952,9 +4135,9 @@
       + (unassigned.length
         ? '<tr class="team-head-row" data-clerk="__unassigned__" style="cursor:pointer;">'
             + '<td colspan="1"><strong>Unassigned</strong><br><span style="font-size:10px;color:#b45309;">No clerk owns these contracts</span></td>'
-            + '<td>'+unassigned.length+'</td><td colspan="5"><span style="font-size:11px;color:var(--text-muted);">Included here so they are never invisible</span></td>'
+            + '<td>'+unassigned.length+'</td><td colspan="6"><span style="font-size:11px;color:var(--text-muted);">Included here so they are never invisible</span></td>'
           + '</tr>'
-          + '<tr class="team-detail-row" data-detail="__unassigned__" style="display:none;"><td colspan="7" style="background:#f8fafc;padding:0;">'
+          + '<tr class="team-detail-row" data-detail="__unassigned__" style="display:none;"><td colspan="8" style="background:#f8fafc;padding:0;">'
             + '<div style="padding:14px 18px; border-left:3px solid var(--accent-amber);">'
             + '<table class="data-table" style="min-width:0;"><thead><tr>'
               + '<th scope="col">Client</th><th scope="col">Property</th><th scope="col">Contract</th>'
@@ -3967,13 +4150,28 @@
       // Expand / collapse
       body.querySelectorAll('.team-head-row').forEach(row=>{
         row.addEventListener('click',(e)=>{
-          if(e.target.closest('.reassign-select')) return;
+          if(e.target.closest('button, .reassign-select')) return;
           const detail = body.querySelector('.team-detail-row[data-detail="'+row.dataset.clerk+'"]');
           if(!detail) return;
           const opening = detail.style.display === 'none';
           detail.style.display = opening ? 'table-row' : 'none';
           const icon = row.querySelector('.team-chevron');
           if(icon) icon.style.transform = opening ? 'rotate(180deg)' : '';
+        });
+      });
+
+      // Edit / delete clerk accounts (admin only)
+      body.querySelectorAll('.team-edit-btn').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          const clerk = (teamData.clerks || []).find(o => String(o.officerId) === String(btn.dataset.staffId));
+          if (clerk) openStaffModal(clerk);
+        });
+      });
+      body.querySelectorAll('.team-delete-btn').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          deleteClerkAccount(btn.dataset.staffId, btn.dataset.staffName, Number(btn.dataset.staffClients) || 0);
         });
       });
 
@@ -4012,7 +4210,7 @@
     async function loadTeam(){
       const body = document.getElementById('teamBody');
       if(!body) return;
-      body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>';
       try{
         const res = await fetch(API_BASE + '/php/api_admin.php?action=team');
         const data = await res.json();
@@ -4020,7 +4218,7 @@
         teamData = data;
         renderTeam();
       }catch(err){
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:#b91c1c;">'+teamEsc(err.message)+'</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:#b91c1c;">'+teamEsc(err.message)+'</td></tr>';
       }
     }
     document.getElementById('refreshTeamBtn')?.addEventListener('click', loadTeam);

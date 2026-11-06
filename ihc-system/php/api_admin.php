@@ -14,17 +14,18 @@ header('Content-Type: application/json');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
-// This endpoint is read-only apart from one exception: `reassign`, which moves
-// a contract from one clerk to another (an admin ownership operation, not a
-// payment). Payments are only ever written by php/post-payment.php.
+// This endpoint is read-only apart from explicit admin write actions:
+// `reassign` moves a contract between clerks, and the `staff_*` actions
+// manage clerk accounts. Payments are only ever written by post-payment.php.
+// Admin-only authorization for the staff actions runs below against officers.
 if ($_SERVER['REQUEST_METHOD'] !== 'GET'
     && !($_SERVER['REQUEST_METHOD'] === 'POST'
-        && (string)($_GET['action'] ?? '') === 'reassign')) {
+        && in_array((string)($_GET['action'] ?? ''), ['reassign', 'staff_create', 'staff_update', 'staff_delete'], true))) {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed']);
     exit;
@@ -218,6 +219,180 @@ try {
             'success'    => true,
             'clerks'     => $clerks,
             'unassigned' => $unassigned,
+        ]);
+        exit;
+    }
+
+    // ---- Staff accounts: add / update / delete clerks (admin only) ----
+    if (in_array($action, ['staff_create', 'staff_update', 'staff_delete'], true)) {
+        $actorId   = trim((string)($jsonInput['actorId'] ?? ''));
+        $actorName = trim((string)($jsonInput['actorName'] ?? ''));
+
+        $actorStmt = $pdo->prepare('SELECT id, full_name, role FROM officers WHERE id = ? LIMIT 1');
+        $actorStmt->execute([$actorId]);
+        $actor = $actorStmt->fetch();
+        if (!$actor || strtolower(trim((string)$actor['role'])) !== 'admin') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Only an administrator can manage staff accounts.']);
+            exit;
+        }
+        if ($actorName === '') $actorName = (string)$actor['full_name'];
+
+        $staffId  = (int)($jsonInput['staffId'] ?? 0);
+        $fullName = trim((string)($jsonInput['fullName'] ?? ''));
+        $email    = strtolower(trim((string)($jsonInput['email'] ?? '')));
+        $password = (string)($jsonInput['password'] ?? '');
+
+        $findStaff = function (int $id) use ($pdo): ?array {
+            $st = $pdo->prepare('SELECT id, full_name, role, email FROM officers WHERE id = ? LIMIT 1');
+            $st->execute([$id]);
+            $row = $st->fetch();
+            return $row ?: null;
+        };
+
+        $logStaff = function (string $logAction, ?int $targetId, string $detail) use ($pdo, $actorId, $actorName): void {
+            $pdo->prepare(
+                'INSERT INTO audit_logs (action, contract_id, from_status, to_status, actor_id, actor_name, details)
+                 VALUES (?,?,?,?,?,?,?)'
+            )->execute([$logAction, null, null, null, $actorId, $actorName, $detail]);
+        };
+
+        if ($action === 'staff_delete') {
+            if ($staffId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'staffId is required.']);
+                exit;
+            }
+            $target = $findStaff($staffId);
+            if (!$target) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Clerk account not found.']);
+                exit;
+            }
+            if (strtolower(trim((string)$target['role'])) !== 'clerk') {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Only clerk accounts can be deleted.']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare('DELETE FROM officers WHERE id = ?')->execute([$staffId]);
+                $logStaff('staff.deleted', $staffId, json_encode([
+                    'name'  => (string)$target['full_name'],
+                    'email' => (string)$target['email'],
+                ]));
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message' => (string)$target['full_name'] . '\'s account was deleted and can no longer sign in.',
+            ]);
+            exit;
+        }
+
+        if ($fullName === '' || mb_strlen($fullName) > 100) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Full name is required (max 100 characters).']);
+            exit;
+        }
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'A valid email address is required.']);
+            exit;
+        }
+        if ($action === 'staff_create' && mb_strlen($password) < 8) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Password must be at least 8 characters.']);
+            exit;
+        }
+        if ($action === 'staff_update' && $password !== '' && mb_strlen($password) < 8) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'The new password must be at least 8 characters.']);
+            exit;
+        }
+
+        $dupe = $pdo->prepare('SELECT id FROM officers WHERE LOWER(email) = ? AND id <> ? LIMIT 1');
+        $dupe->execute([$email, $staffId]);
+        if ($dupe->fetch()) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => 'Another staff account already uses that email address.']);
+            exit;
+        }
+
+        if ($action === 'staff_create') {
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare(
+                    'INSERT INTO officers (full_name, role, email, password_hash, must_change_password)
+                     VALUES (?, ?, ?, ?, 0)'
+                )->execute([$fullName, 'clerk', $email, password_hash($password, PASSWORD_DEFAULT)]);
+                $newId = (int)$pdo->lastInsertId();
+                $logStaff('staff.created', $newId, json_encode([
+                    'name'  => $fullName,
+                    'email' => $email,
+                    'role'  => 'clerk',
+                ]));
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Clerk account created for ' . $fullName . '.',
+                'staffId' => $newId,
+            ]);
+            exit;
+        }
+
+        // staff_update
+        if ($staffId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'staffId is required.']);
+            exit;
+        }
+        $target = $findStaff($staffId);
+        if (!$target) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Clerk account not found.']);
+            exit;
+        }
+        if (strtolower(trim((string)$target['role'])) !== 'clerk') {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Only clerk accounts can be edited here.']);
+            exit;
+        }
+
+        $pdo->beginTransaction();
+        try {
+            if ($password !== '') {
+                $pdo->prepare(
+                    'UPDATE officers SET full_name = ?, email = ?, password_hash = ?, must_change_password = 0 WHERE id = ?'
+                )->execute([$fullName, $email, password_hash($password, PASSWORD_DEFAULT), $staffId]);
+            } else {
+                $pdo->prepare('UPDATE officers SET full_name = ?, email = ? WHERE id = ?')
+                    ->execute([$fullName, $email, $staffId]);
+            }
+            $logStaff('staff.updated', $staffId, json_encode([
+                'name'          => $fullName,
+                'email'         => $email,
+                'passwordReset' => $password !== '',
+            ]));
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Clerk account updated for ' . $fullName . '.',
         ]);
         exit;
     }
