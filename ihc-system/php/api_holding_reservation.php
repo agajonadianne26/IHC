@@ -250,6 +250,53 @@ function resolveOfficerName(PDO $pdo, ?string $officerId): ?string {
     if(!$officerId) return null;
     $st=$pdo->prepare('SELECT full_name FROM officers WHERE id=? LIMIT 1'); $st->execute([$officerId]); $r=$st->fetch(); return $r ? (string)$r['full_name'] : null;
 }
+// Access control for Property Inventory mutations (granular RBAC, 2026-10).
+// Role matrix:
+//   admin           -> READ-ONLY viewer of the Property Inventory (list,
+//                      filters, search, read-only details modal).
+//   inventory_admin -> full CRUD (add / edit / delete / status change),
+//                      e.g. Ms. Rea who manages the Property Inventory.
+// There are no server sessions in this system, so the acting officer is the
+// actorId the dashboard already sends for audit logging; we resolve that id's
+// role from the officers table (source of truth) and reject everyone else.
+// This is API-layer role enforcement, not a session guard: a forged actorId
+// only helps if it is a real officers row with the required role, so a clerk
+// (or a plain admin on the write endpoints) who bypasses the hidden UI still
+// gets 403. Holding/reservation fee flows are intentionally NOT gated here.
+function resolve_officer_role(PDO $pdo, ?string $actorId, ?string $actorEmail=null): ?string {
+    $role=null;
+    if($actorId!==null && $actorId!==''){
+        $st=$pdo->prepare('SELECT role FROM officers WHERE id=? LIMIT 1'); $st->execute([$actorId]); $r=$st->fetch();
+        if($r) $role=strtolower(trim((string)$r['role']));
+    }
+    if($role===null && $actorEmail!==null && $actorEmail!==''){
+        $st=$pdo->prepare('SELECT role FROM officers WHERE LOWER(email)=? LIMIT 1'); $st->execute([strtolower($actorEmail)]); $r=$st->fetch();
+        if($r) $role=strtolower(trim((string)$r['role']));
+    }
+    return $role;
+}
+function require_officer_role(PDO $pdo, ?string $actorId, ?string $actorEmail, array $allowedRoles, string $deniedMessage): void {
+    $role = resolve_officer_role($pdo, $actorId, $actorEmail);
+    if($role===null || !in_array($role, $allowedRoles, true)){
+        http_response_code(403);
+        echo json_encode(['success'=>false,'message'=>$deniedMessage]);
+        exit;
+    }
+}
+// WRITE gate — Property Inventory add / edit / delete (create_unit /
+// update_unit / delete_unit). inventory_admin ONLY: a plain admin session is
+// a read-only viewer of this module and is rejected here with 403, as is any
+// clerk/client/unknown actor.
+function require_inventory_writer(PDO $pdo, ?string $actorId, ?string $actorEmail=null): void {
+    require_officer_role($pdo, $actorId, $actorEmail, ['inventory_admin'],
+        'Permission denied: adding, editing and deleting Property Inventory records is restricted to the Property Inventory administrator (inventory_admin). Admin has view-only access.');
+}
+// STATUS gate — unit_status_update (§13 Property / Unit Status panel +
+// Holding & Reservation lifecycle): admin + inventory_admin.
+function require_inventory_role(PDO $pdo, ?string $actorId, ?string $actorEmail=null): void {
+    require_officer_role($pdo, $actorId, $actorEmail, ['admin','inventory_admin'],
+        'Permission denied: only Admin and the Inventory Administrator can change Property Inventory status.');
+}
 function fetchContract(PDO $pdo, int $id): ?array {
     $st=$pdo->prepare('SELECT c.*, o.full_name AS officer_name FROM contracts c LEFT JOIN officers o ON o.id=c.officer_id WHERE c.id=? LIMIT 1');
     $st->execute([$id]); $r=$st->fetch(); return $r?:null;
@@ -668,11 +715,21 @@ try{
             return null;
         };
 
+        // ---- Property Inventory mutations — inventory_admin ONLY (RBAC) ----
+        // create_unit / update_unit / delete_unit back the admin Property
+        // Inventory module's Add / Edit / Delete controls. The UI renders those
+        // controls only for inventory_admin, and require_inventory_writer()
+        // enforces the same boundary server-side: a plain admin session (viewer)
+        // or any other role gets 403 here even with a hand-crafted payload.
+        // Read paths (GET ?action=property_units, clerk New Contract autofill,
+        // Holding/Reservation flows) remain open to all staff roles.
         if($action==='create_unit' || $action==='update_unit'){
             $isUpdate = $action==='update_unit';
             $unitId = $isUpdate ? (int)($get($input,'id','unitId','propertyUnitId') ?? 0) : 0;
             $actorId   = trim((string)($get($input,'actorId','actor_id') ?? '')) ?: null;
             $actorName = trim((string)($get($input,'actorName','actor_name') ?? '')) ?: null;
+            // RBAC: add/edit is inventory_admin only (admin is view-only here).
+            require_inventory_writer($pdo, $actorId, trim((string)($get($input,'actorEmail','actor_email') ?? '')) ?: null);
 
             $pdo->beginTransaction();
             try {
@@ -719,6 +776,8 @@ try{
             $unitId = (int)($get($input,'id','unitId','propertyUnitId') ?? 0);
             $actorId   = trim((string)($get($input,'actorId','actor_id') ?? '')) ?: null;
             $actorName = trim((string)($get($input,'actorName','actor_name') ?? '')) ?: null;
+            // RBAC: delete is inventory_admin only (admin is view-only here).
+            require_inventory_writer($pdo, $actorId, trim((string)($get($input,'actorEmail','actor_email') ?? '')) ?: null);
             if($unitId<=0) throw new RuntimeException('Property/unit not found.');
 
             $pdo->beginTransaction();
@@ -1245,6 +1304,11 @@ try{
         if($action==='unit_status_update'){
             // §13 state machine — lets admins move AVAILABLE → ON HOLD → RESERVED → SOLD
             // and back to AVAILABLE (never auto-unsell a SOLD unit).
+            // Access control FIRST (before the getOrCreateUnit fallback, which can write):
+            // status changes are admin + inventory_admin only.
+            require_inventory_role($pdo,
+                trim((string)($get($input,'processedBy','processed_by','actorId') ?? '')) ?: null,
+                trim((string)($get($input,'actorEmail','actor_email') ?? '')) ?: null);
             $unitId = (int)($get($input,'unitId','property_unit_id') ?? 0);
             if(!$unitId){
                 $label=trim((string)($get($input,'unitLabel','propertyAddress','property_address','unit_label','property') ?? ''));
