@@ -1467,7 +1467,11 @@
         </a>
         <a class="sidebar-link" href="#" data-page="clerks">
           <i data-lucide="users"></i>
-          <span>Clerks &amp; Clients</span>
+          <span>Employees</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="clients">
+          <i data-lucide="user-round"></i>
+          <span>Clients</span>
         </a>
 
         <div class="sidebar-section-label">Management</div>
@@ -1976,13 +1980,13 @@
         </section>
 
         <!-- ============================
-             VIEW: CLERKS & CLIENTS
+             VIEW: EMPLOYEES
         ============================= -->
         <section class="view" data-view="clerks">
           <div class="subhead">
             <div>
-              <h2>Clerks &amp; Clients</h2>
-              <p>Every staff account with the clients they enrolled. Expand a clerk to see that clerk's contracts.</p>
+              <h2>Employees</h2>
+              <p>Every staff account with the portfolio totals it handles. Client assignments live on the Clients page.</p>
             </div>
             <div style="display:flex; gap:8px; align-items:center;">
               <button class="btn-primary" id="addClerkBtn" type="button" hidden><i data-lucide="user-plus" style="width:14px;height:14px;"></i> Add Clerk</button>
@@ -2007,6 +2011,47 @@
                 </thead>
                 <tbody id="teamBody">
                   <tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: CLIENTS
+        ============================= -->
+        <section class="view" data-view="clients">
+          <div class="subhead">
+            <div>
+              <h2>Clients</h2>
+              <p>Every enrolled client, the employee who owns the contract, and its payment standing.</p>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input id="clientSearch" type="text" placeholder="Search client, email, contract, property"
+                     style="height:38px; min-width:260px; border:1px solid var(--border); border-radius:6px; padding:0 12px; font-family:inherit; font-size:12px;">
+              <button class="btn-primary" id="refreshClientsBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh</button>
+            </div>
+          </div>
+
+          <div class="table-section" style="margin-bottom:24px;">
+            <div class="table-scroll">
+              <table class="data-table" id="clientsTable">
+                <thead>
+                  <tr>
+                    <th scope="col">Client</th>
+                    <th scope="col">Property</th>
+                    <th scope="col">Contract</th>
+                    <th scope="col">Employee</th>
+                    <th scope="col">TCP</th>
+                    <th scope="col">Paid</th>
+                    <th scope="col">Balance</th>
+                    <th scope="col">Next Due</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Reassign</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsBody">
+                  <tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">Loading clients…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -2856,7 +2901,8 @@
       dashboard:     ['Payment Monitoring & Analytics', 'Admin Console \u2022 Fiscal Year 2026'],
       contracts:     ['Contracts', 'Contract Portfolio \u2022 Management & Reconciliation'],
       schedules:     ['Payment Schedules', 'Installment & Dowpayment Schedules Per Contract'],
-      clerks:        ['Clerks & Clients', 'Sales Team Portfolio \u2022 Clients Enrolled by Each Clerk'],
+      clerks:        ['Employees', 'Staff Accounts \u2022 Portfolio Totals'],
+      clients:       ['Clients', 'Client Directory \u2022 Ownership, Contracts & Payment Standing'],
       notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
       properties:    ['Property Inventory', 'Master Property List • New Contract Autofill'],
       reports:       ['Reports', 'Generate & Export Collection Reports'],
@@ -2887,7 +2933,7 @@
 
       if (name === 'contracts') renderContracts();
       if (name === 'schedules') renderScheduleSelect();
-      if (name === 'clerks') loadTeam();
+      if (name === 'clerks' || name === 'clients') loadTeam();
       if (name === 'notifications') renderNotifications();
       if (name === 'properties') loadPropertyUnits();
       if (name === 'reports') { loadRemittances(); loadReconciliation(); loadForecast(); }
@@ -3910,7 +3956,7 @@
     }
 
     /* ==========================================
-       CLERKS & CLIENTS (admin portfolio view)
+       EMPLOYEES & CLIENTS (admin portfolio views)
     ========================================== */
     const teamEsc = (s)=>String(s==null?'':s).replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     let teamData = null;
@@ -4053,39 +4099,18 @@
     const STATUS_LABEL = { paid:'Settled', current:'Current', 'due-soon':'Due Soon', overdue:'Overdue' };
     const STATUS_CLASS  = { paid:'ok', current:'ok', 'due-soon':'warn', overdue:'danger' };
 
-    function clientRows(clerk, clients){
-      if(!clients.length){
-        return '<tr><td colspan="9" style="text-align:center; padding:18px; color:var(--text-muted);">No clients enrolled by this clerk yet.</td></tr>';
-      }
-      const options = (teamData?.clerks || [])
-        .map(o=>'<option value="'+teamEsc(o.officerId)+'"'+(String(o.officerId)===String(clerk)?' selected':'')+'>'+teamEsc(o.name)+'</option>')
+    function reassignOptions(ownerId){
+      return (teamData?.clerks || [])
+        .map(o=>'<option value="'+teamEsc(o.officerId)+'"'+(String(o.officerId)===String(ownerId)?' selected':'')+'>'+teamEsc(o.name)+'</option>')
         .join('');
-      return clients.map(c=>{
-        const cls = STATUS_CLASS[c.status] || 'ok';
-        const label = STATUS_LABEL[c.status] || c.status;
-        const due = c.nextDueDate ? formatDate(c.nextDueDate) : '<span style="color:var(--text-muted);">—</span>';
-        const prop = c.propertyAddress ? teamEsc(c.propertyAddress) : '<span style="color:var(--text-muted);">—</span>';
-        return '<tr>'
-          + '<td><strong>'+teamEsc(c.name)+'</strong><br><span style="font-size:10px;color:var(--text-muted);">'+teamEsc(c.email)+'</span></td>'
-          + '<td style="font-size:11px;">'+prop+'</td>'
-          + '<td style="font-size:11px;">'+teamEsc(c.accountCode)+'</td>'
-          + '<td style="white-space:nowrap;">'+formatPHP(c.totalPrice)+'</td>'
-          + '<td style="white-space:nowrap;">'+formatPHP(c.paid)+'</td>'
-          + '<td style="white-space:nowrap; font-weight:600;">'+formatPHP(c.balance)+'</td>'
-          + '<td style="white-space:nowrap; font-size:11px;">'+due+'</td>'
-          + '<td><span class="row-status '+cls+'"><span class="dot"></span>'+label+'</span></td>'
-          + '<td><select class="reassign-select" data-contract="'+c.contractId+'" style="height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:11px;">'+options+'</select></td>'
-          + '</tr>';
-      }).join('');
     }
 
     function renderTeam(){
       const body = document.getElementById('teamBody');
       if(!body || !teamData) return;
       const groups = teamData.clerks.slice();
-      const unassigned = teamData.unassigned || [];
 
-      if(!groups.length && !unassigned.length){
+      if(!groups.length){
         body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">No staff accounts found.</td></tr>';
         return;
       }
@@ -4098,16 +4123,13 @@
           : (g.role === 'inventory_admin'
             ? '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:#fef3c7;color:#92400e;margin-left:6px;">INVENTORY</span>'
             : '');
-        const chevron = g.clientCount
-          ? '<i data-lucide="chevron-down" class="team-chevron" style="width:15px;height:15px;color:var(--text-muted);"></i>'
-          : '';
         const actions = (canManageStaff && g.role === 'clerk')
           ? '<td style="white-space:nowrap;">'
             + '<button type="button" class="team-edit-btn" data-staff-id="'+teamEsc(g.officerId)+'" style="height:28px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;margin-right:5px;">Edit</button>'
             + '<button type="button" class="team-delete-btn" data-staff-id="'+teamEsc(g.officerId)+'" data-staff-name="'+teamEsc(g.name)+'" data-staff-clients="'+Number(g.clientCount||0)+'" style="height:28px;padding:0 10px;border:1px solid #fecaca;border-radius:6px;background:#fff;font-size:11px;font-weight:600;color:#b91c1c;cursor:pointer;">Delete</button>'
             + '</td>'
           : '<td><span style="color:var(--text-muted);">—</span></td>';
-        return '<tr class="team-head-row" data-clerk="'+teamEsc(g.officerId)+'" style="cursor:'+(g.clientCount?'pointer':'default')+';">'
+        return '<tr data-clerk="'+teamEsc(g.officerId)+'">'
           + '<td><div style="display:flex;align-items:center;gap:9px;">'
             + '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">'+initials+'</div>'
             + '<div><strong>'+teamEsc(g.name)+'</strong>'+roleTag+'<br><span style="font-size:10px;color:var(--text-muted);">'+teamEsc(g.email)+'</span></div>'
@@ -4119,46 +4141,8 @@
           + '<td><span class="row-status '+rateCls+'"><span class="dot"></span>'+g.collectionRate+'%</span></td>'
           + '<td>'+(g.overdueCount ? '<span class="row-status danger"><span class="dot"></span>'+g.overdueCount+'</span>' : '<span style="color:var(--text-muted);">0</span>')+'</td>'
           + actions
-          + '</tr>'
-          + '<tr class="team-detail-row" data-detail="'+teamEsc(g.officerId)+'" style="display:none;">'
-            + '<td colspan="8" style="background:#f8fafc; padding:0;">'
-              + '<div style="padding:14px 18px; border-left:3px solid var(--accent-blue);">'
-                + '<table class="data-table" style="min-width:0;"><thead><tr>'
-                  + '<th scope="col">Client</th><th scope="col">Property</th><th scope="col">Contract</th>'
-                  + '<th scope="col">TCP</th><th scope="col">Paid</th><th scope="col">Balance</th>'
-                  + '<th scope="col">Next Due</th><th scope="col">Status</th><th scope="col">Reassign</th>'
-                + '</tr></thead><tbody>'+clientRows(g, g.clients)+'</tbody></table>'
-              + '</div>'
-            + '</td>'
           + '</tr>';
-      }).join('')
-      + (unassigned.length
-        ? '<tr class="team-head-row" data-clerk="__unassigned__" style="cursor:pointer;">'
-            + '<td colspan="1"><strong>Unassigned</strong><br><span style="font-size:10px;color:#b45309;">No clerk owns these contracts</span></td>'
-            + '<td>'+unassigned.length+'</td><td colspan="6"><span style="font-size:11px;color:var(--text-muted);">Included here so they are never invisible</span></td>'
-          + '</tr>'
-          + '<tr class="team-detail-row" data-detail="__unassigned__" style="display:none;"><td colspan="8" style="background:#f8fafc;padding:0;">'
-            + '<div style="padding:14px 18px; border-left:3px solid var(--accent-amber);">'
-            + '<table class="data-table" style="min-width:0;"><thead><tr>'
-              + '<th scope="col">Client</th><th scope="col">Property</th><th scope="col">Contract</th>'
-              + '<th scope="col">TCP</th><th scope="col">Paid</th><th scope="col">Balance</th>'
-              + '<th scope="col">Next Due</th><th scope="col">Status</th><th scope="col">Reassign</th>'
-            + '</tr></thead><tbody>'+clientRows('', unassigned)+'</tbody></table>'
-            + '</div></td></tr>'
-        : '');
-
-      // Expand / collapse
-      body.querySelectorAll('.team-head-row').forEach(row=>{
-        row.addEventListener('click',(e)=>{
-          if(e.target.closest('button, .reassign-select')) return;
-          const detail = body.querySelector('.team-detail-row[data-detail="'+row.dataset.clerk+'"]');
-          if(!detail) return;
-          const opening = detail.style.display === 'none';
-          detail.style.display = opening ? 'table-row' : 'none';
-          const icon = row.querySelector('.team-chevron');
-          if(icon) icon.style.transform = opening ? 'rotate(180deg)' : '';
-        });
-      });
+      }).join('');
 
       // Edit / delete clerk accounts (admin only)
       body.querySelectorAll('.team-edit-btn').forEach(btn=>{
@@ -4175,8 +4159,64 @@
         });
       });
 
-      // Reassign
-      body.querySelectorAll('.reassign-select').forEach(sel=>{
+      lucide.createIcons();
+    }
+
+    function flattenClients(){
+      const list = [];
+      (teamData?.clerks || []).forEach(g=>{
+        (g.clients || []).forEach(c=>list.push(Object.assign({}, c, { ownerId: g.officerId, ownerName: g.name })));
+      });
+      (teamData?.unassigned || []).forEach(c=>list.push(Object.assign({}, c, { ownerId: '', ownerName: 'Unassigned' })));
+      return list;
+    }
+
+    function clientRowHTML(c){
+      const cls = STATUS_CLASS[c.status] || 'ok';
+      const label = STATUS_LABEL[c.status] || c.status;
+      const due = c.nextDueDate ? formatDate(c.nextDueDate) : '<span style="color:var(--text-muted);">—</span>';
+      const prop = c.propertyAddress ? teamEsc(c.propertyAddress) : '<span style="color:var(--text-muted);">—</span>';
+      const owner = c.ownerId
+        ? '<span style="font-size:11px;">'+teamEsc(c.ownerName)+'</span>'
+        : '<span style="font-size:11px; color:#b45309; font-weight:600;">Unassigned</span>';
+      return '<tr>'
+        + '<td><strong>'+teamEsc(c.name)+'</strong><br><span style="font-size:10px;color:var(--text-muted);">'+teamEsc(c.email)+'</span></td>'
+        + '<td style="font-size:11px;">'+prop+'</td>'
+        + '<td style="font-size:11px;">'+teamEsc(c.accountCode)+'</td>'
+        + '<td>'+owner+'</td>'
+        + '<td style="white-space:nowrap;">'+formatPHP(c.totalPrice)+'</td>'
+        + '<td style="white-space:nowrap;">'+formatPHP(c.paid)+'</td>'
+        + '<td style="white-space:nowrap; font-weight:600;">'+formatPHP(c.balance)+'</td>'
+        + '<td style="white-space:nowrap; font-size:11px;">'+due+'</td>'
+        + '<td><span class="row-status '+cls+'"><span class="dot"></span>'+label+'</span></td>'
+        + '<td><select class="reassign-select" data-contract="'+c.contractId+'" style="height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:11px;">'+reassignOptions(c.ownerId || '')+'</select></td>'
+        + '</tr>';
+    }
+
+    function renderClients(){
+      const body = document.getElementById('clientsBody');
+      if(!body || !teamData) return;
+      const search = (document.getElementById('clientSearch')?.value || '').toLowerCase().trim();
+      const all = flattenClients();
+      const list = search
+        ? all.filter(c => [c.name, c.email, c.accountCode, c.propertyAddress, c.ownerName]
+            .some(v => String(v == null ? '' : v).toLowerCase().includes(search)))
+        : all;
+
+      if(!list.length){
+        body.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">'
+          + (all.length ? 'No clients match your search.' : 'No clients enrolled yet.')
+          + '</td></tr>';
+        return;
+      }
+
+      body.innerHTML = list.map(clientRowHTML).join('');
+      wireReassign(body);
+      lucide.createIcons();
+    }
+
+    function wireReassign(scope){
+      scope.querySelectorAll('.reassign-select').forEach(sel=>{
         sel.addEventListener('change', async ()=>{
           const contractId = sel.getAttribute('data-contract');
           const officerId = sel.value;
@@ -4203,25 +4243,30 @@
         });
         sel.setAttribute('data-prev', sel.value);
       });
-
-      lucide.createIcons();
     }
 
     async function loadTeam(){
-      const body = document.getElementById('teamBody');
-      if(!body) return;
-      body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>';
+      const teamBody = document.getElementById('teamBody');
+      const clientsBody = document.getElementById('clientsBody');
+      if(teamBody) teamBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:var(--text-muted);">Loading team…</td></tr>';
+      if(clientsBody) clientsBody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">Loading clients…</td></tr>';
       try{
         const res = await fetch(API_BASE + '/php/api_admin.php?action=team');
         const data = await res.json();
         if(!res.ok || !data.success) throw new Error(data.message || 'Could not load team');
         teamData = data;
         renderTeam();
+        renderClients();
       }catch(err){
-        body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:#b91c1c;">'+teamEsc(err.message)+'</td></tr>';
+        const teamErr = '<tr><td colspan="8" style="text-align:center; padding:24px; color:#b91c1c;">'+teamEsc(err.message)+'</td></tr>';
+        const clientErr = '<tr><td colspan="10" style="text-align:center; padding:24px; color:#b91c1c;">'+teamEsc(err.message)+'</td></tr>';
+        if(teamBody) teamBody.innerHTML = teamErr;
+        if(clientsBody) clientsBody.innerHTML = clientErr;
       }
     }
     document.getElementById('refreshTeamBtn')?.addEventListener('click', loadTeam);
+    document.getElementById('refreshClientsBtn')?.addEventListener('click', loadTeam);
+    document.getElementById('clientSearch')?.addEventListener('input', renderClients);
 
     /* ==========================================
        PROPERTY INVENTORY — master list backing
