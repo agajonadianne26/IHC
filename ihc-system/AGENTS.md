@@ -57,3 +57,6 @@ No build, no tests, no lint, no CI. Plain XAMPP (Apache + PHP + MySQL) + a Node 
 - Dead endpoints `php/api_dashboard1.php` and `php/api_insert.php` were deleted.
 - Running `backend/migrations/011_backfill_payment_allocations_ihc.sql` backfills allocation rows for legacy payments.
 
+## Recent changes (2026-11-09)
+
+- Admin Property / Unit Status lookup accepts an address via `property_unit&unitLabel=`, normalizes labels for exact then partial matching, falls back to contracts, and returns ambiguous matches for explicit selection. It does not filter by unit status.

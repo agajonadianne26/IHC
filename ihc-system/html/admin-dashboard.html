@@ -4676,46 +4676,205 @@
 
     // Unit lookup §13
     let lastLookedUpUnit = null;
+    const unitDetailBox = document.getElementById('unitDetailBox');
+    const unitDetailContent = document.getElementById('unitDetailContent');
+    const unitHistoryBody = document.getElementById('unitHistoryBody');
+    const markSoldButton = document.getElementById('markSoldBtn');
+    if (markSoldButton) markSoldButton.disabled = true;
+
+    function renderUnitHistory(history) {
+      unitHistoryBody.textContent = '';
+      if (!history.length) {
+        const row = unitHistoryBody.insertRow();
+        const cell = row.insertCell();
+        cell.colSpan = 5;
+        cell.textContent = 'No payment history found for this unit.';
+        return;
+      }
+      history.slice(0, 20).forEach(item => {
+        const row = unitHistoryBody.insertRow();
+        [item.date || '—', item.type || 'Payment', formatPHP(item.amount), null, item.orNumber || item.referenceNumber || 'Pending']
+          .forEach((value, index) => {
+            const cell = row.insertCell();
+            if (index === 3) {
+              const status = String(item.status || '').toUpperCase();
+              const badge = document.createElement('span');
+              badge.className = 'row-status ' + (status === 'PAID' || status === 'CONVERTED' ? 'ok' : status === 'PENDING' ? 'warn' : 'neutral');
+              const dot = document.createElement('span');
+              dot.className = 'dot';
+              badge.append(dot, document.createTextNode(status || '—'));
+              cell.appendChild(badge);
+            } else {
+              cell.textContent = value;
+            }
+          });
+      });
+    }
+
+    async function showLookedUpUnit(unit) {
+      lastLookedUpUnit = unit;
+      if (markSoldButton) markSoldButton.disabled = unit.status === 'SOLD';
+      unitDetailContent.textContent = '';
+      const addDetail = (label, value) => {
+        const strong = document.createElement('strong');
+        strong.textContent = label + ': ';
+        unitDetailContent.append(strong, document.createTextNode(value || '—'), document.createElement('br'));
+      };
+      addDetail('Unit', unit.display_label);
+      const statusLabel = document.createElement('strong');
+      statusLabel.textContent = 'Status: ';
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'row-status ' + (unit.status === 'AVAILABLE' ? 'neutral' : unit.status === 'ON HOLD' ? 'warn' : unit.status === 'RESERVED' ? 'ok' : 'danger');
+      const statusDot = document.createElement('span');
+      statusDot.className = 'dot';
+      statusBadge.append(statusDot, document.createTextNode(unit.status || '—'));
+      unitDetailContent.append(statusLabel, statusBadge, document.createElement('br'));
+      addDetail('Current contract', unit.current_contract_id ? String(unit.current_contract_id) : '—');
+      addDetail('Holding fee', unit.current_holding_fee_id ? String(unit.current_holding_fee_id) : '—');
+      addDetail('Reservation fee', unit.current_reservation_fee_id ? String(unit.current_reservation_fee_id) : '—');
+      unitHistoryBody.textContent = '';
+
+      if (!unit.current_contract_id) {
+        const row = unitHistoryBody.insertRow();
+        const cell = row.insertCell();
+        cell.colSpan = 5;
+        cell.textContent = 'Loading payment history…';
+        try {
+          const url = API_BASE + '/php/api_holding_reservation.php?' + new URLSearchParams({
+            action: 'property_unit',
+            unitId: String(unit.id)
+          });
+          const response = await fetch(url);
+          const data = await response.json();
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || `Server error (${response.status}).`);
+          }
+          const history = [];
+          (data.holdingFees || []).forEach(fee => history.push({
+            date: fee.payment_date, type: 'Holding Fee', amount: fee.amount, status: fee.status,
+            orNumber: fee.or_number, referenceNumber: fee.reference_number
+          }));
+          (data.reservationFees || []).forEach(fee => history.push({
+            date: fee.payment_date, type: 'Reservation Fee', amount: fee.amount, status: fee.status,
+            orNumber: fee.or_number, referenceNumber: fee.reference_number
+          }));
+          history.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+          renderUnitHistory(history);
+        } catch (error) {
+          unitHistoryBody.textContent = '';
+          const errorRow = unitHistoryBody.insertRow();
+          const errorCell = errorRow.insertCell();
+          errorCell.colSpan = 5;
+          errorCell.textContent = error instanceof TypeError
+            ? 'Network error while loading payment history.'
+            : 'Payment history unavailable: ' + error.message;
+        }
+        lucide.createIcons();
+        return;
+      }
+
+      const row = unitHistoryBody.insertRow();
+      const cell = row.insertCell();
+      cell.colSpan = 5;
+      cell.textContent = 'Loading payment history…';
+      try {
+        const url = API_BASE + '/php/api_holding_reservation.php?' + new URLSearchParams({
+          action: 'payment_history',
+          contractId: String(unit.current_contract_id)
+        });
+        const response = await fetch(url);
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || `Server error (${response.status}).`);
+        }
+        renderUnitHistory(Array.isArray(data.history) ? data.history : []);
+      } catch (error) {
+        unitHistoryBody.textContent = '';
+        const errorRow = unitHistoryBody.insertRow();
+        const errorCell = errorRow.insertCell();
+        errorCell.colSpan = 5;
+        errorCell.textContent = error instanceof TypeError
+          ? 'Network error while loading payment history.'
+          : 'Payment history unavailable: ' + error.message;
+      }
+      lucide.createIcons();
+    }
+
     document.getElementById('lookupUnitBtn')?.addEventListener('click', async ()=>{
       const label=document.getElementById('unitLookupInput').value.trim();
+      lastLookedUpUnit = null;
+      if (markSoldButton) markSoldButton.disabled = true;
       if(!label){ showToast('Enter a unit label.','info'); return; }
-      const box=document.getElementById('unitDetailBox');
-      const content=document.getElementById('unitDetailContent');
-      const hBody=document.getElementById('unitHistoryBody');
-      box.style.display='block'; content.textContent='Loading…'; hBody.innerHTML='';
+      unitDetailBox.style.display='block';
+      unitDetailContent.textContent='Loading…';
+      unitHistoryBody.textContent='';
       try{
-        const res=await fetch(API_BASE+'/php/api_holding_reservation.php?action=property_unit&contractId='+encodeURIComponent(label));
-        let data=await res.json();
-        if(!data.success){
-          const res2=await fetch(API_BASE+'/php/api_holding_reservation.php?action=property_unit&unitId='+encodeURIComponent(label));
-          data=await res2.json();
+        const url = API_BASE + '/php/api_holding_reservation.php?' + new URLSearchParams({
+          action: 'property_unit',
+          unitLabel: label
+        });
+        const response = await fetch(url);
+        const data = await response.json();
+        if (response.status === 404 || (!response.ok && data.message === 'Property/unit not found')) {
+          throw new Error('Property/unit not found');
         }
-        if(!data.success) throw new Error(data.message||'Not found');
-        const u=data.unit;
-        lastLookedUpUnit = u;
-        const soldBtn=document.getElementById('markSoldBtn');
-        if(soldBtn) soldBtn.disabled = u.status==='SOLD';
-        content.innerHTML='<strong>Unit:</strong> '+u.display_label+'<br><strong>Status:</strong> <span class="row-status '+(u.status==='AVAILABLE'?'neutral':u.status==='ON HOLD'?'warn':u.status==='RESERVED'?'ok':'danger')+'"><span class="dot"></span>'+u.status+'</span><br><strong>Current contract:</strong> '+(u.current_contract_id||'—')+'<br><strong>Holding fee:</strong> '+(u.current_holding_fee_id||'—')+'<br><strong>Reservation fee:</strong> '+(u.current_reservation_fee_id||'—');
-        // Try payment_history for that contract if we have it
-        try{
-          const cid=u.current_contract_id;
-          if(cid){
-            const hr=await fetch(API_BASE+'/php/api_holding_reservation.php?action=payment_history&contractId='+encodeURIComponent(cid));
-            const hd=await hr.json();
-            if(hd.success && Array.isArray(hd.history)){
-              hBody.innerHTML=hd.history.slice(0,20).map(h=> '<tr><td>'+h.date+'</td><td>'+h.type+'</td><td>'+formatPHP(h.amount)+'</td><td><span class="row-status '+(h.status==='PAID'?'ok':h.status==='PENDING'?'warn':'neutral')+'"><span class="dot"></span>'+h.status+'</span></td><td>'+(h.orNumber||h.referenceNumber||'<span style="color:var(--text-muted);">Pending</span>')+'</td></tr>').join('');
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || `Server error (${response.status}).`);
+        }
+        if (Array.isArray(data.units) && data.units.length > 1) {
+          unitDetailContent.textContent = 'Multiple units match. Select the correct unit: ';
+          const picker = document.createElement('select');
+          picker.setAttribute('aria-label', 'Matching property units');
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Select a unit…';
+          picker.appendChild(placeholder);
+          data.units.forEach(unit => {
+            const option = document.createElement('option');
+            option.value = String(unit.id);
+            option.textContent = unit.display_label + ' (' + unit.status + ')';
+            picker.appendChild(option);
+          });
+          picker.addEventListener('change', () => {
+            const selected = data.units.find(unit => String(unit.id) === picker.value);
+            if (selected) showLookedUpUnit(selected);
+            else {
+              lastLookedUpUnit = null;
+              if (markSoldButton) markSoldButton.disabled = true;
+              unitHistoryBody.textContent = '';
             }
-          }
-        }catch(e){}
+          });
+          unitDetailContent.appendChild(picker);
+        } else if (data.unit) {
+          await showLookedUpUnit(data.unit);
+        } else if (Array.isArray(data.units) && data.units.length === 1) {
+          await showLookedUpUnit(data.units[0]);
+        } else {
+          throw new Error('Property/unit not found');
+        }
         lucide.createIcons();
-      }catch(e){ content.textContent='Error: '+e.message; }
+      }catch(e){
+        const message = e instanceof TypeError
+          ? 'Network error: unable to reach the server.'
+          : e.message === 'Property/unit not found'
+            ? e.message
+            : 'Server error: ' + e.message;
+        unitDetailContent.textContent = 'Error: ' + message;
+      }
     });
     // §13 state machine — final SOLD transition (manual, per IHC sales policy)
     document.getElementById('markSoldBtn')?.addEventListener('click', async ()=>{
       if(!lastLookedUpUnit){ showToast('Look up a unit first.','info'); return; }
       const unit=lastLookedUpUnit;
       if(unit.status==='SOLD'){ showToast('Unit is already SOLD.','info'); return; }
-      if(!confirm('Mark '+unit.display_label+' as SOLD? This finalizes the unit and cannot be reverted from this panel.')) return;
+      const confirmed = await confirmInventoryAction({
+        title: 'Mark unit as SOLD?',
+        property: unit.display_label,
+        message: 'This finalizes the unit and cannot be reverted from this panel.',
+        confirmLabel: 'Mark SOLD',
+        danger: true
+      });
+      if(!confirmed) return;
       try{
         const res=await fetch(API_BASE+'/php/api_holding_reservation.php?action=unit_status_update', {
           method:'POST', headers:{'Content-Type':'application/json'},

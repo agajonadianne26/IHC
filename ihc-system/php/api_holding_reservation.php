@@ -184,6 +184,25 @@ function normalizeContractId($v): ?int {
     if(preg_match('/(\d+)\s*$/',(string)$v,$m)){ $id=(int)$m[1]; return $id>0?$id:null; }
     return null;
 }
+function normalizeUnitLabel(string $label): string {
+    $label = strtolower(str_replace([',', '.'], '', trim($label)));
+    $label = preg_replace('/\bblk\b/', 'block', $label) ?? $label;
+    return preg_replace('/\s+/', ' ', trim($label)) ?? trim($label);
+}
+function matchUnitLabels(array $rows, string $query, string $labelKey): array {
+    $exact = [];
+    foreach($rows as $row){
+        if(normalizeUnitLabel((string)($row[$labelKey] ?? '')) === $query) $exact[] = $row;
+    }
+    if($exact) return $exact;
+
+    $partial = [];
+    foreach($rows as $row){
+        $label = normalizeUnitLabel((string)($row[$labelKey] ?? ''));
+        if($label !== '' && (strpos($label, $query) !== false || strpos($query, $label) !== false)) $partial[] = $row;
+    }
+    return $partial;
+}
 function getOrCreateUnit(PDO $pdo, string $label, ?int $contractId): ?array {
     $label=trim($label); if($label==='') return null;
     $st=$pdo->prepare('SELECT * FROM property_units WHERE display_label=? LIMIT 1'); $st->execute([$label]); $row=$st->fetch();
@@ -574,10 +593,14 @@ try{
                 $history[]=['id'=>'RF-'.$r['id'],'type'=>'Reservation Fee','transactionType'=>'RESERVATION_FEE','date'=>$r['payment_date'],'amount'=>(float)$r['amount'],'status'=>$r['status'],'orNumber'=>$r['or_number'],'referenceNumber'=>$r['reference_number'],'paymentMethod'=>$r['payment_method'],'createdAt'=>$r['created_at']];
             }
             foreach($payments as $r){
-                // Map remarks that look like status? Keep as PAID for display
-                $history[]=['id'=>'PAY-'.$r['id'],'type'=>'Payment','transactionType'=>'PAYMENT','date'=>$r['date_collected'],'amount'=>(float)$r['amount'],'status'=>'PAID','orNumber'=>$r['or_number'],'referenceNumber'=>$r['or_number'],'paymentMethod'=>$r['payment_method'],'remarks'=>$r['remarks'],'createdAt'=>$r['created_at']];
+                $paymentType = ($r['installment_kind'] ?? '') === 'downpayment'
+                    ? 'Downpayment'
+                    : ((($r['installment_kind'] ?? '') === 'installment' && !empty($r['installment_no']))
+                        ? 'Installment Payment #'.(int)$r['installment_no']
+                        : 'Payment');
+                $history[]=['id'=>'PAY-'.$r['id'],'type'=>$paymentType,'transactionType'=>'PAYMENT','date'=>$r['date_collected'],'amount'=>(float)$r['amount'],'status'=>'PAID','orNumber'=>$r['or_number'],'referenceNumber'=>$r['or_number'],'paymentMethod'=>$r['payment_method'],'remarks'=>$r['remarks'],'createdAt'=>$r['created_at']];
             }
-            usort($history, fn($a,$b)=> strcmp($a['date'],$b['date']) ?: strcmp($a['createdAt'],$b['createdAt']));
+            usort($history, fn($a,$b)=> strcmp($b['date'],$a['date']) ?: strcmp($b['createdAt'],$a['createdAt']));
             $totalPaid=array_sum(array_map(fn($h)=> in_array($h['status'],['PAID','CONVERTED']) ? $h['amount'] : 0, $history));
             // Also include unit status
             $unit=null;
@@ -663,17 +686,48 @@ try{
         if($action==='property_unit'){
             $unitId = isset($_GET['unitId']) ? (int)$_GET['unitId'] : null;
             $contractId = isset($_GET['contractId']) ? normalizeContractId($_GET['contractId']) : null;
-            $unit=null;
-            if($unitId){ $unit=getUnitById($pdo,$unitId); }
+            $lookupLabel = trim((string)($_GET['unitLabel'] ?? $_GET['q'] ?? ''));
+            $units=[];
+            if($lookupLabel !== ''){
+                error_log('[property_unit lookup] '.json_encode(['input'=>$lookupLabel], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                $normalizedQuery = normalizeUnitLabel($lookupLabel);
+                $unitRows = $pdo->query('SELECT * FROM property_units ORDER BY display_label')->fetchAll();
+                $units = matchUnitLabels($unitRows, $normalizedQuery, 'display_label');
+                if(!$units && $normalizedQuery !== ''){
+                    $contractRows = $pdo->query("SELECT id, property_address FROM contracts WHERE property_address IS NOT NULL AND TRIM(property_address) <> '' ORDER BY id")->fetchAll();
+                    $contractMatches = matchUnitLabels($contractRows, $normalizedQuery, 'property_address');
+                    foreach($contractMatches as $contractRow){
+                        $matchedUnit = getOrCreateUnit($pdo, (string)$contractRow['property_address'], (int)$contractRow['id']);
+                        if($matchedUnit) $units[(int)$matchedUnit['id']] = $matchedUnit;
+                    }
+                    $units = array_values($units);
+                }
+            } elseif($unitId){ $unit=getUnitById($pdo,$unitId); if($unit) $units[]=$unit; }
             elseif($contractId){
                 $c=fetchContract($pdo,$contractId);
                 if($c){
                     $st=$pdo->prepare('SELECT * FROM property_units WHERE current_contract_id=? OR display_label=? LIMIT 1');
                     $st->execute([$contractId,$c['property_address']]); $unit=$st->fetch() ?: null;
                     if(!$unit && $c['property_address']) $unit=getOrCreateUnit($pdo,$c['property_address'],$contractId);
+                    if($unit) $units[]=$unit;
                 }
             }
-            if(!$unit){ http_response_code(404); echo json_encode(['success'=>false,'message'=>'Property/unit not found']); exit; }
+            if(!$units){ http_response_code(404); echo json_encode(['success'=>false,'message'=>'Property/unit not found']); exit; }
+            if(count($units)>1){
+                $choices = array_map(static function(array $unit): array {
+                    return [
+                        'id'=>(int)$unit['id'],
+                        'display_label'=>(string)$unit['display_label'],
+                        'status'=>(string)$unit['status'],
+                        'current_contract_id'=>$unit['current_contract_id']!==null?(int)$unit['current_contract_id']:null,
+                        'current_holding_fee_id'=>$unit['current_holding_fee_id']!==null?(int)$unit['current_holding_fee_id']:null,
+                        'current_reservation_fee_id'=>$unit['current_reservation_fee_id']!==null?(int)$unit['current_reservation_fee_id']:null
+                    ];
+                }, $units);
+                echo json_encode(['success'=>true,'ambiguous'=>true,'units'=>$choices]);
+                exit;
+            }
+            $unit=$units[0];
             // History for unit
             $hf=[]; $rf=[];
             if($unit['id']){
@@ -1373,6 +1427,6 @@ try{
 
     http_response_code(405); echo json_encode(['success'=>false,'message'=>'Method not allowed']);
 } catch (Throwable $e){
-    http_response_code(400);
+    http_response_code($e instanceof PDOException || $e instanceof Error ? 500 : 400);
     echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
 }
