@@ -13,7 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (stored) {
     try {
       currentUser = JSON.parse(stored);
-    } catch {}
+    } catch (e) {
+      console.warn('Bad IHC_USER payload', e);
+    }
   }
 
   if (!currentUser || !currentUser.name) {
@@ -82,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render Table Rows from local storage
   const renderTable = (data) => {
+    if (!clientTableBody) return;
     clientTableBody.innerHTML = '';
 
     if (!data || data.length === 0) {
