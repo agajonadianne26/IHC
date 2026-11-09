@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const API_BASE = 'http://localhost/ihc-system';
+  const API_BASE = 'http://localhost/IHC/ihc-system';
 
   const escapeHtml = (value) => String(value == null ? '' : value)
     .replace(/&/g, '&amp;')

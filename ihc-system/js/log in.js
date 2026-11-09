@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
      Login must happen on the XAMPP origin: the lookup API, the session
      (localStorage) and every dashboard redirect assume http://localhost.
   ========================================== */
-  const API_BASE = 'http://localhost/ihc-system';
+  const API_BASE = 'http://localhost/IHC/ihc-system';
   if (window.location.origin !== 'http://localhost') {
     window.location.replace(API_BASE + '/log%20in.html' + window.location.search + window.location.hash);
     return;

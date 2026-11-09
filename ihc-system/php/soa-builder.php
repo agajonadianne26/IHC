@@ -17,6 +17,24 @@ function soa_column_exists(PDO $pdo, string $table, string $column): bool
     return (int)$st->fetchColumn() > 0;
 }
 
+/**
+ * Add a column only when missing. The dashboards fire several endpoints in
+ * parallel, so two requests can both pass soa_column_exists() and race to
+ * ALTER; the loser gets SQLSTATE 42S21 "Duplicate column name". That is the
+ * column now existing — the desired end state — not a failure.
+ */
+function soa_add_column(PDO $pdo, string $table, string $column, string $definition): void
+{
+    if (soa_column_exists($pdo, $table, $column)) return;
+    try {
+        $pdo->exec('ALTER TABLE `' . $table . '` ADD COLUMN `' . $column . '` ' . $definition);
+    } catch (PDOException $e) {
+        if ((string)$e->getCode() !== '42S21' && (int)($e->errorInfo[1] ?? 0) !== 1060) {
+            throw $e;
+        }
+    }
+}
+
 /** Self-heal the SOA additions on older installations. */
 function soa_ensure_schema(PDO $pdo): void
 {
@@ -100,9 +118,7 @@ function soa_ensure_schema(PDO $pdo): void
     ];
     if (soa_table_exists($pdo, 'contracts')) {
         foreach ($contractColumns as $column => $definition) {
-            if (!soa_column_exists($pdo, 'contracts', $column)) {
-                $pdo->exec('ALTER TABLE contracts ADD COLUMN `' . $column . '` ' . $definition);
-            }
+            soa_add_column($pdo, 'contracts', $column, $definition);
         }
     }
 
@@ -116,9 +132,7 @@ function soa_ensure_schema(PDO $pdo): void
     ];
     if (soa_table_exists($pdo, 'payments')) {
         foreach ($paymentColumns as $column => $definition) {
-            if (!soa_column_exists($pdo, 'payments', $column)) {
-                $pdo->exec('ALTER TABLE payments ADD COLUMN `' . $column . '` ' . $definition);
-            }
+            soa_add_column($pdo, 'payments', $column, $definition);
         }
     }
 

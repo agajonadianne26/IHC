@@ -36,6 +36,17 @@ if ($officerId === '') {
     exit;
 }
 
+// Account revocation: deleting a clerk from the admin console removes their
+// officers row, so an old browser session must not keep reading the ledger.
+$officerStmt = $pdo->prepare('SELECT role FROM officers WHERE id = ? LIMIT 1');
+$officerStmt->execute([$officerId]);
+$officerRow = $officerStmt->fetch();
+if (!$officerRow || strtolower(trim((string)$officerRow['role'])) !== 'clerk') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'This clerk account is no longer active. Please contact the administrator.']);
+    exit;
+}
+
 $stmt = $pdo->prepare('SELECT c.* FROM contracts c WHERE c.officer_id = ? ORDER BY c.id');
 $stmt->execute([$officerId]);
 $clients = $stmt->fetchAll(PDO::FETCH_ASSOC); // FETCH_ASSOC keeps the array clean
