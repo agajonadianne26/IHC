@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 12, 2026 at 02:02 AM
+-- Generation Time: Nov 06, 2026 at 10:12 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -114,7 +114,180 @@ INSERT INTO `audit_logs` (`id`, `action`, `contract_id`, `holding_fee_id`, `rese
 (40, 'unit.status_changed', NULL, 8, NULL, 422, 'AVAILABLE', 'ON HOLD', NULL, NULL, '{\"reason\":\"holding paid\"}', '2026-10-09 09:38:37'),
 (41, 'reservation_fee.created', 49, NULL, 5, 419, NULL, 'PAID', '2', 'Ana Reyes', '{\"amount\":25000,\"unit\":\"Greenfield - Block 1 Lot 5\",\"prospectClientId\":null}', '2026-10-09 09:38:48'),
 (42, 'unit.status_changed', 49, NULL, 5, 419, 'ON HOLD', 'RESERVED', '2', 'Ana Reyes', '{\"reason\":\"reservation paid\"}', '2026-10-09 09:38:48'),
-(43, 'holding_fee.converted', 49, 7, 5, 419, 'PAID', 'CONVERTED', '2', 'Ana Reyes', '{\"reservation_id\":5}', '2026-10-09 09:38:48');
+(43, 'holding_fee.converted', 49, 7, 5, 419, 'PAID', 'CONVERTED', '2', 'Ana Reyes', '{\"reservation_id\":5}', '2026-10-09 09:38:48'),
+(44, 'unit.status_changed', 24, NULL, NULL, 22, 'AVAILABLE', 'AVAILABLE', '1', 'Jeremy Cantalejo', '{\"reason\":null}', '2026-10-29 01:56:46'),
+(45, 'unit.status_changed', 24, NULL, NULL, 22, 'AVAILABLE', 'AVAILABLE', '5', 'Rea Villanueva', '{\"reason\":null}', '2026-10-29 01:56:46'),
+(46, 'create_unit', NULL, NULL, NULL, 604, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 28, Lot 10\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"28\",\"lot\":\"10\"}', '2026-11-06 07:25:04'),
+(47, 'staff.deleted', NULL, NULL, NULL, NULL, NULL, NULL, '1', 'Jeremy Cantalejo', '{\"name\":\"Mark Cruz\",\"email\":\"mark@ihc.com\"}', '2026-11-06 07:27:32'),
+(48, 'staff.deleted', NULL, NULL, NULL, NULL, NULL, NULL, '1', 'Jeremy Cantalejo', '{\"name\":\"Jessica Lim\",\"email\":\"jessica@ihc.com\"}', '2026-11-06 07:27:36'),
+(49, 'create_unit', NULL, NULL, NULL, 609, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 17, Lot 9\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"17\",\"lot\":\"9\"}', '2026-11-06 07:40:28'),
+(50, 'create_unit', NULL, NULL, NULL, 613, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 27, Lot 6\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"27\",\"lot\":\"6\"}', '2026-11-06 07:41:05'),
+(51, 'create_unit', NULL, NULL, NULL, 616, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 29, Lot15\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"29\",\"lot\":\"15\"}', '2026-11-06 07:41:56'),
+(52, 'create_unit', NULL, NULL, NULL, 619, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Sto.Tomas, Phase 1, Blk 11, Lot 47\",\"project\":\"Via Verde-Sto.Tomas\",\"phase\":\"1\",\"block\":\"11\",\"lot\":\"47\"}', '2026-11-06 07:43:19'),
+(53, 'create_unit', NULL, NULL, NULL, 622, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE TRECE, Phase 2B, Blk 17, lot 11\",\"project\":\"VIA VERDE TRECE\",\"phase\":\"2B\",\"block\":\"17\",\"lot\":\"11\"}', '2026-11-06 07:43:54'),
+(54, 'create_unit', NULL, NULL, NULL, 625, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 28, Lot 8\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"28\",\"lot\":\"8\"}', '2026-11-06 07:44:39'),
+(55, 'create_unit', NULL, NULL, NULL, 628, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE TRECE, Phase 1, Blk 3, Lot 1\",\"project\":\"VIA VERDE TRECE\",\"phase\":\"1\",\"block\":\"3\",\"lot\":\"1\"}', '2026-11-06 07:45:14'),
+(56, 'create_unit', NULL, NULL, NULL, 633, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VHS-Iriga, Blk 8, Lot 36\",\"project\":\"VHS-Iriga\",\"phase\":null,\"block\":\"8\",\"lot\":\"36\"}', '2026-11-06 07:52:10'),
+(57, 'unit.status_changed', NULL, NULL, NULL, 633, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 07:52:22'),
+(58, 'create_unit', NULL, NULL, NULL, 638, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE-HOMAPON, Blk 8, Lot 26\",\"project\":\"VIA VERDE-HOMAPON\",\"phase\":null,\"block\":\"8\",\"lot\":\"26\"}', '2026-11-06 07:53:11'),
+(59, 'create_unit', NULL, NULL, NULL, 641, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE-HOMAPON, Blk 8, Lot 27\",\"project\":\"l\",\"phase\":null,\"block\":\"8\",\"lot\":\"27\"}', '2026-11-06 07:53:52'),
+(60, 'create_unit', NULL, NULL, NULL, 644, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Trece Martires, Phase 1, Blk 5, Lot 16\",\"project\":\"Via Verde-Trece Martires\",\"phase\":\"1\",\"block\":\"5\",\"lot\":\"16\"}', '2026-11-06 07:54:35'),
+(61, 'create_unit', NULL, NULL, NULL, 647, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"IRHS-Estanza, Blk 18, Lot 1\",\"project\":\"IRHS-Estanza\",\"phase\":null,\"block\":\"18\",\"lot\":\"1\"}', '2026-11-06 07:55:07'),
+(62, 'create_unit', NULL, NULL, NULL, 650, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 28\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"10\",\"lot\":\"28\"}', '2026-11-06 07:55:38'),
+(63, 'create_unit', NULL, NULL, NULL, 653, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"IRS-Sorsogon, Blk 27, Lot 22\",\"project\":\"IRS-Sorsogon\",\"phase\":null,\"block\":\"27\",\"lot\":\"22\"}', '2026-11-06 07:56:13'),
+(64, 'create_unit', NULL, NULL, NULL, 656, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"IRS-Sorsogon, Blk 6, Lot 15\",\"project\":\"IRS-Sorsogon\",\"phase\":null,\"block\":\"6\",\"lot\":\"15\"}', '2026-11-06 07:56:39'),
+(65, 'create_unit', NULL, NULL, NULL, 659, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 3, Lot 13\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"3\",\"lot\":\"13\"}', '2026-11-06 07:57:12'),
+(66, 'create_unit', NULL, NULL, NULL, 662, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE HEIGHTS, Blk 1, Lot 17\",\"project\":\"VIA VERDE HEIGHTS\",\"phase\":null,\"block\":\"1\",\"lot\":\"17\"}', '2026-11-06 07:58:06'),
+(67, 'create_unit', NULL, NULL, NULL, 665, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VHS-Iriga, Blk 1, lot 8\",\"project\":\"VHS-Iriga\",\"phase\":null,\"block\":\"1\",\"lot\":\"8\"}', '2026-11-06 07:58:47'),
+(68, 'create_unit', NULL, NULL, NULL, 668, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 33\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"33\"}', '2026-11-06 07:59:20'),
+(69, 'create_unit', NULL, NULL, NULL, 671, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Priya Meridien, Phase 1, Blk 7, Lot 51&53\",\"project\":\"Priya Meridien\",\"phase\":\"1\",\"block\":\"7\",\"lot\":\"51 & 53\"}', '2026-11-06 08:00:24'),
+(70, 'create_unit', NULL, NULL, NULL, 674, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"IRS-Sorsogon, Blk 30, Lot 1\",\"project\":\"IRS-Sorsogon\",\"phase\":null,\"block\":\"30\",\"lot\":\"1\"}', '2026-11-06 08:01:00'),
+(71, 'create_unit', NULL, NULL, NULL, 677, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 6\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"6\"}', '2026-11-06 08:01:40'),
+(72, 'create_unit', NULL, NULL, NULL, 680, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 7\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"7\"}', '2026-11-06 08:02:08'),
+(73, 'create_unit', NULL, NULL, NULL, 683, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Imperial South Meadows, Phase 1, Blk 37, Lot 10\",\"project\":\"Imperial South Meadows\",\"phase\":\"1\",\"block\":\"37\",\"lot\":\"10\"}', '2026-11-06 08:03:04'),
+(74, 'create_unit', NULL, NULL, NULL, 686, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"IRHS-Estanza, Blk 27, Lot 33,34\",\"project\":\"IRHS-Estanza\",\"phase\":null,\"block\":\"27\",\"lot\":\"33, 34\"}', '2026-11-06 08:03:46'),
+(75, 'create_unit', NULL, NULL, NULL, 689, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 26\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"26\"}', '2026-11-06 08:04:20'),
+(76, 'create_unit', NULL, NULL, NULL, 692, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 17\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"17\"}', '2026-11-06 08:06:24'),
+(77, 'create_unit', NULL, NULL, NULL, 695, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 1\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"1\"}', '2026-11-06 08:07:26'),
+(78, 'create_unit', NULL, NULL, NULL, 698, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE HEIGHTS, Blk 10, Lot 16\",\"project\":\"VIA VERDE HEIGHTS\",\"phase\":null,\"block\":\"10\",\"lot\":\"16\"}', '2026-11-06 08:07:56'),
+(79, 'create_unit', NULL, NULL, NULL, 701, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VHS-Iriga, Blk 1, Lot 35\",\"project\":\"VHS-Iriga\",\"phase\":null,\"block\":\"1\",\"lot\":\"35\"}', '2026-11-06 08:09:22'),
+(80, 'create_unit', NULL, NULL, NULL, 704, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Rancho Imperial De Silang, Phase 1, Blk 24, Lot 35\",\"project\":\"Rancho Imperial De Silang\",\"phase\":\"1\",\"block\":\"24\",\"lot\":\"35\"}', '2026-11-06 08:10:19'),
+(81, 'create_unit', NULL, NULL, NULL, 707, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Tagaytay Meridian, Phase 1, Blk 2, Lot 4\",\"project\":\"Tagaytay Meridian\",\"phase\":\"1\",\"block\":\"2\",\"lot\":\"4\"}', '2026-11-06 08:10:56'),
+(82, 'create_unit', NULL, NULL, NULL, 710, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"The Venetto Heights, Phase 1, Blk 7, Lot 7A\",\"project\":\"The Venetto Heights\",\"phase\":\"1\",\"block\":\"7\",\"lot\":\"7A\"}', '2026-11-06 08:11:32'),
+(83, 'create_unit', NULL, NULL, NULL, 713, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Trece Martires, Phase 2B, Blk 20, Lot 34\",\"project\":\"Via Verde-Trece Martires\",\"phase\":\"2B\",\"block\":\"20\",\"lot\":\"34\"}', '2026-11-06 08:12:42'),
+(84, 'unit.status_changed', NULL, NULL, NULL, 683, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:14'),
+(85, 'unit.status_changed', NULL, NULL, NULL, 647, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:20'),
+(86, 'unit.status_changed', NULL, NULL, NULL, 686, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:23'),
+(87, 'unit.status_changed', NULL, NULL, NULL, 653, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:29'),
+(88, 'unit.status_changed', NULL, NULL, NULL, 653, 'SOLD', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:30'),
+(89, 'unit.status_changed', NULL, NULL, NULL, 674, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:33'),
+(90, 'unit.status_changed', NULL, NULL, NULL, 656, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:41'),
+(91, 'unit.status_changed', NULL, NULL, NULL, 671, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:51'),
+(92, 'unit.status_changed', NULL, NULL, NULL, 704, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:56'),
+(93, 'unit.status_changed', NULL, NULL, NULL, 707, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:13:59'),
+(94, 'unit.status_changed', NULL, NULL, NULL, 710, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:02'),
+(95, 'unit.status_changed', NULL, NULL, NULL, 701, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:05'),
+(96, 'unit.status_changed', NULL, NULL, NULL, 665, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:09'),
+(97, 'unit.status_changed', NULL, NULL, NULL, 662, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:12'),
+(98, 'unit.status_changed', NULL, NULL, NULL, 698, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:15'),
+(99, 'unit.status_changed', NULL, NULL, NULL, 650, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:20'),
+(100, 'unit.status_changed', NULL, NULL, NULL, 659, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:31'),
+(101, 'unit.status_changed', NULL, NULL, NULL, 695, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:34'),
+(102, 'unit.status_changed', NULL, NULL, NULL, 692, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:37'),
+(103, 'unit.status_changed', NULL, NULL, NULL, 689, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:39'),
+(104, 'unit.status_changed', NULL, NULL, NULL, 668, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:42'),
+(105, 'unit.status_changed', NULL, NULL, NULL, 677, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:45'),
+(106, 'unit.status_changed', NULL, NULL, NULL, 680, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:49'),
+(107, 'unit.status_changed', NULL, NULL, NULL, 638, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:52'),
+(108, 'unit.status_changed', NULL, NULL, NULL, 641, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:14:56'),
+(109, 'unit.status_changed', NULL, NULL, NULL, 644, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:15:06'),
+(110, 'unit.status_changed', NULL, NULL, NULL, 713, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:15:11'),
+(111, 'create_unit', NULL, NULL, NULL, 772, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Rancho Imperial De Silang, Phase 1. Blk 36, Lot 11\",\"project\":\"Rancho Imperial De Silang\",\"phase\":\"1\",\"block\":\"36\",\"lot\":\"11\"}', '2026-11-06 08:15:59'),
+(112, 'create_unit', NULL, NULL, NULL, 775, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"The Venetto Heights, Phase 1, Blk 3, Lot 9A\",\"project\":\"The Venetto Heights\",\"phase\":\"1\",\"block\":\"3\",\"lot\":\"9A\"}', '2026-11-06 08:16:42'),
+(113, 'create_unit', NULL, NULL, NULL, 782, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Trece Martires, Phase 2B, Blk 5, Lot 26\",\"project\":\"Via Verde-Trece Martires\",\"phase\":\"2B\",\"block\":\"5\",\"lot\":\"26\"}', '2026-11-06 08:17:50'),
+(114, 'create_unit', NULL, NULL, NULL, 785, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Rancho Imperial De Silang, Phase 1, Blk 14, Lot 36\",\"project\":\"Rancho Imperial De Silang\",\"phase\":\"1\",\"block\":\"14\",\"lot\":\"36\"}', '2026-11-06 08:18:25'),
+(115, 'create_unit', NULL, NULL, NULL, 788, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 32\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"31\",\"lot\":\"32\"}', '2026-11-06 08:19:03'),
+(116, 'create_unit', NULL, NULL, NULL, 791, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 33\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"31\",\"lot\":\"33\"}', '2026-11-06 08:19:41'),
+(117, 'create_unit', NULL, NULL, NULL, 794, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 25\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"31\",\"lot\":\"25\"}', '2026-11-06 08:20:12'),
+(118, 'create_unit', NULL, NULL, NULL, 797, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 31. Lot 24\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"31\",\"lot\":\"24\"}', '2026-11-06 08:21:10'),
+(119, 'create_unit', NULL, NULL, NULL, 800, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 20\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"31\",\"lot\":\"20\"}', '2026-11-06 08:22:14'),
+(120, 'create_unit', NULL, NULL, NULL, 803, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Blk 31, Lot 54\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":null,\"block\":\"31\",\"lot\":\"54\"}', '2026-11-06 08:23:02'),
+(121, 'create_unit', NULL, NULL, NULL, 806, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"ISS-Ligao, Blk 2, Lot 4\",\"project\":\"ISS-Ligao\",\"phase\":null,\"block\":\"2\",\"lot\":\"4\"}', '2026-11-06 08:24:31'),
+(122, 'create_unit', NULL, NULL, NULL, 809, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"RIS-Pol, Blk 1, Lot 6&7\",\"project\":\"RIS-Pol\",\"phase\":null,\"block\":\"1\",\"lot\":\"6&7\"}', '2026-11-06 08:25:18'),
+(123, 'create_unit', NULL, NULL, NULL, 812, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE-HOMAPON, Blk 6, Lot 2\",\"project\":\"VIA VERDE-HOMAPON\",\"phase\":null,\"block\":\"6\",\"lot\":\"2\"}', '2026-11-06 08:25:54'),
+(124, 'create_unit', NULL, NULL, NULL, 817, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE-HOMAPON, Blk 6, Lot 3\",\"project\":\"VIA VERDE-HOMAPON\",\"phase\":null,\"block\":\"6\",\"lot\":\"3\"}', '2026-11-06 08:26:52'),
+(125, 'create_unit', NULL, NULL, NULL, 820, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VIA VERDE-HOMAPON, Blk 6, Lot 4\",\"project\":\"VIA VERDE-HOMAPON\",\"phase\":null,\"block\":\"6\",\"lot\":\"4\"}', '2026-11-06 08:27:12'),
+(126, 'create_unit', NULL, NULL, NULL, 823, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"IRHS-Estanza, Blk 21, Lot 35\",\"project\":\"IRHS-Estanza\",\"phase\":null,\"block\":\"21\",\"lot\":\"35\"}', '2026-11-06 08:27:52'),
+(127, 'create_unit', NULL, NULL, NULL, 826, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"IRS-Sorsogon, Blk 7, Lot 7\",\"project\":\"IRS-Sorsogon\",\"phase\":null,\"block\":\"7\",\"lot\":\"7\"}', '2026-11-06 08:28:14'),
+(128, 'unit.status_changed', NULL, NULL, NULL, 785, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:28:32'),
+(129, 'unit.status_changed', NULL, NULL, NULL, 772, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:28:36'),
+(130, 'unit.status_changed', NULL, NULL, NULL, 775, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:28:38'),
+(131, 'unit.status_changed', NULL, NULL, NULL, 803, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:28:41'),
+(132, 'unit.status_changed', NULL, NULL, NULL, 800, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:28:51'),
+(133, 'unit.status_changed', NULL, NULL, NULL, 794, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:28:55'),
+(134, 'unit.status_changed', NULL, NULL, NULL, 788, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:28:58'),
+(135, 'unit.status_changed', NULL, NULL, NULL, 791, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:29:06'),
+(136, 'unit.status_changed', NULL, NULL, NULL, 797, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:29:09'),
+(137, 'unit.status_changed', NULL, NULL, NULL, 782, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:29:14'),
+(138, 'unit.status_changed', NULL, NULL, NULL, 806, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:29:31'),
+(139, 'unit.status_changed', NULL, NULL, NULL, 809, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:29:41'),
+(140, 'unit.status_changed', NULL, NULL, NULL, 812, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:30:06'),
+(141, 'unit.status_changed', NULL, NULL, NULL, 817, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:30:12'),
+(142, 'unit.status_changed', NULL, NULL, NULL, 820, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:30:17'),
+(143, 'unit.status_changed', NULL, NULL, NULL, 823, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:30:38'),
+(144, 'unit.status_changed', NULL, NULL, NULL, 826, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:30:52'),
+(145, 'create_unit', NULL, NULL, NULL, 863, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"VHS-Iriga, Blk 7, Lot 12\",\"project\":\"VHS-Iriga\",\"phase\":null,\"block\":\"7\",\"lot\":\"12\"}', '2026-11-06 08:33:35'),
+(146, 'create_unit', NULL, NULL, NULL, 866, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Imperial Central Plains, Phase 1, Blk 1, Lot 15\",\"project\":\"Imperial Central Plains\",\"phase\":\"1\",\"block\":\"1\",\"lot\":\"15\"}', '2026-11-06 08:34:04'),
+(147, 'create_unit', NULL, NULL, NULL, 869, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 36\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"8\",\"lot\":\"36\"}', '2026-11-06 08:34:35'),
+(148, 'create_unit', NULL, NULL, NULL, 872, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 45\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"7\",\"lot\":\"45\"}', '2026-11-06 08:35:03'),
+(149, 'create_unit', NULL, NULL, NULL, 875, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2. Blk 5, Lot 113\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"113\"}', '2026-11-06 08:35:30'),
+(150, 'create_unit', NULL, NULL, NULL, 878, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 30\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"7\",\"lot\":\"30\"}', '2026-11-06 08:36:06'),
+(151, 'create_unit', NULL, NULL, NULL, 881, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 117\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"117\"}', '2026-11-06 08:36:32'),
+(152, 'create_unit', NULL, NULL, NULL, 884, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 19\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"10\",\"lot\":\"19\"}', '2026-11-06 08:36:57'),
+(153, 'create_unit', NULL, NULL, NULL, 887, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 125\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"125\"}', '2026-11-06 08:37:23'),
+(154, 'create_unit', NULL, NULL, NULL, 890, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 130\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"130\"}', '2026-11-06 08:37:49'),
+(155, 'create_unit', NULL, NULL, NULL, 893, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 3, Lot 1\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"3\",\"lot\":\"1\"}', '2026-11-06 08:38:23'),
+(156, 'create_unit', NULL, NULL, NULL, 896, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 15&16\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"10\",\"lot\":\"15&16\"}', '2026-11-06 08:38:55'),
+(157, 'create_unit', NULL, NULL, NULL, 899, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 124\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"124\"}', '2026-11-06 08:39:20'),
+(158, 'create_unit', NULL, NULL, NULL, 902, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 44\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"7\",\"lot\":\"44\"}', '2026-11-06 08:39:47'),
+(159, 'create_unit', NULL, NULL, NULL, 905, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 46\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"8\",\"lot\":\"46\"}', '2026-11-06 08:40:13'),
+(160, 'create_unit', NULL, NULL, NULL, 908, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Imperial Central Plains, Phase 1, Blk 8, Lot 23\",\"project\":\"Imperial Central Plains\",\"phase\":\"1\",\"block\":\"8\",\"lot\":\"23\"}', '2026-11-06 08:40:38'),
+(161, 'unit.status_changed', NULL, NULL, NULL, 866, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:41:13'),
+(162, 'unit.status_changed', NULL, NULL, NULL, 908, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:41:21'),
+(163, 'unit.status_changed', NULL, NULL, NULL, 863, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:41:25'),
+(164, 'unit.status_changed', NULL, NULL, NULL, 896, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:42:37'),
+(165, 'unit.status_changed', NULL, NULL, NULL, 884, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:42:42'),
+(166, 'unit.status_changed', NULL, NULL, NULL, 869, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:44:15'),
+(167, 'unit.status_changed', NULL, NULL, NULL, 872, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:44:28'),
+(168, 'unit.status_changed', NULL, NULL, NULL, 875, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:44:32'),
+(169, 'unit.status_changed', NULL, NULL, NULL, 878, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:44:44'),
+(170, 'unit.status_changed', NULL, NULL, NULL, 881, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:44:50'),
+(171, 'unit.status_changed', NULL, NULL, NULL, 887, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:44:57'),
+(172, 'unit.status_changed', NULL, NULL, NULL, 890, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:45:00'),
+(173, 'unit.status_changed', NULL, NULL, NULL, 899, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:45:09'),
+(174, 'unit.status_changed', NULL, NULL, NULL, 893, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:45:11'),
+(175, 'unit.status_changed', NULL, NULL, NULL, 902, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:45:26'),
+(176, 'unit.status_changed', NULL, NULL, NULL, 905, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:45:37'),
+(177, 'create_unit', NULL, NULL, NULL, 952, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 45\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"8\",\"lot\":\"45\"}', '2026-11-06 08:47:08'),
+(178, 'create_unit', NULL, NULL, NULL, 955, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 116\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"116\"}', '2026-11-06 08:47:29'),
+(179, 'create_unit', NULL, NULL, NULL, 958, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 107\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"107\"}', '2026-11-06 08:47:54'),
+(180, 'create_unit', NULL, NULL, NULL, 961, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 99\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"99\"}', '2026-11-06 08:48:17'),
+(181, 'create_unit', NULL, NULL, NULL, 964, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Blk 5, Lot 1\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":null,\"block\":\"5\",\"lot\":\"1\"}', '2026-11-06 08:48:40'),
+(182, 'create_unit', NULL, NULL, NULL, 967, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 83\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"10\",\"lot\":\"83\"}', '2026-11-06 08:49:08'),
+(183, 'create_unit', NULL, NULL, NULL, 970, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 4, Lot 1\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"4\",\"lot\":\"1\"}', '2026-11-06 08:49:29'),
+(184, 'create_unit', NULL, NULL, NULL, 973, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 14\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"14\"}', '2026-11-06 08:49:48'),
+(185, 'create_unit', NULL, NULL, NULL, 976, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 15\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"5\",\"lot\":\"15\"}', '2026-11-06 08:51:57'),
+(186, 'create_unit', NULL, NULL, NULL, 979, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 22\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"7\",\"lot\":\"22\"}', '2026-11-06 08:52:23'),
+(187, 'create_unit', NULL, NULL, NULL, 982, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 88\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"10\",\"lot\":\"88\"}', '2026-11-06 08:52:47'),
+(188, 'create_unit', NULL, NULL, NULL, 985, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 24\",\"project\":\"Via Verde-Cabanatuan\",\"phase\":\"2\",\"block\":\"8\",\"lot\":\"24\"}', '2026-11-06 08:53:15'),
+(189, 'unit.status_changed', NULL, NULL, NULL, 964, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:53:41'),
+(190, 'unit.status_changed', NULL, NULL, NULL, 967, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:53:48'),
+(191, 'unit.status_changed', NULL, NULL, NULL, 982, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:53:53'),
+(192, 'unit.status_changed', NULL, NULL, NULL, 970, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:53:58'),
+(193, 'unit.status_changed', NULL, NULL, NULL, 958, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:03'),
+(194, 'unit.status_changed', NULL, NULL, NULL, 955, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:06'),
+(195, 'unit.status_changed', NULL, NULL, NULL, 952, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:16'),
+(196, 'unit.status_changed', NULL, NULL, NULL, 973, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:20'),
+(197, 'unit.status_changed', NULL, NULL, NULL, 976, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:24'),
+(198, 'unit.status_changed', NULL, NULL, NULL, 961, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:27'),
+(199, 'unit.status_changed', NULL, NULL, NULL, 979, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:33'),
+(200, 'unit.status_changed', NULL, NULL, NULL, 985, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 08:54:40'),
+(201, 'create_unit', NULL, NULL, NULL, 1012, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Marita Villas, Blk 5, Lot 15\",\"project\":\"Marita Villas\",\"phase\":null,\"block\":\"5\",\"lot\":\"15\"}', '2026-11-06 08:56:07'),
+(202, 'create_unit', NULL, NULL, NULL, 1015, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Marita Villas, Blk 5, Lot 17\",\"project\":\"Marita Villas\",\"phase\":null,\"block\":\"5\",\"lot\":\"17\"}', '2026-11-06 08:56:29'),
+(203, 'create_unit', NULL, NULL, NULL, 1018, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"The Venetto Heights, Phase 1, Blk 3, Lot 8A\",\"project\":\"The Venetto Heights\",\"phase\":\"1\",\"block\":\"3\",\"lot\":\"8A\"}', '2026-11-06 08:56:59'),
+(204, 'create_unit', NULL, NULL, NULL, 1021, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 35\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"31\",\"lot\":\"35\"}', '2026-11-06 08:57:29'),
+(205, 'create_unit', NULL, NULL, NULL, 1024, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Trece Martires, Phase 2B, Blk 20, Lot 48\",\"project\":\"Via Verde-Trece Martires\",\"phase\":\"2B\",\"block\":\"20\",\"lot\":\"48\"}', '2026-11-06 09:00:08'),
+(206, 'create_unit', NULL, NULL, NULL, 1027, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Trece Martires, Phase 2B, Blk 17, Lot 26\",\"project\":\"Via Verde-Trece Martires\",\"phase\":\"2B\",\"block\":\"17\",\"lot\":\"26\"}', '2026-11-06 09:02:21'),
+(207, 'create_unit', NULL, NULL, NULL, 1030, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 18\",\"project\":\"Via Verde-Padre Garcia\",\"phase\":\"2\",\"block\":\"31\",\"lot\":\"18\"}', '2026-11-06 09:02:53'),
+(208, 'create_unit', NULL, NULL, NULL, 1033, NULL, 'AVAILABLE', '5', 'Rea', '{\"displayLabel\":\"Via Verde-Sto.Tomas, Phase 3, Blk 9, Lot 22\",\"project\":\"Via Verde-Sto.Tomas\",\"phase\":\"3\",\"block\":\"9\",\"lot\":\"22\"}', '2026-11-06 09:03:19'),
+(209, 'unit.status_changed', NULL, NULL, NULL, 1012, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:03:37'),
+(210, 'unit.status_changed', NULL, NULL, NULL, 1015, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:03:39'),
+(211, 'unit.status_changed', NULL, NULL, NULL, 1018, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:03:55'),
+(212, 'unit.status_changed', NULL, NULL, NULL, 1021, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:04:17'),
+(213, 'unit.status_changed', NULL, NULL, NULL, 1024, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:04:45'),
+(214, 'unit.status_changed', NULL, NULL, NULL, 1027, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:04:47'),
+(215, 'unit.status_changed', NULL, NULL, NULL, 1030, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:05:02'),
+(216, 'unit.status_changed', NULL, NULL, NULL, 1033, 'AVAILABLE', 'SOLD', '5', 'Rea', '{\"reason\":\"Marked SOLD from Property Inventory\"}', '2026-11-06 09:05:13');
 
 -- --------------------------------------------------------
 
@@ -332,7 +505,12 @@ INSERT INTO `notifications_logs` (`id`, `contract_id`, `client_email`, `channel`
 (22, 'CON-45', 'yanniedianne26@gmail.com', 'email', 'payment_receipt', '2026-11-04', 'Payment Receipt OR-INS-2026-00002: Installment #1 — ₱144,444.44', 'sent', '2026-10-02 13:17:36', NULL),
 (23, '24', 'agajonadianne@gmail.com', 'email', 'manual', '2026-11-29', 'Payment Reminder / SOA Summary: Installment Payment #2 — ₱31,250.00 for 24 due in 58 day(s)', 'sent', '2026-10-02 13:19:11', NULL),
 (24, '46', 'jmcantalejo@ccc.edu.ph', 'email', 'manual', '2026-11-11', 'Payment Reminder / SOA Summary: Installment Payment #1 — ₱58,333.33 for 46 due in 33 day(s)', 'sent', '2026-10-09 08:52:50', NULL),
-(25, '24', 'agajonadianne@gmail.com', 'email', 'manual', '2026-12-29', 'Payment Reminder / SOA Summary: Installment Payment #3 — ₱31,250.00 for 24 due in 81 day(s)', 'sent', '2026-10-09 10:19:39', NULL);
+(25, '24', 'agajonadianne@gmail.com', 'email', 'manual', '2026-12-29', 'Payment Reminder / SOA Summary: Installment Payment #3 — ₱31,250.00 for 24 due in 81 day(s)', 'sent', '2026-10-09 10:19:39', NULL),
+(26, '24', 'agajonadianne@gmail.com', 'email', 'manual', '0000-00-00', 'FINAL NOTICE — OVERDUE: Payment Reminder / SOA Summary: Installment Payment #3 — ₱31,250.00 for 24 is past due', 'sent', '2026-10-28 16:47:52', NULL),
+(27, '24', 'agajonadianne@gmail.com', 'email', 'manual', '0000-00-00', 'FINAL NOTICE — OVERDUE: Payment Reminder / SOA Summary: Installment Payment #3 — ₱31,250.00 for 24 is past due', 'sent', '2026-10-28 17:08:43', NULL),
+(28, '24', 'agajonadianne@gmail.com', 'email', 'manual', '0000-00-00', 'FINAL NOTICE — OVERDUE: Payment Reminder / SOA Summary: Installment Payment #3 — ₱31,250.00 for 24 is past due', 'sent', '2026-10-28 17:13:44', NULL),
+(29, '24', 'agajonadianne@gmail.com', 'email', 'manual', '2026-12-29', 'Payment Reminder / SOA Summary: Installment Payment #3 — ₱31,250.00 for 24 due in 54 day(s)', 'sent', '2026-11-05 09:08:22', NULL),
+(30, 'IHC-47', 'maria.santos@example.com', 'email', 'overdue', '2026-11-01', 'OVERDUE: Payment Reminder / SOA Summary: Downpayment — ₱151,062.50 for IHC-47 is past due', 'sent', '2026-11-06 08:05:52', NULL);
 
 -- --------------------------------------------------------
 
@@ -356,8 +534,7 @@ CREATE TABLE `officers` (
 INSERT INTO `officers` (`id`, `full_name`, `role`, `email`, `password_hash`, `must_change_password`) VALUES
 (1, 'Jeremy Cantalejo', 'admin', 'admin@ihc.com', '$2y$10$BL9dLew5Rpc5hX/HKk3l7O4/6iqVbAlm3J7ubMOYR4JwgjwIOfSBi', 0),
 (2, 'Ana Reyes', 'clerk', 'ana@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe', 0),
-(3, 'Mark Cruz', 'clerk', 'mark@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe', 0),
-(4, 'Jessica Lim', 'clerk', 'jessica@ihc.com', '$2y$10$6UYqdMxkJc8llZc34FO7A.WTxPliEGwnIHVv/kL9whScON4McXXbe', 0);
+(5, 'Rea', 'inventory_admin', 'rea@ihc.com', '$2y$10$3UOBUc6oDGGOw9/3/5RzxOwOvLf6b.k/ticpokdx0gbjX94cQcwx2', 0);
 
 -- --------------------------------------------------------
 
@@ -494,13 +671,101 @@ CREATE TABLE `property_units` (
 --
 
 INSERT INTO `property_units` (`id`, `project`, `phase`, `building`, `unit_number`, `model_type`, `lot_area`, `floor_area`, `display_label`, `status`, `current_client_id`, `current_contract_id`, `current_holding_fee_id`, `current_reservation_fee_id`, `created_at`, `updated_at`) VALUES
-(22, NULL, NULL, '1', '5', NULL, NULL, NULL, 'block 1 lot 5 Sampaguita, Madrigal Alabang Muntinlupa City', 'AVAILABLE', NULL, 24, NULL, NULL, '2026-09-25 06:33:20', '2026-10-01 23:58:38'),
+(22, NULL, NULL, '1', '5', NULL, NULL, NULL, 'block 1 lot 5 Sampaguita, Madrigal Alabang Muntinlupa City', 'AVAILABLE', NULL, 24, NULL, NULL, '2026-09-25 06:33:20', '2026-10-29 01:56:46'),
 (193, 'Soldier\'s Hills Subdivision', 'Phase 3', 'Block 12', 'Lot 5', NULL, '150', '120', 'Phase 3, Block 12, Lot 5, Mabuhay Street, Soldier\'s Hills Subdivision, Barangay Molino VI, Bacoor City, Cavite', 'AVAILABLE', NULL, 45, NULL, NULL, '2026-10-02 05:04:50', '2026-10-02 05:04:50'),
 (347, 'Soldier\'s Hills Subdivision', 'Phase 2', 'Block 5', 'Lot 6', '3 storey', '150', '120', 'Block 5 Lot 6, Phase 2, Soldier\'s Hills Subdivision', 'AVAILABLE', NULL, 46, NULL, NULL, '2026-10-09 00:31:36', '2026-10-09 00:31:36'),
 (394, 'Test Village', NULL, NULL, NULL, NULL, NULL, NULL, 'Test Village - Block 7 Lot 3', 'RESERVED', NULL, 47, NULL, 1, '2026-10-09 09:01:32', '2026-10-09 09:10:23'),
 (406, 'Rose St Phase 2', NULL, NULL, NULL, NULL, NULL, NULL, 'Rose St Phase 2 - Block 9 Lot 11', 'RESERVED', NULL, 48, NULL, 3, '2026-10-09 09:23:46', '2026-10-09 09:24:32'),
 (419, 'Greenfield', NULL, NULL, NULL, NULL, NULL, NULL, 'Greenfield - Block 1 Lot 5', 'RESERVED', NULL, 49, NULL, 5, '2026-10-09 09:37:57', '2026-10-09 09:38:48'),
-(422, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Sunrise Village - Block 2 Lot 9', 'ON HOLD', NULL, NULL, 8, NULL, '2026-10-09 09:38:37', '2026-10-09 09:38:37');
+(422, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Sunrise Village - Block 2 Lot 9', 'ON HOLD', NULL, NULL, 8, NULL, '2026-10-09 09:38:37', '2026-10-09 09:38:37'),
+(604, 'Via Verde-Padre Garcia', '2', '28', '10', NULL, NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 28, Lot 10', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:25:04', '2026-11-06 07:25:04'),
+(609, 'Via Verde-Padre Garcia', '2', '17', '9', NULL, NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 17, Lot 9', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:40:28', '2026-11-06 07:40:28'),
+(613, 'Via Verde-Padre Garcia', '2', '27', '6', NULL, NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 27, Lot 6', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:41:05', '2026-11-06 07:41:05'),
+(616, 'Via Verde-Padre Garcia', '2', '29', '15', NULL, NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 29, Lot15', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:41:56', '2026-11-06 07:41:56'),
+(619, 'Via Verde-Sto.Tomas', '1', '11', '47', NULL, NULL, NULL, 'Via Verde-Sto.Tomas, Phase 1, Blk 11, Lot 47', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:43:19', '2026-11-06 07:43:19'),
+(622, 'VIA VERDE TRECE', '2B', '17', '11', NULL, NULL, NULL, 'VIA VERDE TRECE, Phase 2B, Blk 17, lot 11', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:43:54', '2026-11-06 07:43:54'),
+(625, 'Via Verde-Padre Garcia', '2', '28', '8', NULL, NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 28, Lot 8', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:44:39', '2026-11-06 07:44:39'),
+(628, 'VIA VERDE TRECE', '1', '3', '1', NULL, NULL, NULL, 'VIA VERDE TRECE, Phase 1, Blk 3, Lot 1', 'AVAILABLE', NULL, NULL, NULL, NULL, '2026-11-06 07:45:14', '2026-11-06 07:45:14'),
+(633, 'VHS-Iriga', NULL, '8', '36', 'Savannah', NULL, NULL, 'VHS-Iriga, Blk 8, Lot 36', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:52:10', '2026-11-06 07:52:22'),
+(638, 'VIA VERDE-HOMAPON', NULL, '8', '26', 'Tiarra DX', NULL, NULL, 'VIA VERDE-HOMAPON, Blk 8, Lot 26', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:53:11', '2026-11-06 08:14:52'),
+(641, 'l', NULL, '8', '27', 'Tiarra DX', NULL, NULL, 'VIA VERDE-HOMAPON, Blk 8, Lot 27', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:53:52', '2026-11-06 08:14:56'),
+(644, 'Via Verde-Trece Martires', '1', '5', '16', 'Tiarra Duplex', NULL, NULL, 'Via Verde-Trece Martires, Phase 1, Blk 5, Lot 16', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:54:35', '2026-11-06 08:15:06'),
+(647, 'IRHS-Estanza', NULL, '18', '1', 'Lot Only', NULL, NULL, 'IRHS-Estanza, Blk 18, Lot 1', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:55:07', '2026-11-06 08:13:20'),
+(650, 'Via Verde-Cabanatuan', '2', '10', '28', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 28', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:55:38', '2026-11-06 08:14:20'),
+(653, 'IRS-Sorsogon', NULL, '27', '22', 'Lot Only', NULL, NULL, 'IRS-Sorsogon, Blk 27, Lot 22', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:56:13', '2026-11-06 08:13:30'),
+(656, 'IRS-Sorsogon', NULL, '6', '15', 'Lot Only', NULL, NULL, 'IRS-Sorsogon, Blk 6, Lot 15', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:56:39', '2026-11-06 08:13:41'),
+(659, 'Via Verde-Cabanatuan', '2', '3', '13', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 3, Lot 13', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:57:12', '2026-11-06 08:14:31'),
+(662, 'VIA VERDE HEIGHTS', NULL, '1', '17', 'Tiarra Connovate Duplex', NULL, NULL, 'VIA VERDE HEIGHTS, Blk 1, Lot 17', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:58:06', '2026-11-06 08:14:12'),
+(665, 'VHS-Iriga', NULL, '1', '8', 'Lot Only', NULL, NULL, 'VHS-Iriga, Blk 1, lot 8', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:58:47', '2026-11-06 08:14:09'),
+(668, 'Via Verde-Cabanatuan', '2', '5', '33', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 33', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 07:59:20', '2026-11-06 08:14:42'),
+(671, 'Priya Meridien', '1', '7', '51 & 53', 'Lot Only', NULL, NULL, 'Priya Meridien, Phase 1, Blk 7, Lot 51&53', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:00:24', '2026-11-06 08:13:51'),
+(674, 'IRS-Sorsogon', NULL, '30', '1', 'Lot Only', NULL, NULL, 'IRS-Sorsogon, Blk 30, Lot 1', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:01:00', '2026-11-06 08:13:33'),
+(677, 'Via Verde-Cabanatuan', '2', '5', '6', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 6', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:01:40', '2026-11-06 08:14:45'),
+(680, 'Via Verde-Cabanatuan', '2', '5', '7', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 7', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:02:08', '2026-11-06 08:14:49'),
+(683, 'Imperial South Meadows', '1', '37', '10', 'Bently', NULL, NULL, 'Imperial South Meadows, Phase 1, Blk 37, Lot 10', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:03:04', '2026-11-06 08:13:14'),
+(686, 'IRHS-Estanza', NULL, '27', '33, 34', 'Inner Lot', NULL, NULL, 'IRHS-Estanza, Blk 27, Lot 33,34', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:03:46', '2026-11-06 08:13:23'),
+(689, 'Via Verde-Cabanatuan', '2', '5', '26', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 26', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:04:20', '2026-11-06 08:14:39'),
+(692, 'Via Verde-Cabanatuan', '2', '5', '17', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 17', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:06:24', '2026-11-06 08:14:37'),
+(695, 'Via Verde-Cabanatuan', '2', '5', '1', 'Lira', NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 1', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:07:26', '2026-11-06 08:14:34'),
+(698, 'VIA VERDE HEIGHTS', NULL, '10', '16', 'Deanna', NULL, NULL, 'VIA VERDE HEIGHTS, Blk 10, Lot 16', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:07:56', '2026-11-06 08:14:15'),
+(701, 'VHS-Iriga', NULL, '1', '35', 'TIARRA TH', NULL, NULL, 'VHS-Iriga, Blk 1, Lot 35', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:09:22', '2026-11-06 08:14:05'),
+(704, 'Rancho Imperial De Silang', '1', '24', '35', 'Diana Enhance', NULL, NULL, 'Rancho Imperial De Silang, Phase 1, Blk 24, Lot 35', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:10:19', '2026-11-06 08:13:56'),
+(707, 'Tagaytay Meridian', '1', '2', '4', 'Baku', NULL, NULL, 'Tagaytay Meridian, Phase 1, Blk 2, Lot 4', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:10:56', '2026-11-06 08:13:59'),
+(710, 'The Venetto Heights', '1', '7', '7A', 'Lot Only', NULL, NULL, 'The Venetto Heights, Phase 1, Blk 7, Lot 7A', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:11:32', '2026-11-06 08:14:02'),
+(713, 'Via Verde-Trece Martires', '2B', '20', '34', 'Cielo Townhouse', NULL, NULL, 'Via Verde-Trece Martires, Phase 2B, Blk 20, Lot 34', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:12:42', '2026-11-06 08:15:11'),
+(772, 'Rancho Imperial De Silang', '1', '36', '11', 'Lot Only', NULL, NULL, 'Rancho Imperial De Silang, Phase 1. Blk 36, Lot 11', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:15:59', '2026-11-06 08:28:36'),
+(775, 'The Venetto Heights', '1', '3', '9A', 'Lot Only', NULL, NULL, 'The Venetto Heights, Phase 1, Blk 3, Lot 9A', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:16:42', '2026-11-06 08:28:38'),
+(782, 'Via Verde-Trece Martires', '2B', '5', '26', 'Tiarra Duplex', NULL, NULL, 'Via Verde-Trece Martires, Phase 2B, Blk 5, Lot 26', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:17:50', '2026-11-06 08:29:14'),
+(785, 'Rancho Imperial De Silang', '1', '14', '36', 'Lot Only', NULL, NULL, 'Rancho Imperial De Silang, Phase 1, Blk 14, Lot 36', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:18:25', '2026-11-06 08:28:32'),
+(788, 'Via Verde-Padre Garcia', '2', '31', '32', 'Cielo Townhouse', NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 32', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:19:03', '2026-11-06 08:28:58'),
+(791, 'Via Verde-Padre Garcia', '2', '31', '33', 'Cielo Townhouse', NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 33', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:19:41', '2026-11-06 08:29:06'),
+(794, 'Via Verde-Padre Garcia', '2', '31', '25', 'Cielo Townhouse', NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 25', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:20:12', '2026-11-06 08:28:55'),
+(797, 'Via Verde-Padre Garcia', '2', '31', '24', 'Cielo Townhouse', NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 31. Lot 24', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:21:10', '2026-11-06 08:29:09'),
+(800, 'Via Verde-Padre Garcia', '2', '31', '20', 'Cielo Townhouse', NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 20', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:22:14', '2026-11-06 08:28:51'),
+(803, 'Via Verde-Padre Garcia', NULL, '31', '54', 'Cielo Connovate TH', NULL, NULL, 'Via Verde-Padre Garcia, Blk 31, Lot 54', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:23:02', '2026-11-06 08:28:41'),
+(806, 'ISS-Ligao', NULL, '2', '4', NULL, NULL, NULL, 'ISS-Ligao, Blk 2, Lot 4', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:24:31', '2026-11-06 08:29:31'),
+(809, 'RIS-Pol', NULL, '1', '6&7', NULL, NULL, NULL, 'RIS-Pol, Blk 1, Lot 6&7', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:25:18', '2026-11-06 08:29:41'),
+(812, 'VIA VERDE-HOMAPON', NULL, '6', '2', NULL, NULL, NULL, 'VIA VERDE-HOMAPON, Blk 6, Lot 2', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:25:54', '2026-11-06 08:30:06'),
+(817, 'VIA VERDE-HOMAPON', NULL, '6', '3', NULL, NULL, NULL, 'VIA VERDE-HOMAPON, Blk 6, Lot 3', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:26:52', '2026-11-06 08:30:12'),
+(820, 'VIA VERDE-HOMAPON', NULL, '6', '4', NULL, NULL, NULL, 'VIA VERDE-HOMAPON, Blk 6, Lot 4', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:27:12', '2026-11-06 08:30:17'),
+(823, 'IRHS-Estanza', NULL, '21', '35', NULL, NULL, NULL, 'IRHS-Estanza, Blk 21, Lot 35', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:27:52', '2026-11-06 08:30:38'),
+(826, 'IRS-Sorsogon', NULL, '7', '7', NULL, NULL, NULL, 'IRS-Sorsogon, Blk 7, Lot 7', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:28:14', '2026-11-06 08:30:52'),
+(863, 'VHS-Iriga', NULL, '7', '12', NULL, NULL, NULL, 'VHS-Iriga, Blk 7, Lot 12', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:33:35', '2026-11-06 08:41:25'),
+(866, 'Imperial Central Plains', '1', '1', '15', NULL, NULL, NULL, 'Imperial Central Plains, Phase 1, Blk 1, Lot 15', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:34:04', '2026-11-06 08:41:13'),
+(869, 'Via Verde-Cabanatuan', '2', '8', '36', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 36', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:34:35', '2026-11-06 08:44:15'),
+(872, 'Via Verde-Cabanatuan', '2', '7', '45', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 45', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:35:03', '2026-11-06 08:44:28'),
+(875, 'Via Verde-Cabanatuan', '2', '5', '113', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2. Blk 5, Lot 113', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:35:30', '2026-11-06 08:44:32'),
+(878, 'Via Verde-Cabanatuan', '2', '7', '30', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 30', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:36:06', '2026-11-06 08:44:44'),
+(881, 'Via Verde-Cabanatuan', '2', '5', '117', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 117', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:36:32', '2026-11-06 08:44:50'),
+(884, 'Via Verde-Cabanatuan', '2', '10', '19', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 19', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:36:57', '2026-11-06 08:42:42'),
+(887, 'Via Verde-Cabanatuan', '2', '5', '125', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 125', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:37:23', '2026-11-06 08:44:57'),
+(890, 'Via Verde-Cabanatuan', '2', '5', '130', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 130', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:37:49', '2026-11-06 08:45:00'),
+(893, 'Via Verde-Cabanatuan', '2', '3', '1', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 3, Lot 1', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:38:23', '2026-11-06 08:45:11'),
+(896, 'Via Verde-Cabanatuan', '2', '10', '15&16', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 15&16', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:38:55', '2026-11-06 08:42:37'),
+(899, 'Via Verde-Cabanatuan', '2', '5', '124', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 124', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:39:20', '2026-11-06 08:45:09'),
+(902, 'Via Verde-Cabanatuan', '2', '7', '44', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 44', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:39:47', '2026-11-06 08:45:26'),
+(905, 'Via Verde-Cabanatuan', '2', '8', '46', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 46', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:40:13', '2026-11-06 08:45:37'),
+(908, 'Imperial Central Plains', '1', '8', '23', NULL, NULL, NULL, 'Imperial Central Plains, Phase 1, Blk 8, Lot 23', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:40:38', '2026-11-06 08:41:21'),
+(952, 'Via Verde-Cabanatuan', '2', '8', '45', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 45', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:47:08', '2026-11-06 08:54:16'),
+(955, 'Via Verde-Cabanatuan', '2', '5', '116', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 116', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:47:29', '2026-11-06 08:54:06'),
+(958, 'Via Verde-Cabanatuan', '2', '5', '107', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 107', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:47:54', '2026-11-06 08:54:03'),
+(961, 'Via Verde-Cabanatuan', '2', '5', '99', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 99', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:48:17', '2026-11-06 08:54:27'),
+(964, 'Via Verde-Cabanatuan', NULL, '5', '1', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Blk 5, Lot 1', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:48:40', '2026-11-06 08:53:41'),
+(967, 'Via Verde-Cabanatuan', '2', '10', '83', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 83', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:49:08', '2026-11-06 08:53:48'),
+(970, 'Via Verde-Cabanatuan', '2', '4', '1', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 4, Lot 1', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:49:29', '2026-11-06 08:53:58'),
+(973, 'Via Verde-Cabanatuan', '2', '5', '14', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 14', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:49:48', '2026-11-06 08:54:20'),
+(976, 'Via Verde-Cabanatuan', '2', '5', '15', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 5, Lot 15', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:51:57', '2026-11-06 08:54:24'),
+(979, 'Via Verde-Cabanatuan', '2', '7', '22', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 7, Lot 22', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:52:23', '2026-11-06 08:54:33'),
+(982, 'Via Verde-Cabanatuan', '2', '10', '88', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 10, Lot 88', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:52:47', '2026-11-06 08:53:53'),
+(985, 'Via Verde-Cabanatuan', '2', '8', '24', NULL, NULL, NULL, 'Via Verde-Cabanatuan, Phase 2, Blk 8, Lot 24', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:53:15', '2026-11-06 08:54:40'),
+(1012, 'Marita Villas', NULL, '5', '15', NULL, NULL, NULL, 'Marita Villas, Blk 5, Lot 15', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:56:07', '2026-11-06 09:03:37'),
+(1015, 'Marita Villas', NULL, '5', '17', NULL, NULL, NULL, 'Marita Villas, Blk 5, Lot 17', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:56:29', '2026-11-06 09:03:39'),
+(1018, 'The Venetto Heights', '1', '3', '8A', NULL, NULL, NULL, 'The Venetto Heights, Phase 1, Blk 3, Lot 8A', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:56:59', '2026-11-06 09:03:55'),
+(1021, 'Via Verde-Padre Garcia', '2', '31', '35', NULL, NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 35', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 08:57:29', '2026-11-06 09:04:17'),
+(1024, 'Via Verde-Trece Martires', '2B', '20', '48', NULL, NULL, NULL, 'Via Verde-Trece Martires, Phase 2B, Blk 20, Lot 48', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 09:00:08', '2026-11-06 09:04:45'),
+(1027, 'Via Verde-Trece Martires', '2B', '17', '26', NULL, NULL, NULL, 'Via Verde-Trece Martires, Phase 2B, Blk 17, Lot 26', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 09:02:21', '2026-11-06 09:04:47'),
+(1030, 'Via Verde-Padre Garcia', '2', '31', '18', NULL, NULL, NULL, 'Via Verde-Padre Garcia, Phase 2, Blk 31, Lot 18', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 09:02:53', '2026-11-06 09:05:02'),
+(1033, 'Via Verde-Sto.Tomas', '3', '9', '22', NULL, NULL, NULL, 'Via Verde-Sto.Tomas, Phase 3, Blk 9, Lot 22', 'SOLD', NULL, NULL, NULL, NULL, '2026-11-06 09:03:19', '2026-11-06 09:05:13');
 
 -- --------------------------------------------------------
 
@@ -764,13 +1029,13 @@ ALTER TABLE `additional_equity_payments`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=217;
 
 --
 -- AUTO_INCREMENT for table `bank_rates`
 --
 ALTER TABLE `bank_rates`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=730;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=883;
 
 --
 -- AUTO_INCREMENT for table `client_accounts`
@@ -794,13 +1059,13 @@ ALTER TABLE `holding_fees`
 -- AUTO_INCREMENT for table `notifications_logs`
 --
 ALTER TABLE `notifications_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
 
 --
 -- AUTO_INCREMENT for table `officers`
 --
 ALTER TABLE `officers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `password_reset_requests`
@@ -824,7 +1089,7 @@ ALTER TABLE `payment_allocations`
 -- AUTO_INCREMENT for table `property_units`
 --
 ALTER TABLE `property_units`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=436;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1061;
 
 --
 -- AUTO_INCREMENT for table `prospect_clients`
