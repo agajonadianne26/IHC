@@ -2413,14 +2413,7 @@
               <div class="nc-card">
                 <div class="fee-body">
               <div class="form-grid">
-                <div class="form-group full">
-                  <label>Payment Type <span style="color:var(--accent-rose);">*</span></label>
-                  <select id="hfFeeType">
-                    <option value="holding">Holding Fee</option>
-                    <option value="reservation">Reservation Fee</option>
-                  </select>
-                  <small class="file-hint" id="hfFeeTypeHint">Holding Fee puts the unit ON HOLD (with expiration). Reservation Fee reserves it (ON HOLD &rarr; RESERVED).</small>
-                </div>
+                <input type="hidden" id="hfFeeType" value="holding">
                 <div class="form-group full">
                   <label>Client</label>
                   <select id="hfClientSelect">
@@ -4300,9 +4293,6 @@
           ? 'Holding Fee puts the unit ON HOLD for 30 days (AVAILABLE → ON HOLD).'
           : 'Reservation Fee reserves the unit (ON HOLD → RESERVED). Valid hold required.';
         document.getElementById('hfSubmitLabel').textContent = isHolding ? 'Save Holding Fee' : 'Save Reservation Fee';
-      document.getElementById('hfFeeTypeHint').textContent = isHolding
-          ? 'Holding Fee puts the unit ON HOLD (with expiration). Reservation Fee reserves it (ON HOLD &rarr; RESERVED).'
-          : 'Reservation Fee is a separate transaction from the Holding Fee and will mark it CONVERTED when paid.';
         updateHfValidity();
         updateHfFeeSummary();
       });
