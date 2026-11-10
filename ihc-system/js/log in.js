@@ -128,8 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // 2) The server did not grant access (or was unreachable): try the
-      //    localStorage demo seeds so the demo client credentials printed on
-      //    this page keep working offline / in demo mode.
+      //    localStorage demo seeds so advertised demo client credentials
+      //    keep working offline / in demo mode.
       const demoClient = window.portalStore && portalStore.findClientByLogin(email, password);
       if (demoClient) {
         const initials = demoClient.name.split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase();
