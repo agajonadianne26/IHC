@@ -65,6 +65,14 @@ function ihc_build_installments(array $contract): array {
     $list = [['kind' => 'downpayment', 'no' => null, 'dueDate' => $start, 'amount' => round($dp, 2)]];
     $amortTotal = round($tcp - $dp, 2);
     $per = floor($amortTotal / $terms * 100) / 100;
+    // Accounts migrated from the collection Excel (php/api_import.php) keep the
+    // buyer's actual monthly amortization: every row is that amount and the
+    // last absorbs the remainder. New contracts leave the column NULL and keep
+    // the equal split above.
+    $monthly = round((float)($contract['monthly_amortization'] ?? 0), 2);
+    if ($monthly > 0.009 && $terms > 1 && $monthly * ($terms - 1) < $amortTotal) {
+        $per = $monthly;
+    }
     for ($i = 1; $i <= $terms; $i++) {
         $amt = ($i === $terms) ? round($amortTotal - $per * ($terms - 1), 2) : $per;
         $list[] = ['kind' => 'installment', 'no' => $i, 'dueDate' => ihc_add_months($start, $i), 'amount' => $amt];

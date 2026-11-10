@@ -1935,6 +1935,16 @@
           <div class="table-section" style="margin-top:24px;">
             <div class="table-header">
               <div class="table-header-left">
+                <h3>Dues &amp; Performance</h3>
+                <p>Clients with unpaid installments due this week or month, their payment performance, and each clerk's collection rate. Paid dues drop off automatically.</p>
+              </div>
+            </div>
+            <div id="duesReportAdmin"></div>
+          </div>
+
+          <div class="table-section" style="margin-top:24px;">
+            <div class="table-header">
+              <div class="table-header-left">
                 <h3>Cash Flow Forecast</h3>
                 <p>Last 6 months posted vs. next 12 months of unpaid installments.</p>
               </div>
@@ -2373,6 +2383,10 @@
             <input type="email" id="staffEmail" maxlength="255" autocomplete="off">
           </div>
           <div class="inv-form-group">
+            <label for="staffCode">Officer Code <span style="font-weight:400;color:var(--text-secondary);">(as written in the collection Excel, e.g. AJ)</span></label>
+            <input type="text" id="staffCode" maxlength="20" autocomplete="off" style="text-transform:uppercase;">
+          </div>
+          <div class="inv-form-group">
             <label for="staffPassword">Password <span id="staffPasswordHint" style="font-weight:400;color:var(--text-secondary);"></span></label>
             <input type="password" id="staffPassword" autocomplete="new-password">
           </div>
@@ -2391,6 +2405,7 @@
   ============================================= -->
   <script src="../js/soa.js?v=1"></script>
   <script src="../js/property-address.js?v=1"></script>
+  <script src="../js/dues-report.js?v=2"></script>
   <script>
   'use strict';
 
@@ -2936,7 +2951,15 @@
       if (name === 'clerks' || name === 'clients') loadTeam();
       if (name === 'notifications') renderNotifications();
       if (name === 'properties') loadPropertyUnits();
-      if (name === 'reports') { loadRemittances(); loadReconciliation(); loadForecast(); }
+      if (name === 'reports') {
+        loadRemittances(); loadReconciliation(); loadForecast();
+        // Dues & Performance: mount once, refresh on every visit so paid dues drop off.
+        const duesEl = document.getElementById('duesReportAdmin');
+        if (duesEl && window.IHCDues) {
+          if (!duesEl._dues) duesEl._dues = window.IHCDues.mount(duesEl, { apiBase: API_BASE, showClerks: true });
+          else duesEl._dues.refresh();
+        }
+      }
       if (name === 'audit') loadAuditLogs();
       if (name === 'requests') loadPasswordRequests();
 
@@ -3968,6 +3991,7 @@
     const staffFields = {
       name: document.getElementById('staffName'),
       email: document.getElementById('staffEmail'),
+      code: document.getElementById('staffCode'),
       password: document.getElementById('staffPassword')
     };
     const staffFormStatus = document.getElementById('staffFormStatus');
@@ -3991,6 +4015,7 @@
       document.getElementById('staffModalTitle').textContent = staff ? 'Edit Clerk' : 'Add Clerk';
       staffFields.name.value = staff ? (staff.name || '') : '';
       staffFields.email.value = staff ? (staff.email || '') : '';
+      staffFields.code.value = staff ? (staff.officerCode || '') : '';
       staffFields.password.value = '';
       staffPasswordHint.textContent = staff
         ? '(leave blank to keep the current password)'
@@ -4013,6 +4038,7 @@
       const fullName = staffFields.name.value.trim();
       const email = staffFields.email.value.trim();
       const password = staffFields.password.value;
+      const officerCode = staffFields.code.value.trim().toUpperCase();
       const action = editingStaffId ? 'staff_update' : 'staff_create';
 
       if (!fullName) { setStaffStatus('Full name is required.', true); staffFields.name.focus(); return; }
@@ -4032,6 +4058,7 @@
             staffId: editingStaffId,
             fullName,
             email,
+            officerCode,
             password,
             actorId: currentUser.officerId || '',
             actorName: currentUser.name || currentUser.email || ''
@@ -4132,7 +4159,7 @@
         return '<tr data-clerk="'+teamEsc(g.officerId)+'">'
           + '<td><div style="display:flex;align-items:center;gap:9px;">'
             + '<div style="width:28px;height:28px;border-radius:50%;background:var(--accent-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;">'+initials+'</div>'
-            + '<div><strong>'+teamEsc(g.name)+'</strong>'+roleTag+'<br><span style="font-size:10px;color:var(--text-muted);">'+teamEsc(g.email)+'</span></div>'
+            + '<div><strong>'+teamEsc(g.name)+'</strong>'+roleTag+(g.officerCode ? '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:#dcfce7;color:#166534;margin-left:6px;" title="Officer code in the collection Excel">'+teamEsc(g.officerCode)+'</span>' : '')+'<br><span style="font-size:10px;color:var(--text-muted);">'+teamEsc(g.email)+'</span></div>'
           + '</div></td>'
           + '<td>'+g.clientCount+'</td>'
           + '<td style="white-space:nowrap;">'+formatPHP(g.portfolio)+'</td>'

@@ -112,6 +112,68 @@
       font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition);
     }
     .btn-primary:hover { background: #059669; }
+    .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+
+    /* Import Accounts */
+    .imp-card { margin-bottom: 18px; }
+    .imp-pad { padding: 16px 20px 20px; }
+    .imp-rules { margin: 12px 0 0 18px; font-size: 11.5px; color: var(--text-secondary); line-height: 1.6; }
+    .imp-status { margin-top: 10px; font-size: 12px; font-weight: 600; }
+    .imp-status.error { color: #b91c1c; }
+    .imp-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+    .imp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .imp-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #f1f5f9; color: var(--text-secondary); }
+    .imp-chip.ok { background: var(--accent-emerald-bg); color: #065f46; }
+    .imp-chip.warn { background: var(--accent-amber-bg); color: #92400e; }
+    .imp-chip.error { background: var(--accent-rose-bg); color: #9f1239; }
+    .imp-actions { display: flex; gap: 8px; align-items: center; }
+    .imp-actions select { height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-family: inherit; font-size: 12px; }
+    .imp-table { min-width: 1400px; }
+    .imp-table td { padding: 10px 12px; vertical-align: top; }
+    .imp-table input[type="email"], .imp-table input[type="tel"] { width: 170px; height: 30px; border: 1px solid var(--border); border-radius: 6px; padding: 0 8px; font-family: inherit; font-size: 11.5px; }
+    .imp-table input.invalid { border-color: #ef4444; background: #fef2f2; }
+    .imp-table tr.imp-off td { opacity: .5; }
+    .imp-notes { font-size: 11px; line-height: 1.45; min-width: 260px; max-width: 420px; }
+    .imp-notes .e { color: #b91c1c; }
+    .imp-notes .w { color: #92400e; }
+    .imp-notes .i { color: var(--text-muted); }
+    .imp-sub { display: block; font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+    .imp-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; border: 2px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; cursor: pointer; text-align: center; color: #475569; transition: all var(--transition); }
+    .imp-drop:hover, .imp-drop.drag { border-color: var(--accent-emerald); background: var(--accent-emerald-bg); color: #065f46; }
+    .imp-drop strong { font-size: 13px; }
+    .imp-drop small { font-size: 11px; color: var(--text-muted); }
+    .imp-drop input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .imp-fix { margin-top: 8px; padding: 8px; border: 1px dashed #fcd34d; border-radius: 8px; background: #fffbeb; min-width: 300px; }
+    .imp-fix-tip { font-size: 11px; color: #92400e; line-height: 1.45; margin-bottom: 6px; }
+    .imp-fix-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px; }
+    .imp-fix label { display: flex; flex-direction: column; gap: 2px; font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; }
+    .imp-fix input { width: 100%; height: 28px; border: 1px solid var(--border); border-radius: 6px; padding: 0 6px; font-family: inherit; font-size: 11.5px; text-transform: none; font-weight: 400; color: var(--text-primary); }
+    .imp-fix-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; }
+    .imp-fix-est { font-size: 11px; font-weight: 700; color: #065f46; }
+    .imp-fix-est.bad { color: #b91c1c; }
+    .imp-notes { min-width: 320px; }
+    .imp-help { margin-top: 12px; }
+    .imp-link { border: 0; background: none; padding: 0; font: inherit; font-size: 10.5px; color: #b91c1c; font-weight: 700; text-decoration: underline; cursor: pointer; }
+    .imp-help summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--accent-blue); }
+    .imp-recon { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: #f8fafc; }
+    .imp-recon-head { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+    .imp-recon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .imp-recon-grid div { background: #fff; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px 10px; }
+    .imp-recon-grid small { display: block; font-size: 10.5px; color: var(--text-muted); }
+    .imp-recon-grid strong { font-size: 14px; }
+    .imp-recon-check { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .imp-review { min-width: 1900px; }
+    .imp-review input { height: 30px; border: 1px solid var(--border); border-radius: 6px; padding: 0 6px; font-family: inherit; font-size: 11.5px; width: 100%; min-width: 60px; }
+    .imp-review input.w-name { min-width: 170px; }
+    .imp-review input.w-wide { min-width: 140px; }
+    .imp-review input.w-num { min-width: 100px; }
+    .imp-review input.w-date { min-width: 128px; }
+    .imp-review tr.imp-dirty td { background: #fffbeb; }
+    .imp-batches { min-width: 900px; }
+    .imp-btn-sm { height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; font-size: 11px; font-weight: 600; cursor: pointer; margin-right: 4px; font-family: inherit; }
+    .imp-btn-sm.danger { border-color: #fecaca; color: #b91c1c; }
+    .imp-btn-sm.ok { border-color: #a7f3d0; color: #065f46; }
+    .imp-btn-sm:disabled { opacity: .5; cursor: not-allowed; }
 
     /* ==========================================
        SIDEBAR
@@ -500,6 +562,27 @@
       font-size: 11px;
       color: var(--text-muted);
     }
+
+    /* 4-up KPI row (clients page) + amber/rose variants + clickable cards */
+    .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .kpi-card.amber::before { background: var(--accent-amber); }
+    .kpi-card.rose::before { background: var(--accent-rose); }
+    .kpi-icon.amber { background: var(--accent-amber-bg); color: var(--accent-amber); }
+    .kpi-icon.rose { background: var(--accent-rose-bg); color: var(--accent-rose); }
+    .kpi-value.amber { color: #b45309; }
+    .kpi-value.rose { color: #be123c; }
+    .kpi-link { cursor: pointer; transition: transform var(--transition), box-shadow var(--transition); }
+    .kpi-link:hover { transform: translateY(-2px); box-shadow: var(--shadow-md, 0 6px 16px rgba(15,23,42,.08)); }
+    @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+    /* Pagination under long tables */
+    .pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--border-light); font-size: 12px; color: var(--text-secondary); }
+    .pager:empty { display: none; }
+    .pager .pager-btns { display: flex; gap: 4px; align-items: center; }
+    .pager button { min-width: 32px; height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-primary); }
+    .pager button.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+    .pager button:disabled { opacity: .4; cursor: not-allowed; }
+    .client-cell { min-width: 220px; }
 
     /* ==========================================
        TABLE SECTION
@@ -1820,10 +1903,6 @@
           <i data-lucide="credit-card"></i>
           <span>Payments</span>
         </a>
-        <a class="sidebar-link" href="#" data-page="notifications">
-          <i data-lucide="bell"></i>
-          <span>Notifications Log</span>
-        </a>
         <a class="sidebar-link sidebar-parent-link" href="#" id="newContractNavToggle" data-group="new-contract" aria-expanded="false">
           <i data-lucide="user-plus"></i>
           <span>New Contract</span>
@@ -1843,6 +1922,22 @@
             <span>New Contract</span>
           </a>
         </div>
+
+        <div class="sidebar-section-label" style="margin-top:10px;">Reports</div>
+        <a class="sidebar-link" href="#" data-page="reports">
+          <i data-lucide="bar-chart-3"></i>
+          <span>Reports</span>
+        </a>
+
+        <div class="sidebar-section-label" style="margin-top:10px;">Tools</div>
+        <a class="sidebar-link" href="#" data-page="notifications">
+          <i data-lucide="bell"></i>
+          <span>Notifications Log</span>
+        </a>
+        <a class="sidebar-link" href="#" data-page="import">
+          <i data-lucide="file-spreadsheet"></i>
+          <span>Import Accounts</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -1923,6 +2018,24 @@
             <div class="kpi-sub">Cleared payments processed by you</div>
           </div>
 
+          <div class="kpi-card amber kpi-link" data-goto-page="reports" title="Open Reports → Dues & Performance for this week">
+            <div class="kpi-header">
+              <span class="kpi-label">Due This Week</span>
+              <div class="kpi-icon amber"><i data-lucide="calendar-clock" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value amber" id="kpiDueWeek">0</div>
+            <div class="kpi-sub" id="kpiDueWeekAmt">₱0.00 to collect (Mon–Sun)</div>
+          </div>
+
+          <div class="kpi-card rose kpi-link" data-goto-filter="overdue" title="Show overdue accounts">
+            <div class="kpi-header">
+              <span class="kpi-label">Overdue Accounts</span>
+              <div class="kpi-icon rose"><i data-lucide="alert-triangle" style="width:20px;height:20px;"></i></div>
+            </div>
+            <div class="kpi-value rose" id="kpiOverdue">0</div>
+            <div class="kpi-sub" id="kpiOverdueAmt">₱0.00 past due</div>
+          </div>
+
         </section>
 
         <!-- TABLE -->
@@ -1964,6 +2077,7 @@
               <tbody id="tableBody"></tbody>
             </table>
           </div>
+          <div class="pager" id="clientsPager"></div>
         </section>
 
         </section><!-- /view clients -->
@@ -2166,6 +2280,170 @@
               </thead>
               <tbody id="notifLogBody"></tbody>
             </table>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: REPORTS (js/clerk-reports.js → Dues & Performance / Aging / Collections)
+        ============================= -->
+        <section class="view" data-view="reports">
+          <div class="table-section" style="padding:18px 20px 22px;">
+            <div id="clerkReports"></div>
+          </div>
+        </section>
+
+        <!-- ============================
+             VIEW: IMPORT ACCOUNTS (collection Excel → contracts)
+        ============================= -->
+        <section class="view" data-view="import">
+          <div class="nc-card imp-card">
+            <div class="nc-card-head">
+              <div class="nc-card-icon"><i data-lucide="file-spreadsheet"></i></div>
+              <div>
+                <h3>Step 1 · Choose the workbook</h3>
+                <p>Nothing is saved until you review the rows (Step 2) and click Import.</p>
+              </div>
+            </div>
+            <div class="imp-pad">
+              <label class="imp-drop" id="impDrop" for="impFile">
+                <i data-lucide="upload-cloud" style="width:28px;height:28px;"></i>
+                <strong id="impDropTitle">Click to choose a file, or drop it here</strong>
+                <small>.xlsx or .csv — the collection officer workbook</small>
+                <input type="file" id="impFile" accept=".xlsx,.xls,.csv">
+              </label>
+              <details class="imp-help">
+                <summary>How the import works</summary>
+              <ul class="imp-rules">
+                <li>Each account is imported as an <strong>opening balance</strong> as of the workbook's latest <em>AR Balance as of &hellip;</em> month, with its monthly amount and any arrears as overdue months.</li>
+                <li>Collections already recorded for that month are added as payments (OR shows <em>FOR OR</em> when not yet issued).</li>
+                <li>Only rows whose <em>Collection Officer</em> is your officer code are accepted. Rows already in the system are skipped.</li>
+                <li>Email and cellphone are optional here. Accounts without them get no reminders until you complete them below.</li>
+                <li>Every import becomes a batch <strong>For Verification</strong> (Step 3): edit or undo it there, then Confirm when it is correct.</li>
+              </ul>
+              </details>
+              <div id="impStatus" class="imp-status" role="status"></div>
+            </div>
+          </div>
+
+          <div class="nc-card imp-card" id="impPreview" hidden>
+            <div class="nc-card-head">
+              <div class="nc-card-icon"><i data-lucide="list-checks"></i></div>
+              <div>
+                <h3>Step 2 · Review the rows <span id="impCutoffLabel"></span></h3>
+                <p>Uncheck rows you don't want. Rows marked <strong>Can't import</strong> need fixing in the Excel or New Contract.</p>
+              </div>
+            </div>
+            <div class="imp-pad">
+              <div class="imp-toolbar">
+                <div class="imp-chips" id="impSummary"></div>
+                <div class="imp-actions">
+                  <select id="impFilter" aria-label="Show rows">
+                    <option value="all">All rows</option>
+                    <option value="ok">Ready</option>
+                    <option value="warn">Check</option>
+                    <option value="error">Can't import</option>
+                    <option value="fixable">Fixable here (enter amounts)</option>
+                    <option value="new">Not yet in the system</option>
+                  </select>
+                  <button class="btn-primary" id="impCommitBtn" type="button"><i data-lucide="upload" style="width:14px;height:14px;"></i><span>Import selected</span></button>
+                </div>
+              </div>
+              <div class="imp-recon" id="impRecon">
+                <div class="imp-recon-head">Check these totals against your Excel before importing</div>
+                <div class="imp-recon-grid" id="impReconGrid"></div>
+                <label class="imp-recon-check">
+                  <input type="checkbox" id="impReconciled">
+                  <span>These totals match my Excel.</span>
+                </label>
+              </div>
+              <div class="table-scroll">
+                <table class="data-table imp-table">
+                  <thead>
+                    <tr>
+                      <th><input type="checkbox" id="impCheckAll" aria-label="Select all importable rows" checked></th>
+                      <th>Row</th>
+                      <th>Status</th>
+                      <th>Buyer / Property</th>
+                      <th>Balance</th>
+                      <th>Monthly</th>
+                      <th>Terms</th>
+                      <th>First Due</th>
+                      <th>Collected</th>
+                      <th>Email</th>
+                      <th>Cellphone</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody id="impBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="nc-card imp-card">
+            <div class="nc-card-head">
+              <div class="nc-card-icon"><i data-lucide="shield-check"></i></div>
+              <div>
+                <h3>Step 3 · Verify imported batches</h3>
+                <p>Imported accounts stay <strong>For Verification</strong>: you can still edit them or undo the whole batch, and no automated reminders go out. Confirm a batch once it is correct — it is then final.</p>
+              </div>
+            </div>
+            <div class="imp-pad">
+              <div class="table-scroll">
+                <table class="data-table imp-table imp-batches">
+                  <thead>
+                    <tr><th>Batch</th><th>File</th><th>Accounts</th><th>Total Balance</th><th>Collected</th><th>Status</th><th></th></tr>
+                  </thead>
+                  <tbody id="impBatchBody"></tbody>
+                </table>
+              </div>
+              <div id="impReview" hidden>
+                <div class="imp-toolbar" style="margin-top:16px;">
+                  <strong id="impReviewTitle" style="font-size:13px;"></strong>
+                  <div class="imp-actions">
+                    <input type="search" id="impReviewSearch" placeholder="Search buyer or code" style="height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;font-family:inherit;font-size:12px;">
+                    <button class="imp-btn-sm" id="impReviewClose" type="button" style="height:34px;">Close</button>
+                  </div>
+                </div>
+                <div class="table-scroll">
+                  <table class="data-table imp-table imp-review">
+                    <thead>
+                      <tr>
+                        <th>Code</th><th>Buyer</th><th>Project</th><th>Phase</th><th>Blk</th><th>Lot</th>
+                        <th>Balance</th><th>Monthly</th><th>First Due</th>
+                        <th>Collected</th><th>Date</th><th>OR</th>
+                        <th>Email</th><th>Cellphone</th><th>Next Due</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="impReviewBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="nc-card imp-card">
+            <div class="nc-card-head">
+              <div class="nc-card-icon"><i data-lucide="contact"></i></div>
+              <div>
+                <h3>Imported accounts missing contact details <span class="imp-chip" id="impIncompleteCount" style="margin-left:6px;"></span></h3>
+                <p>Reminders, SMS and the client portal need an email and an 11-digit cellphone number.</p>
+              </div>
+            </div>
+            <div class="imp-pad">
+              <div class="imp-toolbar">
+                <input type="search" id="impIncompleteSearch" placeholder="Search buyer, contract or Excel code" style="height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;font-family:inherit;font-size:12px;min-width:260px;">
+              </div>
+              <div class="table-scroll">
+                <table class="data-table imp-table" style="min-width:860px;">
+                  <thead>
+                    <tr><th>Contract</th><th>Buyer / Property</th><th>Email</th><th>Cellphone</th><th></th></tr>
+                  </thead>
+                  <tbody id="impIncompleteBody"></tbody>
+                </table>
+              </div>
+              <div class="pager" id="impIncompletePager" style="border-top:0;padding:10px 0 0;"></div>
+            </div>
           </div>
         </section>
 
@@ -2736,6 +3014,10 @@
   <script src="../js/portal-store.js"></script>
   <script src="../js/soa.js?v=1"></script>
   <script src="../js/property-address.js?v=1"></script>
+  <script src="../js/dues-report.js?v=2"></script>
+  <script src="../js/clerk-reports.js?v=2"></script>
+  <!-- SheetJS: reads the collection workbook in the browser for Import Accounts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
   'use strict';
 
@@ -2876,6 +3158,17 @@
       const totalAssigned = myContracts.length;
       document.getElementById('kpiAssigned').textContent = totalAssigned;
       document.getElementById('kpiMyCollected').textContent = formatPHP(myTotalCollections);
+
+      // This calendar week (Mon–Sun) — same window as Reports → Dues & Performance.
+      const monday = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - ((TODAY.getDay() + 6) % 7));
+      const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59);
+      const dueWeek = myContracts.filter(c => c.status !== 'paid' && c.status !== 'overdue' && c.dueDate >= monday && c.dueDate <= sunday);
+      const overdue = myContracts.filter(c => c.status === 'overdue');
+      const sum = (list) => list.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+      document.getElementById('kpiDueWeek').textContent = dueWeek.length;
+      document.getElementById('kpiDueWeekAmt').textContent = formatPHP(sum(dueWeek)) + ' to collect (Mon–Sun)';
+      document.getElementById('kpiOverdue').textContent = overdue.length;
+      document.getElementById('kpiOverdueAmt').textContent = formatPHP(sum(overdue)) + ' past due (next installment)';
     };
 
     /* ==========================================
@@ -2885,8 +3178,41 @@
     const searchInput = document.getElementById('tableSearch');
     const filterTabs = document.querySelectorAll('.filter-tab');
     let activeFilter = 'all';
+    const CLIENTS_PER_PAGE = 25;
+    let clientsPage = 1;
 
-    const renderTable = (data) => {
+    // Generic pager: renders "Showing a–b of n" + page buttons into el and
+    // calls onGo(page) when one is clicked.
+    function renderPager(el, total, page, perPage, onGo) {
+      if (!el) return;
+      const pages = Math.max(1, Math.ceil(total / perPage));
+      if (total <= perPage) { el.innerHTML = ''; return; }
+      const a = (page - 1) * perPage + 1, b = Math.min(total, page * perPage);
+      const nums = [];
+      for (let p = 1; p <= pages; p++) {
+        if (p === 1 || p === pages || Math.abs(p - page) <= 1) nums.push(p);
+        else if (nums[nums.length - 1] !== '…') nums.push('…');
+      }
+      el.innerHTML = '<span>Showing ' + a + '–' + b + ' of ' + total + '</span><div class="pager-btns">'
+        + '<button type="button" data-go="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>‹ Prev</button>'
+        + nums.map(p => p === '…' ? '<span style="padding:0 4px;">…</span>' : '<button type="button" data-go="' + p + '" class="' + (p === page ? 'on' : '') + '">' + p + '</button>').join('')
+        + '<button type="button" data-go="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>Next ›</button></div>';
+      el.onclick = (e) => {
+        const btn = e.target.closest('button[data-go]');
+        if (!btn || btn.disabled) return;
+        onGo(Math.min(pages, Math.max(1, Number(btn.dataset.go))));
+      };
+    }
+
+    const renderTable = (all) => {
+      const pages = Math.max(1, Math.ceil(all.length / CLIENTS_PER_PAGE));
+      if (clientsPage > pages) clientsPage = pages;
+      const data = all.slice((clientsPage - 1) * CLIENTS_PER_PAGE, clientsPage * CLIENTS_PER_PAGE);
+      renderPager(document.getElementById('clientsPager'), all.length, clientsPage, CLIENTS_PER_PAGE, (p) => {
+        clientsPage = p;
+        renderTable(all);
+        document.querySelector('.view[data-view="clients"] .table-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       if (!data.length) {
         tableBody.innerHTML = `
           <tr><td colspan="9">
@@ -2907,8 +3233,8 @@
 
         return `
           <tr>
-            <td><div class="client-cell"><strong>${row.client}</strong><small>${row.property}</small></div></td>
-            <td><span class="contract-id">${row.id}</span></td>
+            <td><div class="client-cell"><strong>${escapeHtml(row.client)}</strong><small>${escapeHtml(row.property)}</small></div></td>
+            <td><span class="contract-id">${escapeHtml(row.id)}</span></td>
             <td style="font-size:12px;">${row.paymentType}</td>
             <td><span class="amount-due" style="color:#065f46;">${row.outstanding != null ? formatPHP(row.outstanding) : '\u2014'}</span></td>
             <td><span class="amount-due">${formatPHP(row.amount)}</span></td>
@@ -2951,14 +3277,31 @@
       updateCounts();
     };
 
-    searchInput.addEventListener('input', applyFilters);
+    searchInput.addEventListener('input', () => { clientsPage = 1; applyFilters(); });
 
     filterTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         filterTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         activeFilter = tab.dataset.filter;
+        clientsPage = 1;
         applyFilters();
+      });
+    });
+
+    // KPI cards double as shortcuts: into Reports, or into the matching filter tab.
+    document.querySelectorAll('.kpi-link[data-goto-page]').forEach(card => {
+      card.addEventListener('click', () => {
+        showView(card.dataset.gotoPage);
+        const rep = document.getElementById('clerkReports');
+        if (rep && rep._rep) rep._rep.show('dues');
+      });
+    });
+    document.querySelectorAll('.kpi-link[data-goto-filter]').forEach(card => {
+      card.addEventListener('click', () => {
+        const tab = document.querySelector('.filter-tab[data-filter="' + card.dataset.gotoFilter + '"]');
+        if (tab) tab.click();
+        document.querySelector('.view[data-view="clients"] .table-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
 
@@ -4591,11 +4934,14 @@
       notifications: ['Notifications Log', 'SMS & Email Reminder Dispatch History'],
       'holding-fee': ['Holding Fee', 'Record a holding fee and put a unit ON HOLD'],
       reservation:   ['Reservation Fee', 'Record a reservation fee and reserve a unit'],
-      'new-contract': ['New Contract', 'Enroll a new buyer and create their payment schedule']
+      'new-contract': ['New Contract', 'Enroll a new buyer and create their payment schedule'],
+      import:        ['Import Accounts', 'Bring existing accounts in from the collection officer workbook'],
+      reports:       ['Reports', 'Dues & performance • Aging of accounts • Collections']
     };
     const pageStorageKey = 'IHC_CLERK_CURRENT_PAGE_' + (currentUser.officerId || currentUser.id || 'default');
 
     function showView(name, opts) {
+      if (name === 'dues') name = 'reports'; // old page, now a tab inside Reports
       if (!Object.prototype.hasOwnProperty.call(viewTitles, name)) name = 'clients';
       localStorage.setItem(pageStorageKey, name);
 
@@ -4631,6 +4977,15 @@
 
       if (name === 'payments') switchPaymentsTab(localStorage.getItem(paymentsTabKey) || 'holding-fees');
       if (name === 'notifications') renderNotifLog();
+      if (name === 'import') { loadImportIncomplete(); loadImportBatches(); }
+      if (name === 'reports' || name === 'dues') {
+        // Mount once (locked to this clerk); refresh on every visit so paid dues drop off.
+        const repEl = document.getElementById('clerkReports');
+        if (repEl && window.IHCClerkReports) {
+          if (!repEl._rep) repEl._rep = window.IHCClerkReports.mount(repEl, { apiBase: API_BASE, officerId: String(currentUser.officerId || '') });
+          else repEl._rep.refresh();
+        }
+      }
       // Fresh fee page: reset + preset the fee type. Editing skips this (populated separately).
       if (isFeePage && !(opts && opts.editId != null)) {
         if (typeof enterFeePage === 'function') enterFeePage(name);
@@ -5482,6 +5837,682 @@
         if (label) label.textContent = 'Create Contract';
       }
     });
+
+    /* ==========================================
+       IMPORT ACCOUNTS — collection workbook → contracts
+       The browser only reads the sheet (SheetJS) and posts the raw header +
+       cells; php/api_import.php does all mapping/validation, and re-runs it
+       on commit. Keep this code free of later-declared consts: showView()
+       can call loadImportIncomplete() during start-up.
+    ========================================== */
+    const impState = { payload: null, data: null, rows: {}, filter: 'all', busy: false };
+
+    function impApi(body) {
+      return fetch(API_BASE + '/php/api_import.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ officerId: currentUser.officerId || '' }, body))
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({ success: false, message: 'Server error (HTTP ' + res.status + ').' }));
+        if (!res.ok || !data.success) {
+          const err = new Error(data.message || 'Request failed.');
+          err.data = data;
+          throw err;
+        }
+        return data;
+      });
+    }
+
+    function impSetStatus(text, isError) {
+      const el = document.getElementById('impStatus');
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('error', !!isError);
+    }
+
+    // SheetJS sometimes lands a date a few seconds before midnight; nudge
+    // forward a minute before reading the local calendar day.
+    function impCell(v) {
+      if (v === null || v === undefined) return null;
+      if (v instanceof Date) {
+        if (isNaN(v.getTime())) return null;
+        const d = new Date(v.getTime() + 60000);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      if (typeof v === 'number' || typeof v === 'boolean') return v;
+      return String(v);
+    }
+
+    async function impReadWorkbook(file) {
+      if (typeof XLSX === 'undefined') throw new Error('The spreadsheet reader did not load. Check the internet connection and reload the page.');
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+      for (const name of wb.SheetNames) {
+        const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null, blankrows: true });
+        const hIdx = grid.findIndex(r => Array.isArray(r) && r.some(c => /^\s*AR Balance as of/i.test(String(c == null ? '' : c))));
+        if (hIdx < 0) continue;
+        const width = grid.reduce((m, r) => Math.max(m, Array.isArray(r) ? r.length : 0), 0);
+        const headers = Array.from({ length: width }, (_, j) => grid[hIdx][j] == null ? '' : String(grid[hIdx][j]));
+        const rows = [];
+        for (let i = hIdx + 1; i < grid.length; i++) {
+          const r = grid[i] || [];
+          if (!r.some(v => v !== null && String(v).trim() !== '')) continue;
+          rows.push({ n: i + 1, cells: headers.map((_, j) => impCell(r[j])) });
+        }
+        return { sheet: name, headers, rows };
+      }
+      throw new Error('No sheet with an "AR Balance as of …" column was found in this file.');
+    }
+
+    const impEmailOk = (v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    const impPhoneOk = (v) => {
+      let d = String(v || '').replace(/\D/g, '');
+      if (d === '') return true;
+      if (d.length === 12 && d.startsWith('63')) d = '0' + d.slice(2);
+      if (d.length === 10 && d[0] === '9') d = '0' + d;
+      return d.length === 11 && d.startsWith('09');
+    };
+
+    function impRowState(r) {
+      if (!impState.rows[r.n]) impState.rows[r.n] = { include: r.level !== 'error', email: '', phone: '', balance: '', monthly: '', firstDue: '' };
+      return impState.rows[r.n];
+    }
+
+    // Everything the clerk set per row, sent with preview (recheck) and commit.
+    function impOverrides() {
+      const out = {};
+      impState.data.rows.forEach(r => {
+        const st = impRowState(r);
+        out[r.n] = {
+          include: r.level !== 'error' && st.include,
+          email: st.email.trim(), phone: st.phone.trim(),
+          balance: st.balance, monthly: st.monthly, firstDue: st.firstDue
+        };
+      });
+      return out;
+    }
+
+    // Live "≈ N months" under a fix box (typed values, else the Excel's).
+    function impFixEstimate(box) {
+      if (!box) return;
+      const num = (v) => { const n = parseFloat(String(v || '').replace(/[^0-9.]/g, '')); return isFinite(n) ? n : 0; };
+      const val = (f) => { const el = box.querySelector('[data-f="' + f + '"]'); return el ? el.value.trim() : ''; };
+      const bal = num(val('balance')) || num(box.dataset.bal);
+      const mo = num(val('monthly')) || num(box.dataset.mo);
+      const est = box.querySelector('.imp-fix-est');
+      if (!est) return;
+      if (!bal || !mo) { est.textContent = !bal ? 'Enter the balance' : 'Enter the monthly amount'; est.classList.add('bad'); return; }
+      const months = Math.ceil(bal / mo - 1e-9);
+      const yrs = months >= 24 ? ' (' + (months / 12).toFixed(1) + ' yrs)' : '';
+      est.textContent = '≈ ' + months + ' month(s)' + yrs + (months > 600 ? ' — too long, max 600' : '');
+      est.classList.toggle('bad', months > 600);
+    }
+
+    // Re-run the server checks with the amounts typed into fixable rows.
+    async function impRecheck() {
+      if (!impState.data || impState.busy) return;
+      const before = {};
+      impState.data.rows.forEach(r => { before[r.n] = r.level; });
+      impSetStatus('Rechecking with your corrections…');
+      try {
+        const data = await impApi(Object.assign({ action: 'preview' }, impState.payload, { overrides: impOverrides() }));
+        data.rows.forEach(r => {
+          const st = impRowState(r);
+          if (before[r.n] === 'error' && r.level !== 'error') st.include = true; // fixed → select it
+        });
+        impState.data = data;
+        impResetReconciled();
+        impRenderSummary();
+        impRenderRows();
+        const fixed = data.rows.filter(r => before[r.n] === 'error' && r.level !== 'error').length;
+        impSetStatus(fixed ? fixed + ' row(s) are now ready to import.' : 'Still not importable — see the red notes on the row.');
+      } catch (err) {
+        impSetStatus(err.message, true);
+      }
+    }
+
+    function impRenderSummary() {
+      const d = impState.data;
+      if (!d) return;
+      const selected = d.rows.filter(r => r.level !== 'error' && impRowState(r).include);
+      const pays = selected.filter(r => r.payment).length;
+      const bal = selected.reduce((s, r) => s + (r.openingBalance || 0), 0);
+      document.getElementById('impSummary').innerHTML =
+        '<span class="imp-chip ok">' + d.summary.ok + ' ready</span>' +
+        '<span class="imp-chip warn">' + d.summary.warn + ' to check</span>' +
+        '<span class="imp-chip error">' + d.summary.error + ' can\'t import</span>' +
+        (function () {
+          const fixable = d.rows.filter(r => r.level === 'error' && r.fixable).length;
+          return fixable ? '<span class="imp-chip warn" title="Enter the missing amounts on these rows, then Recheck">' + fixable + ' fixable here</span>' : '';
+        })() +
+        (function () {
+          const other = d.otherOfficers || {};
+          const keys = Object.keys(other);
+          if (!keys.length) return '';
+          const total = keys.reduce((s, k) => s + other[k], 0);
+          const detail = keys.map(k => k + ' ' + other[k]).join(', ');
+          return '<span class="imp-chip" title="' + escapeHtml(detail) + '">' + total + ' other officers\' rows skipped (' + escapeHtml(detail) + ')</span>';
+        })() +
+        '<span class="imp-chip">' + selected.length + ' selected &bull; ' + escapeHtml(formatPHP(bal)) + ' &bull; ' + pays + ' payment' + (pays === 1 ? '' : 's') + '</span>';
+      // Reconciliation: the clerk compares these with the Excel's own totals.
+      const dueTotal = selected.reduce((s, r) => s + (r.monthly || 0) + (r.arrears || 0), 0);
+      const collected = selected.reduce((s, r) => s + (r.payment ? r.payment.amount : 0), 0);
+      const month = (d.cutoff && d.cutoff.label) || 'cutoff month';
+      document.getElementById('impReconGrid').innerHTML = [
+        ['Accounts', String(selected.length)],
+        ['AR balance as of ' + month, formatPHP(bal)],
+        ['Total due ' + month + ' (incl. arrears)', formatPHP(dueTotal)],
+        ['Collected ' + month + ' (' + pays + ' payment' + (pays === 1 ? '' : 's') + ')', formatPHP(collected)]
+      ].map(([k, v]) => '<div><small>' + escapeHtml(k) + '</small><strong>' + escapeHtml(v) + '</strong></div>').join('');
+
+      const reconciled = document.getElementById('impReconciled').checked;
+      const btn = document.getElementById('impCommitBtn');
+      btn.disabled = selected.length === 0 || impState.busy || !reconciled;
+      btn.title = reconciled ? '' : 'Tick "These totals match my Excel" first';
+      btn.querySelector('span').textContent = 'Import ' + selected.length + ' account' + (selected.length === 1 ? '' : 's');
+    }
+
+    // Any change to the selection invalidates the clerk's reconciliation.
+    function impResetReconciled() {
+      const box = document.getElementById('impReconciled');
+      if (box) box.checked = false;
+    }
+
+    function impRenderRows() {
+      const d = impState.data;
+      const body = document.getElementById('impBody');
+      if (!d || !body) return;
+      const label = { ok: ['paid', 'Ready'], warn: ['due-soon', 'Check'], error: ['overdue', 'Can\'t import'] };
+      const rows = d.rows.filter(r => impState.filter === 'all'
+        || (impState.filter === 'fixable' ? (r.level === 'error' && r.fixable) || !!r.manual
+          : impState.filter === 'new' ? !r.existingContractId
+          : r.level === impState.filter));
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:22px;color:var(--text-muted);">No rows in this view.</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(r => {
+        const st = impRowState(r);
+        const isErr = r.level === 'error';
+        const [cls, text] = label[r.level];
+        const notes = []
+          .concat(r.errors.map(t => '<div class="e">&bull; ' + escapeHtml(t) + '</div>'))
+          .concat(r.issues.map(t => '<div class="w">&bull; ' + escapeHtml(t) + '</div>'))
+          .concat(r.info.map(t => '<div class="i">&bull; ' + escapeHtml(t) + '</div>'))
+          .join('') || '<span class="i" style="color:var(--text-muted);">&mdash;</span>';
+        // Rows blocked only by amounts (or already corrected) get inline fix fields.
+        // Equity/loan-diff accounts with a bank or Pag-IBIG loan: the Excel's AR
+        // balance usually includes the loan, so the clerk must enter only what
+        // the buyer still pays the company before take-out.
+        const loanFinanced = /HDMF|PAG-?IBIG|BANK|NHMFC/i.test(r.financing || '') && /equity|loan diff/i.test(r.collectionType || '');
+        const fixBox = (isErr && r.fixable) || r.manual
+          ? '<div class="imp-fix" data-bal="' + escapeHtml(r.openingBalance != null ? r.openingBalance : '') + '" data-mo="' + escapeHtml(r.monthly || '') + '">'
+            + (loanFinanced ? '<div class="imp-fix-tip">' + escapeHtml(r.financing) + ' • ' + escapeHtml(r.collectionType) + ': the Excel balance likely <strong>includes the loan</strong>. Enter only what the buyer still pays the company before take-out (e.g. remaining months × monthly).</div>' : '')
+            + '<div class="imp-fix-fields">'
+            + '<label>Balance<input type="text" inputmode="decimal" class="imp-fix-in" data-f="balance" placeholder="Excel: ' + escapeHtml(r.openingBalance != null ? Number(r.openingBalance).toFixed(2) : '0.00') + '" value="' + escapeHtml(st.balance) + '"></label>'
+            + '<label>Monthly<input type="text" inputmode="decimal" class="imp-fix-in" data-f="monthly" placeholder="Excel: ' + escapeHtml(r.monthly ? Number(r.monthly).toFixed(2) : '0.00') + '" value="' + escapeHtml(st.monthly) + '"></label>'
+            + '<label>First due <span style="font-weight:400;text-transform:none;">(blank = Excel)</span><input type="date" class="imp-fix-in" data-f="firstDue" value="' + escapeHtml(st.firstDue || '') + '"></label>'
+            + '</div>'
+            + '<div class="imp-fix-foot"><span class="imp-fix-est"></span><button type="button" class="imp-btn-sm ok" data-act="recheck">Recheck</button></div>'
+            + '</div>'
+          : '';
+        const pay = r.payment
+          ? escapeHtml(formatPHP(r.payment.amount)) + '<span class="imp-sub">' + escapeHtml(r.payment.date) + ' &bull; ' + escapeHtml(r.payment.orNumber) + '</span>'
+          : '<span style="color:var(--text-muted);">&mdash;</span>';
+        const dis = isErr ? ' disabled' : '';
+        return '<tr data-n="' + r.n + '" class="' + (!isErr && !st.include ? 'imp-off' : '') + '">'
+          + '<td><input type="checkbox" class="imp-inc"' + (st.include && !isErr ? ' checked' : '') + dis + ' aria-label="Import row ' + r.n + '"></td>'
+          + '<td>' + r.n + '<span class="imp-sub">' + escapeHtml(r.legacyCode || '—') + '</span></td>'
+          + '<td><span class="status-badge ' + cls + '"><span class="dot"></span>' + text + '</span></td>'
+          + '<td class="client-cell"><strong>' + escapeHtml(r.clientName || '—') + '</strong><small>' + escapeHtml(r.propertyAddress || '') + '</small>'
+            + '<span class="imp-sub">' + escapeHtml([r.company, r.financing, r.collectionType, r.status].filter(Boolean).join(' • ')) + '</span>'
+            + '<span class="imp-sub">Collection Officer: <strong>' + escapeHtml(r.collectionOfficer || '(blank → you)') + '</strong></span></td>'
+          + '<td style="white-space:nowrap;">' + (r.openingBalance != null ? escapeHtml(formatPHP(r.openingBalance)) : '—') + '</td>'
+          + '<td style="white-space:nowrap;">' + (r.monthly ? escapeHtml(formatPHP(r.monthly)) : '—') + '</td>'
+          + '<td>' + (r.terms || '—') + '</td>'
+          + '<td style="white-space:nowrap;">' + escapeHtml(r.firstDue || '—') + (r.arrearsMonths ? '<span class="imp-sub">' + r.arrearsMonths + ' mo. overdue</span>' : '') + '</td>'
+          + '<td style="white-space:nowrap;">' + pay + '</td>'
+          + '<td><input type="email" class="imp-email" placeholder="optional" value="' + escapeHtml(st.email) + '"' + dis + '></td>'
+          + '<td><input type="tel" class="imp-phone" placeholder="09XXXXXXXXX" value="' + escapeHtml(st.phone) + '"' + dis + '></td>'
+          + '<td class="imp-notes">' + notes + fixBox + '</td>'
+          + '</tr>';
+      }).join('');
+      body.querySelectorAll('.imp-fix').forEach(impFixEstimate);
+    }
+
+    function impShowPreview(data) {
+      impState.data = data;
+      impState.rows = {};
+      document.getElementById('impCutoffLabel').textContent = '— opening balance as of ' + data.cutoff.label;
+      document.getElementById('impPreview').hidden = false;
+      document.getElementById('impCheckAll').checked = true;
+      impResetReconciled();
+      impRenderSummary();
+      impRenderRows();
+    }
+
+    async function impCommit() {
+      const d = impState.data;
+      if (!d || impState.busy) return;
+      const overrides = impOverrides();
+      let bad = 0;
+      d.rows.forEach(r => {
+        const st = impRowState(r);
+        if (overrides[r.n].include && (!impEmailOk(st.email.trim()) || !impPhoneOk(st.phone))) bad++;
+      });
+      if (bad) { showToast(bad + ' selected row(s) have an invalid email or cellphone. Fix or clear them first.', 'info'); return; }
+      const count = Object.values(overrides).filter(o => o.include).length;
+      if (!count) return;
+      if (!document.getElementById('impReconciled').checked) { showToast('Tick "These totals match my Excel" first.', 'info'); return; }
+      if (!confirm('Import ' + count + ' account(s) with opening balances as of ' + d.cutoff.label + '?\n\nThey will be assigned to you as a batch "For Verification" — you can still edit them or undo the batch until you confirm it.')) return;
+
+      impState.busy = true;
+      impRenderSummary();
+      impSetStatus('Importing ' + count + ' account(s)…');
+      try {
+        const fileEl = document.getElementById('impFile');
+        const fileName = fileEl.files && fileEl.files[0] ? fileEl.files[0].name : '';
+        const res = await impApi(Object.assign({}, impState.payload, { action: 'commit', overrides, reconciled: true, fileName }));
+        impSetStatus(res.message + ' ' + res.payments + ' payment(s) recorded. ' + res.incomplete + ' still need contact details.');
+        showToast(escapeHtml(res.message), 'success');
+        impState.data = null;
+        impState.payload = null;
+        document.getElementById('impPreview').hidden = true;
+        fileEl.value = '';
+        await loadDashboard();
+        loadImportIncomplete();
+        await loadImportBatches();
+        impOpenReview(res.batchId);
+      } catch (err) {
+        impSetStatus(err.message, true);
+      } finally {
+        impState.busy = false;
+        impRenderSummary();
+      }
+    }
+
+    // `var` + lazy init: loadImportIncomplete() can run from showView() at start-up.
+    var impInc;
+    async function loadImportIncomplete() {
+      const body = document.getElementById('impIncompleteBody');
+      if (!body) return;
+      impInc = impInc || { list: [], page: 1 };
+      try {
+        impInc.list = (await impApi({ action: 'incomplete' })).accounts || [];
+      } catch (err) {
+        body.innerHTML = '<tr><td colspan="5" style="padding:18px;color:var(--text-muted);">' + escapeHtml(err.message) + '</td></tr>';
+        return;
+      }
+      renderImportIncomplete();
+    }
+
+    function renderImportIncomplete() {
+      const body = document.getElementById('impIncompleteBody');
+      if (!body || !impInc) return;
+      const PER = 25;
+      const q = (document.getElementById('impIncompleteSearch').value || '').trim().toLowerCase();
+      const all = impInc.list.filter(a => !q || [a.clientName, 'con-' + a.contractId, a.legacyCode, a.propertyAddress]
+        .some(v => String(v || '').toLowerCase().includes(q)));
+      document.getElementById('impIncompleteCount').textContent = impInc.list.length ? impInc.list.length + ' left' : '';
+      const pages = Math.max(1, Math.ceil(all.length / PER));
+      if (impInc.page > pages) impInc.page = pages;
+      const list = all.slice((impInc.page - 1) * PER, impInc.page * PER);
+      renderPager(document.getElementById('impIncompletePager'), all.length, impInc.page, PER, (p) => { impInc.page = p; renderImportIncomplete(); });
+      if (!list.length) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--text-muted);">'
+          + (impInc.list.length ? 'No account matches your search.' : 'All imported accounts have contact details.') + '</td></tr>';
+        return;
+      }
+      body.innerHTML = list.map(a =>
+        '<tr data-id="' + a.contractId + '">'
+        + '<td><span class="contract-id">CON-' + a.contractId + '</span><span class="imp-sub">' + escapeHtml(a.legacyCode || '') + '</span></td>'
+        + '<td class="client-cell"><strong>' + escapeHtml(a.clientName) + '</strong><small>' + escapeHtml(a.propertyAddress) + '</small></td>'
+        + '<td><input type="email" class="imp-email" value="' + escapeHtml(a.email) + '" placeholder="client@email.com"></td>'
+        + '<td><input type="tel" class="imp-phone" value="' + escapeHtml(a.phone) + '" placeholder="09XXXXXXXXX"></td>'
+        + '<td><button type="button" class="btn-primary imp-save-contact">Save</button></td>'
+        + '</tr>'
+      ).join('');
+    }
+
+    /* ---- Import batches: review, edit, confirm, undo ----
+       `var` (not const) so the hoisted functions below are safe to call from
+       showView() during start-up, before this line has executed. */
+    var impReview = { batchId: null, status: null, accounts: [] };
+
+    var impBatchList = [];
+
+    // Show (toggle) this batch's not-imported rows under it, with a CSV export.
+    function impToggleSkipped(batchId) {
+      const tr = document.querySelector('#impBatchBody tr[data-batch="' + batchId + '"]');
+      if (!tr) return;
+      const open = tr.nextElementSibling && tr.nextElementSibling.classList.contains('imp-skipped-row');
+      if (open) { tr.nextElementSibling.remove(); return; }
+      const b = impBatchList.find(x => x.batchId === batchId);
+      const list = (b && b.skipped) || [];
+      const rows = list.map(s => '<tr><td>' + s.n + '</td><td>' + escapeHtml(s.legacyCode || '—') + '</td><td><strong>' + escapeHtml(s.clientName || '—') + '</strong><span class="imp-sub">' + escapeHtml(s.propertyAddress || '') + '</span></td><td>' + escapeHtml(s.status || '—') + '</td><td style="white-space:nowrap;">' + (s.balance != null ? escapeHtml(formatPHP(s.balance)) : '—') + '</td><td class="imp-notes"><div class="e">' + escapeHtml(s.reason) + '</div></td></tr>').join('');
+      const sub = document.createElement('tr');
+      sub.className = 'imp-skipped-row';
+      sub.innerHTML = '<td colspan="7" style="background:#f8fafc;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;"><strong style="font-size:12px;">Rows of yours in this file that were NOT imported</strong>'
+        + '<button type="button" class="imp-btn-sm" data-act="skipped-csv" data-id="' + batchId + '">Download CSV</button></div>'
+        + '<p style="font-size:11.5px;color:var(--text-secondary);margin:0 0 8px;">To bring them in: upload the same file again, set the filter to <strong>Fixable here</strong> or <strong>Not yet in the system</strong>, enter the missing amounts, Recheck, then Import. Rows already in the system are skipped automatically.</p>'
+        + '<div class="table-scroll"><table class="data-table imp-table" style="min-width:820px;"><thead><tr><th>Row</th><th>Code</th><th>Buyer</th><th>Status</th><th>AR balance</th><th>Why not imported</th></tr></thead><tbody>' + rows + '</tbody></table></div></td>';
+      tr.after(sub);
+    }
+
+    function impSkippedCsv(batchId) {
+      const b = impBatchList.find(x => x.batchId === batchId);
+      const list = (b && b.skipped) || [];
+      const lines = [['Row', 'Excel code', 'Buyer', 'Property', 'Status', 'AR balance', 'Why not imported']]
+        .concat(list.map(s => [s.n, s.legacyCode || '', s.clientName, s.propertyAddress, s.status || '', s.balance != null ? s.balance : '', s.reason]));
+      const csv = lines.map(l => l.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+      a.download = 'batch-' + batchId + '_not-imported.csv';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    }
+
+    async function loadImportBatches() {
+      const body = document.getElementById('impBatchBody');
+      if (!body) return;
+      let batches = [];
+      try {
+        batches = (await impApi({ action: 'batches' })).batches || [];
+      } catch (err) {
+        body.innerHTML = '<tr><td colspan="7" style="padding:18px;color:var(--text-muted);">' + escapeHtml(err.message) + '</td></tr>';
+        return;
+      }
+      if (!batches.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--text-muted);">No imports yet.</td></tr>';
+        return;
+      }
+      impBatchList = batches;
+      body.innerHTML = batches.map(b => {
+        const pending = b.status === 'FOR_VERIFICATION';
+        const skippedN = Array.isArray(b.skipped) ? b.skipped.length : null;
+        const accountsCell = b.fileRows != null
+          ? '<strong>' + b.contracts + '</strong> of ' + b.fileRows + ' row(s)'
+            + (b.alreadyRows ? '<span class="imp-sub">' + b.alreadyRows + ' already in the system</span>' : '')
+            + (skippedN ? '<span class="imp-sub"><button type="button" class="imp-link" data-act="skipped" data-id="' + b.batchId + '">' + skippedN + ' not imported — see why</button></span>'
+              : '<span class="imp-sub" style="color:#065f46;">all rows imported</span>')
+          : b.contracts + '<span class="imp-sub">row count not recorded (older batch)</span>';
+        const badge = pending
+          ? '<span class="status-badge due-soon"><span class="dot"></span>For Verification</span>'
+          : '<span class="status-badge paid"><span class="dot"></span>Confirmed</span><span class="imp-sub">' + escapeHtml(String(b.confirmedAt || '').slice(0, 16)) + '</span>';
+        const actions = '<button type="button" class="imp-btn-sm" data-act="review" data-id="' + b.batchId + '">' + (pending ? 'Review / Edit' : 'View') + '</button>'
+          + (pending
+            ? '<button type="button" class="imp-btn-sm ok" data-act="confirm" data-id="' + b.batchId + '">Confirm</button>'
+              + '<button type="button" class="imp-btn-sm danger" data-act="undo" data-id="' + b.batchId + '">Undo</button>'
+            : '');
+        return '<tr data-batch="' + b.batchId + '">'
+          + '<td><strong>#' + b.batchId + '</strong><span class="imp-sub">' + escapeHtml(b.cutoffLabel || '') + ' &bull; ' + escapeHtml(String(b.createdAt || '').slice(0, 16)) + '</span></td>'
+          + '<td>' + escapeHtml(b.fileName || '—') + '</td>'
+          + '<td>' + accountsCell + '</td>'
+          + '<td style="white-space:nowrap;">' + escapeHtml(formatPHP(b.totalBalance)) + '</td>'
+          + '<td style="white-space:nowrap;">' + escapeHtml(formatPHP(b.totalCollected)) + '<span class="imp-sub">' + b.payments + ' payment(s)</span></td>'
+          + '<td>' + badge + '</td>'
+          + '<td style="white-space:nowrap;">' + actions + '</td>'
+          + '</tr>';
+      }).join('');
+    }
+
+    async function impOpenReview(batchId) {
+      if (!batchId) return;
+      const panel = document.getElementById('impReview');
+      try {
+        const res = await impApi({ action: 'batch_accounts', batchId });
+        impReview = { batchId, status: res.batch.status, accounts: res.accounts || [] };
+      } catch (err) {
+        showToast(escapeHtml(err.message), 'info');
+        return;
+      }
+      const editable = impReview.status === 'FOR_VERIFICATION';
+      document.getElementById('impReviewTitle').textContent = 'Batch #' + batchId + ' — ' + impReview.accounts.length + ' account(s)'
+        + (editable ? ' • edit a row, then Save it' : ' • confirmed (read-only)');
+      document.getElementById('impReviewSearch').value = '';
+      panel.hidden = false;
+      impRenderReview();
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function impReviewRow(a, editable) {
+      const p = a.payment || { amount: '', date: '', orNumber: '' };
+      const inp = (f, v, cls, type) => editable
+        ? '<input data-f="' + f + '" class="' + (cls || '') + '" type="' + (type || 'text') + '" value="' + escapeHtml(v == null ? '' : v) + '">'
+        : escapeHtml(v == null || v === '' ? '—' : v);
+      const money = (v) => v === '' || v == null ? '' : Number(v).toFixed(2);
+      const save = editable ? '<button type="button" class="imp-btn-sm ok" data-act="save">Save</button>' : '';
+      return '<tr data-id="' + a.contractId + '">'
+        + '<td><span class="contract-id">CON-' + a.contractId + '</span><span class="imp-sub">' + escapeHtml(a.legacyCode || '') + '</span></td>'
+        + '<td>' + inp('clientName', a.clientName, 'w-name') + '</td>'
+        + '<td>' + inp('project', a.project, 'w-wide') + '</td>'
+        + '<td>' + inp('phase', a.phase) + '</td>'
+        + '<td>' + inp('block', a.block) + '</td>'
+        + '<td>' + inp('lot', a.lot) + '</td>'
+        + '<td>' + inp('balance', money(a.balance), 'w-num') + '</td>'
+        + '<td>' + inp('monthly', money(a.monthly), 'w-num') + '<span class="imp-sub">' + a.terms + ' months</span></td>'
+        + '<td>' + inp('firstDue', a.firstDue, 'w-date', 'date') + '</td>'
+        + '<td>' + inp('payAmount', money(p.amount), 'w-num') + '</td>'
+        + '<td>' + inp('payDate', p.date, 'w-date', 'date') + '</td>'
+        + '<td>' + inp('payOr', p.orNumber) + '</td>'
+        + '<td>' + inp('email', a.email, 'w-wide', 'email') + '</td>'
+        + '<td>' + inp('phone', a.phone, 'w-num', 'tel') + '</td>'
+        + '<td style="white-space:nowrap;">' + escapeHtml(a.nextDue || 'Settled') + '<span class="imp-sub">' + escapeHtml(formatPHP(a.nextAmount)) + ' &bull; bal ' + escapeHtml(formatPHP(a.outstanding)) + '</span></td>'
+        + '<td>' + save + '</td>'
+        + '</tr>';
+    }
+
+    function impRenderReview() {
+      const body = document.getElementById('impReviewBody');
+      const q = document.getElementById('impReviewSearch').value.trim().toLowerCase();
+      const editable = impReview.status === 'FOR_VERIFICATION';
+      const list = impReview.accounts.filter(a => !q
+        || String(a.clientName).toLowerCase().includes(q)
+        || String(a.legacyCode || '').toLowerCase().includes(q)
+        || ('con-' + a.contractId).includes(q));
+      body.innerHTML = list.length
+        ? list.map(a => impReviewRow(a, editable)).join('')
+        : '<tr><td colspan="16" style="text-align:center;padding:18px;color:var(--text-muted);">No accounts match.</td></tr>';
+    }
+
+    async function impSaveReviewRow(tr) {
+      const get = (f) => { const el = tr.querySelector('[data-f="' + f + '"]'); return el ? el.value.trim() : ''; };
+      const email = get('email'), phone = get('phone');
+      if (!impEmailOk(email) || !impPhoneOk(phone)) { showToast('Check the email and cellphone (09XXXXXXXXX).', 'info'); return; }
+      const fields = {
+        clientName: get('clientName'), project: get('project'), phase: get('phase'), block: get('block'), lot: get('lot'),
+        balance: get('balance'), monthly: get('monthly'), firstDue: get('firstDue'), email, phone,
+        payment: { amount: get('payAmount') || '0', date: get('payDate'), orNumber: get('payOr') }
+      };
+      const btn = tr.querySelector('[data-act="save"]');
+      if (btn) btn.disabled = true;
+      try {
+        const res = await impApi({ action: 'update_account', contractId: Number(tr.dataset.id), fields });
+        const i = impReview.accounts.findIndex(a => a.contractId === res.account.contractId);
+        if (i >= 0) impReview.accounts[i] = res.account;
+        tr.outerHTML = impReviewRow(res.account, true);
+        showToast('CON-' + res.account.contractId + ' saved.', 'success');
+        loadImportBatches();
+        loadDashboard();
+      } catch (err) {
+        showToast(escapeHtml(err.message), 'info');
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function impBatchAction(act, batchId) {
+      if (act === 'review') { impOpenReview(batchId); return; }
+      if (act === 'skipped') { impToggleSkipped(batchId); return; }
+      if (act === 'skipped-csv') { impSkippedCsv(batchId); return; }
+      if (act === 'confirm') {
+        if (!confirm('Confirm batch #' + batchId + '?\n\nAfter confirming, these accounts are FINAL: they can no longer be edited here and the batch can no longer be undone. Automated reminders will start for accounts with contact details.')) return;
+      }
+      if (act === 'undo') {
+        if (!confirm('Undo batch #' + batchId + '?\n\nAll accounts, imported payments and units created by this import will be removed, as if it never happened. You can upload the corrected Excel again afterwards.')) return;
+      }
+      try {
+        const res = await impApi({ action: act === 'confirm' ? 'confirm_batch' : 'undo_batch', batchId });
+        showToast(escapeHtml(res.message), 'success');
+        if (impReview.batchId === batchId) {
+          if (act === 'undo') { document.getElementById('impReview').hidden = true; impReview = { batchId: null, status: null, accounts: [] }; }
+          else impOpenReview(batchId);
+        }
+        await loadImportBatches();
+        loadImportIncomplete();
+        loadDashboard();
+      } catch (err) {
+        showToast(escapeHtml(err.message), 'info');
+      }
+    }
+
+    (function wireImportPage() {
+      const fileEl = document.getElementById('impFile');
+      if (!fileEl) return;
+
+      fileEl.addEventListener('change', async () => {
+        const file = fileEl.files && fileEl.files[0];
+        document.getElementById('impPreview').hidden = true;
+        impState.data = null;
+        if (!file) { impSetStatus(''); return; }
+        impSetStatus('Reading ' + file.name + '…');
+        try {
+          const book = await impReadWorkbook(file);
+          impSetStatus('Checking ' + book.rows.length + ' row(s) from sheet "' + book.sheet + '"…');
+          impState.payload = { headers: book.headers, rows: book.rows };
+          const data = await impApi(Object.assign({ action: 'preview' }, impState.payload));
+          impSetStatus(file.name + ' — ' + data.rows.length + ' account row(s) found.');
+          impShowPreview(data);
+        } catch (err) {
+          impSetStatus(err.message, true);
+        }
+      });
+
+      document.getElementById('impFilter').addEventListener('change', (e) => {
+        impState.filter = e.target.value;
+        impRenderRows();
+      });
+
+      document.getElementById('impCheckAll').addEventListener('change', (e) => {
+        if (!impState.data) return;
+        impState.data.rows.forEach(r => { if (r.level !== 'error') impRowState(r).include = e.target.checked; });
+        impResetReconciled();
+        impRenderRows();
+        impRenderSummary();
+      });
+
+      document.getElementById('impReconciled').addEventListener('change', impRenderSummary);
+
+      document.getElementById('impBody').addEventListener('click', (e) => {
+        if (e.target.closest('button[data-act="recheck"]')) impRecheck();
+      });
+      document.getElementById('impBody').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target.classList.contains('imp-fix-in')) { e.preventDefault(); impRecheck(); }
+      });
+
+      document.getElementById('impIncompleteSearch').addEventListener('input', () => {
+        if (!impInc) return;
+        impInc.page = 1;
+        renderImportIncomplete();
+      });
+
+      // Drop zone: show the chosen name; accept a dragged file too.
+      const drop = document.getElementById('impDrop');
+      fileEl.addEventListener('change', () => {
+        const f = fileEl.files && fileEl.files[0];
+        document.getElementById('impDropTitle').textContent = f ? f.name : 'Click to choose a file, or drop it here';
+      });
+      ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('drag'); }));
+      ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('drag'); }));
+      drop.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!f) return;
+        const dt = new DataTransfer();
+        dt.items.add(f);
+        fileEl.files = dt.files;
+        fileEl.dispatchEvent(new Event('change'));
+      });
+
+      document.getElementById('impBatchBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-act]');
+        if (btn) impBatchAction(btn.dataset.act, Number(btn.dataset.id));
+      });
+      document.getElementById('impReviewBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-act="save"]');
+        if (btn) impSaveReviewRow(btn.closest('tr[data-id]'));
+      });
+      document.getElementById('impReviewBody').addEventListener('input', (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (tr) tr.classList.add('imp-dirty');
+      });
+      document.getElementById('impReviewSearch').addEventListener('input', impRenderReview);
+      document.getElementById('impReviewClose').addEventListener('click', () => {
+        document.getElementById('impReview').hidden = true;
+      });
+
+      const body = document.getElementById('impBody');
+      body.addEventListener('change', (e) => {
+        const tr = e.target.closest('tr[data-n]');
+        if (!tr || !impState.data) return;
+        const r = impState.data.rows.find(x => String(x.n) === tr.dataset.n);
+        if (!r) return;
+        const st = impRowState(r);
+        if (e.target.classList.contains('imp-inc')) {
+          st.include = e.target.checked;
+          tr.classList.toggle('imp-off', !st.include);
+          impResetReconciled();
+          impRenderSummary();
+        }
+      });
+      body.addEventListener('input', (e) => {
+        const tr = e.target.closest('tr[data-n]');
+        if (!tr || !impState.data) return;
+        const r = impState.data.rows.find(x => String(x.n) === tr.dataset.n);
+        if (!r) return;
+        const st = impRowState(r);
+        if (e.target.classList.contains('imp-fix-in')) {
+          st[e.target.dataset.f] = e.target.value.trim();
+          impFixEstimate(e.target.closest('.imp-fix'));
+        } else if (e.target.classList.contains('imp-email')) {
+          st.email = e.target.value;
+          e.target.classList.toggle('invalid', !impEmailOk(st.email.trim()));
+        } else if (e.target.classList.contains('imp-phone')) {
+          st.phone = e.target.value;
+          e.target.classList.toggle('invalid', !impPhoneOk(st.phone));
+        }
+      });
+
+      document.getElementById('impCommitBtn').addEventListener('click', impCommit);
+
+      document.getElementById('impIncompleteBody').addEventListener('click', async (e) => {
+        const btn = e.target.closest('.imp-save-contact');
+        if (!btn) return;
+        const tr = btn.closest('tr[data-id]');
+        const emailEl = tr.querySelector('.imp-email');
+        const phoneEl = tr.querySelector('.imp-phone');
+        const email = emailEl.value.trim();
+        const phone = phoneEl.value.trim();
+        emailEl.classList.toggle('invalid', !impEmailOk(email));
+        phoneEl.classList.toggle('invalid', !impPhoneOk(phone));
+        if (!impEmailOk(email) || !impPhoneOk(phone)) { showToast('Check the email and cellphone (09XXXXXXXXX).', 'info'); return; }
+        btn.disabled = true;
+        try {
+          const res = await impApi({ action: 'complete_contact', contractId: Number(tr.dataset.id), email, phone });
+          if (!res.needsCompletion) {
+            showToast('Contact details saved — reminders are now enabled for this account.', 'success');
+            impInc.list = impInc.list.filter(a => a.contractId !== Number(tr.dataset.id));
+            renderImportIncomplete();
+          } else {
+            phoneEl.value = res.phone;
+            showToast('Saved. Add both email and cellphone to enable reminders.', 'info');
+          }
+          loadDashboard();
+        } catch (err) {
+          showToast(escapeHtml(err.message), 'info');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
 
     /* ==========================================
        LOGOUT

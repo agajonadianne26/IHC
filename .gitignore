@@ -1,0 +1,2 @@
+# Local database dumps (contain client data and password hashes) — never commit.
+backups/

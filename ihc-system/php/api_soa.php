@@ -54,8 +54,13 @@ try {
         // This queue deliberately uses the same document/schedule allocator as
         // the dashboards. The old cron query selected start_date/downpayment
         // directly, which sent installment reminders with downpayment values.
+        // Imported accounts still "For Verification" (php/api_import.php) get
+        // no automated reminders until the clerk confirms the batch.
+        require_once __DIR__ . '/legacy-import.php';
+        $unverified = ihc_unverified_import_contract_ids($pdo);
         foreach ($pdo->query('SELECT id FROM contracts ORDER BY id') as $contractRow) {
             $contractId = (int)$contractRow['id'];
+            if (isset($unverified[$contractId])) continue;
             try {
                 $document = soa_build_document($pdo, $contractId, '', $today);
             } catch (Throwable $e) {

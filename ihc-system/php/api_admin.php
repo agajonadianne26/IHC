@@ -46,6 +46,10 @@ try { prospect_ensure_tables($pdo); } catch (Throwable $e) { /* keep serving */ 
 
 soa_ensure_schema($pdo);
 
+// officers.officer_code — the clerk's code in the collection Excel (php/api_import.php).
+require_once __DIR__ . '/legacy-import.php';
+try { ihc_ensure_officer_code($pdo); } catch (Throwable $e) { /* keep serving */ }
+
 try {
     $action = isset($_GET['action']) ? (string)$_GET['action'] : 'overview';
     $rawInput = file_get_contents('php://input') ?: '';
@@ -136,7 +140,7 @@ try {
     // ---- Team: every clerk and the clients they enrolled -------------
     if ($action === 'team') {
         $officerRows = $pdo->query(
-            "SELECT id, full_name, role, email FROM officers ORDER BY (role='admin') ASC, full_name ASC"
+            "SELECT id, full_name, role, email, officer_code FROM officers ORDER BY (role='admin') ASC, full_name ASC"
         )->fetchAll();
 
         // Group the contract rows (already fetched above with clerk_name) by
@@ -195,6 +199,7 @@ try {
                 'officerId'      => $oid,
                 'name'           => (string)$o['full_name'],
                 'email'          => (string)$o['email'],
+                'officerCode'    => (string)($o['officer_code'] ?? ''),
                 'role'           => (string)$o['role'],
                 'clientCount'    => count($clients),
                 'portfolio'      => round($portfolio, 2),
@@ -242,6 +247,8 @@ try {
         $fullName = trim((string)($jsonInput['fullName'] ?? ''));
         $email    = strtolower(trim((string)($jsonInput['email'] ?? '')));
         $password = (string)($jsonInput['password'] ?? '');
+        // Code used in the collection Excel's "Collection Officer" column (e.g. AJ).
+        $officerCode = strtoupper(trim((string)($jsonInput['officerCode'] ?? '')));
 
         $findStaff = function (int $id) use ($pdo): ?array {
             $st = $pdo->prepare('SELECT id, full_name, role, email FROM officers WHERE id = ? LIMIT 1');
@@ -323,14 +330,29 @@ try {
             echo json_encode(['success' => false, 'message' => 'Another staff account already uses that email address.']);
             exit;
         }
+        if ($officerCode !== '' && !preg_match('/^[A-Z0-9][A-Z0-9 .\-]{0,19}$/', $officerCode)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Officer code may use letters, numbers, spaces, dots and dashes (max 20).']);
+            exit;
+        }
+        if ($officerCode !== '') {
+            $dupeCode = $pdo->prepare('SELECT full_name FROM officers WHERE UPPER(officer_code) = ? AND id <> ? LIMIT 1');
+            $dupeCode->execute([$officerCode, $staffId]);
+            if ($other = $dupeCode->fetch()) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'message' => 'Officer code ' . $officerCode . ' is already used by ' . $other['full_name'] . '.']);
+                exit;
+            }
+        }
+        $officerCodeValue = $officerCode !== '' ? $officerCode : null;
 
         if ($action === 'staff_create') {
             $pdo->beginTransaction();
             try {
                 $pdo->prepare(
-                    'INSERT INTO officers (full_name, role, email, password_hash, must_change_password)
-                     VALUES (?, ?, ?, ?, 0)'
-                )->execute([$fullName, 'clerk', $email, password_hash($password, PASSWORD_DEFAULT)]);
+                    'INSERT INTO officers (full_name, role, email, password_hash, must_change_password, officer_code)
+                     VALUES (?, ?, ?, ?, 0, ?)'
+                )->execute([$fullName, 'clerk', $email, password_hash($password, PASSWORD_DEFAULT), $officerCodeValue]);
                 $newId = (int)$pdo->lastInsertId();
                 $logStaff('staff.created', $newId, json_encode([
                     'name'  => $fullName,
@@ -373,15 +395,16 @@ try {
         try {
             if ($password !== '') {
                 $pdo->prepare(
-                    'UPDATE officers SET full_name = ?, email = ?, password_hash = ?, must_change_password = 0 WHERE id = ?'
-                )->execute([$fullName, $email, password_hash($password, PASSWORD_DEFAULT), $staffId]);
+                    'UPDATE officers SET full_name = ?, email = ?, officer_code = ?, password_hash = ?, must_change_password = 0 WHERE id = ?'
+                )->execute([$fullName, $email, $officerCodeValue, password_hash($password, PASSWORD_DEFAULT), $staffId]);
             } else {
-                $pdo->prepare('UPDATE officers SET full_name = ?, email = ? WHERE id = ?')
-                    ->execute([$fullName, $email, $staffId]);
+                $pdo->prepare('UPDATE officers SET full_name = ?, email = ?, officer_code = ? WHERE id = ?')
+                    ->execute([$fullName, $email, $officerCodeValue, $staffId]);
             }
             $logStaff('staff.updated', $staffId, json_encode([
                 'name'          => $fullName,
                 'email'         => $email,
+                'officerCode'   => $officerCodeValue,
                 'passwordReset' => $password !== '',
             ]));
             $pdo->commit();
@@ -500,6 +523,290 @@ try {
             'contract' => ['id' => 'IHC-' . $cid, 'client' => $contract['client_name']],
             'notification' => $notifStatusOf($latestNotif[$cid] ?? null),
             'schedule' => $schedule,
+        ]);
+        exit;
+    }
+
+    // ---- Dues & performance: who is due this week / month -------------
+    // GET ?action=dues&period=week|month|custom[&from=&to=][&officerId=][&includeOverdue=1]
+    // Rows are the UNPAID installments falling in the period (straight from
+    // ihc_schedule(), so a payment posted anywhere makes its row disappear),
+    // optionally plus older unpaid ones. Each row carries the client's payment
+    // performance; `clerks` summarises the period per collection officer.
+    if ($action === 'dues') {
+        $period = (string)($_GET['period'] ?? 'week');
+        $todayD = new DateTimeImmutable($today);
+        if ($period === 'month') {
+            $from = $todayD->format('Y-m-01');
+            $to = $todayD->format('Y-m-t');
+        } elseif ($period === 'custom') {
+            $from = (string)($_GET['from'] ?? '');
+            $to = (string)($_GET['to'] ?? '');
+            $okDate = fn($d) => ($x = DateTimeImmutable::createFromFormat('!Y-m-d', $d)) && $x->format('Y-m-d') === $d;
+            if (!$okDate($from) || !$okDate($to) || $from > $to) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'Choose a valid From and To date.']);
+                exit;
+            }
+        } else {
+            $period = 'week'; // Monday – Sunday of the current week
+            $monday = $todayD->modify('-' . ((int)$todayD->format('N') - 1) . ' days');
+            $from = $monday->format('Y-m-d');
+            $to = $monday->modify('+6 days')->format('Y-m-d');
+        }
+        $officerFilter = trim((string)($_GET['officerId'] ?? ''));
+        $includeOverdue = (string)($_GET['includeOverdue'] ?? '0') === '1';
+
+        $rows = [];
+        $clerks = [];
+        $totals = ['dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
+                   'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0];
+
+        foreach ($contractRows as $c) {
+            $oid = trim((string)($c['officer_id'] ?? ''));
+            if ($officerFilter !== '' && $oid !== $officerFilter) continue;
+            $cid = (int)$c['id'];
+            $built = ihc_schedule($c, $paysByContract[$cid] ?? [], $today);
+
+            // Client performance from the installments already due.
+            $onTime = 0; $late = 0; $missed = 0;
+            foreach ($built['installments'] as $inst) {
+                if ($inst['amount'] <= 0.009 || $inst['dueDate'] > $today) continue;
+                if ($inst['paid']) {
+                    if ($inst['payDate'] !== null && $inst['payDate'] <= $inst['dueDate']) $onTime++; else $late++;
+                } elseif ($inst['dueDate'] < $today) {
+                    $missed++;
+                }
+            }
+            $considered = $onTime + $late + $missed;
+            $rate = $considered > 0 ? round($onTime / $considered * 100) : null;
+            if ($considered === 0) $label = 'New';
+            elseif ($missed >= 2 || $rate < 50) $label = 'Poor';
+            elseif ($missed === 0 && $rate >= 90) $label = 'Good';
+            else $label = 'Fair';
+            $perf = ['label' => $label, 'onTimeRate' => $rate, 'onTime' => $onTime, 'late' => $late, 'missed' => $missed];
+
+            $clerkKey = $oid !== '' ? $oid : '—';
+            if (!isset($clerks[$clerkKey])) {
+                $clerks[$clerkKey] = ['officerId' => $oid, 'name' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
+                    'dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
+                    'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0];
+            }
+            $k = &$clerks[$clerkKey];
+
+            foreach ($built['installments'] as $inst) {
+                if ($inst['amount'] <= 0.009) continue;
+                $due = (string)$inst['dueDate'];
+                $inPeriod = $due >= $from && $due <= $to;
+                $remaining = round(max(0.0, $inst['amount'] - $inst['paidAmount']), 2);
+
+                if ($inPeriod) {
+                    $k['dueCount']++; $k['dueAmount'] += $inst['amount'];
+                    $totals['dueCount']++; $totals['dueAmount'] += $inst['amount'];
+                    if ($inst['paid']) {
+                        $k['paidCount']++; $k['paidAmount'] += $inst['amount'];
+                        $totals['paidCount']++; $totals['paidAmount'] += $inst['amount'];
+                    } else {
+                        // a partial payment still counts toward collected money
+                        $k['paidAmount'] += $inst['paidAmount']; $totals['paidAmount'] += $inst['paidAmount'];
+                        $k['unpaidCount']++; $k['unpaidAmount'] += $remaining;
+                        $totals['unpaidCount']++; $totals['unpaidAmount'] += $remaining;
+                    }
+                } elseif (!$inst['paid'] && $due < $from) {
+                    $k['carriedCount']++; $k['carriedAmount'] += $remaining;
+                    $totals['carriedCount']++; $totals['carriedAmount'] += $remaining;
+                }
+
+                $show = !$inst['paid'] && ($inPeriod || ($includeOverdue && $due < $from));
+                if (!$show) continue;
+                $daysOverdue = $due < $today ? (int)((strtotime($today) - strtotime($due)) / 86400) : 0;
+                $rows[] = [
+                    'contractId' => $cid,
+                    'accountCode' => 'CON-' . $cid,
+                    'legacyCode' => $c['legacy_code'] ?? null,
+                    'client' => (string)$c['client_name'],
+                    'phone' => (string)$c['cellphone_number'],
+                    'email' => (string)$c['email'],
+                    'property' => (string)($c['property_address'] ?? ''),
+                    'officerId' => $oid,
+                    'clerk' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
+                    'installment' => $inst['kind'] === 'downpayment' ? 'Downpayment' : 'Installment #' . $inst['no'],
+                    'dueDate' => $due,
+                    'amountDue' => $remaining,
+                    'fullAmount' => round($inst['amount'], 2),
+                    'partial' => $inst['paidAmount'] > 0.009,
+                    'status' => $due < $today ? 'overdue' : ($due === $today ? 'due-today' : 'upcoming'),
+                    'daysOverdue' => $daysOverdue,
+                    'carried' => !$inPeriod,
+                    'performance' => $perf,
+                ];
+            }
+            unset($k);
+        }
+
+        usort($rows, fn($a, $b) => [$a['dueDate'], $a['client']] <=> [$b['dueDate'], $b['client']]);
+        $clerkList = array_values($clerks);
+        foreach ($clerkList as &$cl) {
+            foreach (['dueAmount', 'paidAmount', 'unpaidAmount', 'carriedAmount'] as $f) $cl[$f] = round($cl[$f], 2);
+            $cl['collectionRate'] = $cl['dueAmount'] > 0 ? round(min(100, $cl['paidAmount'] / $cl['dueAmount'] * 100), 1) : null;
+        }
+        unset($cl);
+        usort($clerkList, fn($a, $b) => strcmp($a['name'], $b['name']));
+        foreach (['dueAmount', 'paidAmount', 'unpaidAmount', 'carriedAmount'] as $f) $totals[$f] = round($totals[$f], 2);
+        $totals['collectionRate'] = $totals['dueAmount'] > 0 ? round(min(100, $totals['paidAmount'] / $totals['dueAmount'] * 100), 1) : null;
+
+        echo json_encode([
+            'success' => true,
+            'today' => $today,
+            'period' => ['type' => $period, 'from' => $from, 'to' => $to],
+            'totals' => $totals,
+            'clerks' => $clerkList,
+            'rows' => $rows,
+        ]);
+        exit;
+    }
+
+    // ---- Portfolio report: aging + monthly collections + collection log ----
+    // GET ?action=portfolio_report[&officerId=][&from=Y-m-d&to=Y-m-d]
+    // Clerk Reports page (officerId = the clerk); admin may omit it for all.
+    if ($action === 'portfolio_report') {
+        $officerFilter = trim((string)($_GET['officerId'] ?? ''));
+        $okDate = fn($d) => ($x = DateTimeImmutable::createFromFormat('!Y-m-d', $d)) && $x->format('Y-m-d') === $d;
+        $todayD = new DateTimeImmutable($today);
+        $from = (string)($_GET['from'] ?? $todayD->format('Y-m-01'));
+        $to = (string)($_GET['to'] ?? $todayD->format('Y-m-t'));
+        if (!$okDate($from) || !$okDate($to) || $from > $to) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Choose a valid From and To date.']);
+            exit;
+        }
+
+        $buckets = [
+            'current' => ['label' => 'Current (not yet due)', 'count' => 0, 'amount' => 0.0, 'balance' => 0.0],
+            '1-30'    => ['label' => '1–30 days', 'count' => 0, 'amount' => 0.0, 'balance' => 0.0],
+            '31-60'   => ['label' => '31–60 days', 'count' => 0, 'amount' => 0.0, 'balance' => 0.0],
+            '61-90'   => ['label' => '61–90 days', 'count' => 0, 'amount' => 0.0, 'balance' => 0.0],
+            '91-120'  => ['label' => '91–120 days', 'count' => 0, 'amount' => 0.0, 'balance' => 0.0],
+            '120+'    => ['label' => 'Over 120 days', 'count' => 0, 'amount' => 0.0, 'balance' => 0.0],
+            'settled' => ['label' => 'Fully paid', 'count' => 0, 'amount' => 0.0, 'balance' => 0.0],
+        ];
+        $agingRows = [];
+        $mine = [];
+        $kpi = ['accounts' => 0, 'outstanding' => 0.0, 'overdueAccounts' => 0, 'overdueAmount' => 0.0];
+
+        // Six months back through the current month.
+        $months = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $m = $todayD->modify('first day of this month')->modify("-$i months");
+            $months[$m->format('Y-m')] = ['month' => $m->format('Y-m'), 'label' => $m->format('M Y'), 'due' => 0.0, 'collected' => 0.0];
+        }
+
+        foreach ($contractRows as $c) {
+            $oid = trim((string)($c['officer_id'] ?? ''));
+            if ($officerFilter !== '' && $oid !== $officerFilter) continue;
+            $cid = (int)$c['id'];
+            $mine[$cid] = $c;
+            $built = ihc_schedule($c, $paysByContract[$cid] ?? [], $today);
+            $kpi['accounts']++;
+            $kpi['outstanding'] += $built['outstanding'];
+
+            $oldest = null; $overdueAmt = 0.0; $overdueCount = 0;
+            foreach ($built['installments'] as $inst) {
+                if ($inst['amount'] <= 0.009) continue;
+                $ym = substr((string)$inst['dueDate'], 0, 7);
+                if (isset($months[$ym])) $months[$ym]['due'] += $inst['amount'];
+                if (!$inst['paid'] && $inst['dueDate'] < $today) {
+                    $overdueAmt += $inst['amount'] - $inst['paidAmount'];
+                    $overdueCount++;
+                    if ($oldest === null) $oldest = $inst['dueDate'];
+                }
+            }
+            if ($built['settled']) $key = 'settled';
+            elseif ($oldest === null) $key = 'current';
+            else {
+                $days = (int)((strtotime($today) - strtotime($oldest)) / 86400);
+                $key = $days <= 30 ? '1-30' : ($days <= 60 ? '31-60' : ($days <= 90 ? '61-90' : ($days <= 120 ? '91-120' : '120+')));
+                $kpi['overdueAccounts']++;
+                $kpi['overdueAmount'] += $overdueAmt;
+                $agingRows[] = [
+                    'contractId' => $cid,
+                    'accountCode' => 'CON-' . $cid,
+                    'legacyCode' => $c['legacy_code'] ?? null,
+                    'client' => (string)$c['client_name'],
+                    'phone' => (string)$c['cellphone_number'],
+                    'property' => (string)($c['property_address'] ?? ''),
+                    'bucket' => $key,
+                    'oldestDue' => $oldest,
+                    'daysOverdue' => $days,
+                    'installmentsOverdue' => $overdueCount,
+                    'overdueAmount' => round($overdueAmt, 2),
+                    'balance' => round($built['outstanding'], 2),
+                ];
+            }
+            $buckets[$key]['count']++;
+            $buckets[$key]['amount'] += $overdueAmt;
+            $buckets[$key]['balance'] += $built['outstanding'];
+        }
+        usort($agingRows, fn($a, $b) => $b['daysOverdue'] <=> $a['daysOverdue']);
+
+        // Cash actually received (raw payment amounts), per month and in range.
+        $collections = [];
+        $rangeTotal = 0.0;
+        $byMethod = [];
+        foreach ($pdo->query('SELECT id, contract_id, amount, payment_method, date_collected, or_number, remarks FROM payments ORDER BY date_collected DESC, id DESC') as $p) {
+            if (!preg_match('/(\d+)\s*$/', (string)$p['contract_id'], $m)) continue;
+            $cid = (int)$m[1];
+            if (!isset($mine[$cid])) continue;
+            $d = (string)$p['date_collected'];
+            $amt = (float)$p['amount'];
+            $ym = substr($d, 0, 7);
+            if (isset($months[$ym])) $months[$ym]['collected'] += $amt;
+            if ($d < $from || $d > $to) continue;
+            $rangeTotal += $amt;
+            $method = (string)$p['payment_method'];
+            $byMethod[$method] = ($byMethod[$method] ?? 0) + $amt;
+            $collections[] = [
+                'paymentId' => (int)$p['id'],
+                'date' => $d,
+                'contractId' => $cid,
+                'accountCode' => 'CON-' . $cid,
+                'client' => (string)$mine[$cid]['client_name'],
+                'amount' => round($amt, 2),
+                'method' => $method,
+                'orNumber' => (string)$p['or_number'],
+                'remarks' => (string)($p['remarks'] ?? ''),
+            ];
+        }
+
+        $monthList = array_values(array_map(function ($m) {
+            $m['due'] = round($m['due'], 2);
+            $m['collected'] = round($m['collected'], 2);
+            $m['rate'] = $m['due'] > 0 ? round(min(100, $m['collected'] / $m['due'] * 100), 1) : null;
+            return $m;
+        }, $months));
+        foreach ($buckets as &$b) { $b['amount'] = round($b['amount'], 2); $b['balance'] = round($b['balance'], 2); }
+        unset($b);
+        arsort($byMethod);
+
+        echo json_encode([
+            'success' => true,
+            'today' => $today,
+            'kpi' => [
+                'accounts' => $kpi['accounts'],
+                'outstanding' => round($kpi['outstanding'], 2),
+                'overdueAccounts' => $kpi['overdueAccounts'],
+                'overdueAmount' => round($kpi['overdueAmount'], 2),
+                'collectedThisMonth' => round($months[$todayD->format('Y-m')]['collected'] ?? 0, 2),
+            ],
+            'aging' => ['buckets' => $buckets, 'rows' => $agingRows],
+            'months' => $monthList,
+            'collections' => [
+                'from' => $from, 'to' => $to,
+                'total' => round($rangeTotal, 2),
+                'count' => count($collections),
+                'byMethod' => array_map(fn($k, $v) => ['method' => $k, 'amount' => round($v, 2)], array_keys($byMethod), array_values($byMethod)),
+                'rows' => $collections,
+            ],
         ]);
         exit;
     }
