@@ -37,7 +37,7 @@
   .dues-btn.busy { opacity:.6; pointer-events:none; }
   .dues-updated { font-size:11.5px; color:#64748b; align-self:center; }
   .dues-range { display:inline-flex; align-items:center; height:36px; padding:0 12px; border-radius:8px; background:#f1f5f9; font-size:12.5px; color:#334155; font-weight:600; }
-  .dues-kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
+  .dues-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
   @media (max-width:1280px) { .dues-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
   @media (max-width:760px) { .dues-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
   .dues-kpi { position:relative; border:1px solid #e2e8f0; border-radius:12px; padding:14px 14px 12px; background:#fff; overflow:hidden; }
@@ -262,7 +262,7 @@
         '</div>' +
         '<div class="dues-kpis" data-el="kpis"></div>' +
         '<div class="dues-note" data-el="note" hidden></div>' +
-        (o.showClerks ? '<div><div class="dues-sec-head"><p class="dues-h">Collection performance per clerk</p><span data-el="clerksSub"></span></div><div class="dues-scroll"><table class="dues-table" style="min-width:820px;"><thead><tr><th>Clerk</th><th class="num">To collect</th><th class="num">Paid</th><th class="num">Still unpaid</th><th>Collection rate</th><th class="num">Overdue from earlier</th></tr></thead><tbody data-el="clerks"></tbody></table></div></div>' : '') +
+        (o.showClerks ? '<div><div class="dues-sec-head"><p class="dues-h">Collection performance per clerk</p><span data-el="clerksSub"></span></div><div class="dues-scroll"><table class="dues-table" style="min-width:1080px;"><thead><tr><th>Clerk</th><th class="num">Actual due</th><th class="num">Arrears</th><th class="num">Total due</th><th class="num">Collected</th><th>Collection rate</th><th class="num">Still unpaid</th><th class="num">Expected (Excel)</th><th class="num">Floating account</th></tr></thead><tbody data-el="clerks"></tbody></table></div></div>' : '') +
         '<div><div class="dues-sec-head"><p class="dues-h" data-el="listTitle">Clients due</p><span data-el="listSub"></span></div><div class="dues-scroll"><table class="dues-table"><thead><tr>' +
           '<th>Due date</th><th>Client</th><th>Property</th><th>Installment</th><th class="num">Amount due</th><th>Status</th><th>Payment performance</th>' +
           (o.showClerks ? '<th>Clerk</th>' : '') +
@@ -292,20 +292,23 @@
       $('range').textContent = periodLabel();
       const t = d.totals;
       const inc = !!t.includesOverdue;
-      const rate = t.collectionRate == null ? null : t.collectionRate;
+      // Cards follow the collection workbook's header row:
+      // Actual due + Arrears = Total due; Collected = cash received in the period.
+      const rate = t.collectedRate == null ? null : t.collectedRate;
       $('kpis').innerHTML = [
-        { k: '#3b82f6', label: inc ? 'To collect (incl. overdue)' : 'Due in period', amount: php(t.dueAmount),
-          sub: t.dueCount + ' installment(s)' + (inc ? ' • ' + php(t.periodDueAmount) + ' this period + ' + php(t.carriedAmount) + ' overdue' : '') },
-        { k: '#10b981', label: 'Paid', amount: php(t.paidAmount), sub: t.paidCount + ' installment(s) fully paid' },
-        { k: '#f59e0b', label: 'Still unpaid', amount: php(t.unpaidAmount), sub: t.unpaidCount + ' installment(s)' + (inc ? ' incl. overdue' : '') },
-        { k: '#8b5cf6', label: 'Collection rate', amount: rate == null ? '—' : rate + '%', sub: 'paid ÷ ' + (inc ? 'to collect' : 'due in period'), meter: rate },
-        { k: '#f43f5e', label: 'Overdue from earlier', amount: php(t.carriedAmount), sub: t.carriedCount + ' installment(s)', tag: inc ? 'included' : '' },
+        { k: '#3b82f6', label: 'Actual due', amount: php(t.actualDue || 0), sub: 'scheduled in this period' },
+        { k: '#f43f5e', label: 'Arrears', amount: php(t.arrears || 0), sub: 'unpaid as of ' + fmtDate(d.period.from) },
+        { k: '#8b5cf6', label: 'Total due', amount: php(t.totalDue || 0), sub: 'actual due + arrears' },
+        { k: '#10b981', label: 'Amount collected', amount: php(t.collected || 0), sub: (rate == null ? '—' : rate + '%') + ' of total due • ' + (t.collectedCount || 0) + ' account(s)', meter: rate },
+        { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0), sub: 'still owed per account (advances not netted)' },
+        { k: '#0ea5e9', label: 'Expected (Excel)', amount: php(t.expectedAmount || 0), sub: (t.expectedCount || 0) + ' account(s) • JAN–DEC projection' },
+        { k: '#64748b', label: 'Floating account', amount: php(t.needsMonthlyBalance || 0), sub: (t.needsMonthlyCount || 0) + ' account(s) • no monthly yet, not in dues' },
       ].map(c => '<div class="dues-kpi" style="--k:' + c.k + ';"><small>' + esc(c.label) + (c.tag ? '<em>' + esc(c.tag) + '</em>' : '') + '</small>' +
         '<strong>' + esc(c.amount) + '</strong><span>' + esc(c.sub) + '</span>' +
         (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') + '</div>').join('');
 
       $('note').hidden = !inc;
-      if (inc) $('note').textContent = 'Overdue installments from before ' + fmtDate(d.period.from) + ' are included in the cards and the list (' + t.carriedCount + ' installment(s), ' + php(t.carriedAmount) + ').';
+      if (inc) $('note').textContent = 'The list also shows unpaid installments from before ' + fmtDate(d.period.from) + ' (' + t.carriedCount + ' installment(s), ' + php(t.carriedAmount) + ' still unpaid today).';
 
       if (o.showClerks) {
         const sel = $('officer');
@@ -313,16 +316,19 @@
         sel.innerHTML = ['<option value="">All clerks</option>'].concat((state.allClerks || d.clerks).filter(c => c.officerId).map(c =>
           '<option value="' + esc(c.officerId) + '">' + esc(c.name) + '</option>')).join('');
         sel.value = keep;
-        $('clerksSub').textContent = periodLabel() + (inc ? ' • overdue from earlier included' : '');
+        $('clerksSub').textContent = periodLabel();
         $('clerks').innerHTML = d.clerks.length ? d.clerks.map(c => {
-          const r = c.collectionRate;
+          const r = c.collectedRate;
           return '<tr><td><strong>' + esc(c.name) + '</strong></td>' +
-            '<td class="num"><strong>' + php(c.dueAmount) + '</strong><span class="dues-sub">' + c.dueCount + ' inst.</span></td>' +
-            '<td class="num">' + php(c.paidAmount) + '<span class="dues-sub">' + c.paidCount + ' inst.</span></td>' +
-            '<td class="num">' + php(c.unpaidAmount) + '<span class="dues-sub">' + c.unpaidCount + ' inst.</span></td>' +
+            '<td class="num">' + php(c.actualDue || 0) + '</td>' +
+            '<td class="num">' + php(c.arrears || 0) + '</td>' +
+            '<td class="num"><strong>' + php(c.totalDue || 0) + '</strong></td>' +
+            '<td class="num">' + php(c.collected || 0) + '<span class="dues-sub">' + (c.collectedCount || 0) + ' acct.</span></td>' +
             '<td>' + (r == null ? '—' : '<strong>' + r + '%</strong><div class="dues-bar-rate"><i style="width:' + Math.min(100, r) + '%"></i></div>') + '</td>' +
-            '<td class="num">' + php(c.carriedAmount) + '<span class="dues-sub">' + c.carriedCount + ' inst.' + (inc ? ' • included' : '') + '</span></td></tr>';
-        }).join('') : '<tr><td colspan="6" class="dues-empty">No dues in this period.</td></tr>';
+            '<td class="num">' + php(c.stillUnpaid || 0) + '</td>' +
+            '<td class="num">' + php(c.expectedAmount || 0) + '<span class="dues-sub">' + (c.expectedCount || 0) + ' acct.</span></td>' +
+            '<td class="num">' + php(c.needsMonthlyBalance || 0) + '<span class="dues-sub">' + (c.needsMonthlyCount || 0) + ' acct.</span></td></tr>';
+        }).join('') : '<tr><td colspan="9" class="dues-empty">No dues in this period.</td></tr>';
       }
 
       const all = filteredRows();
@@ -415,18 +421,21 @@
       L.push(csvLine(['Filters', 'Performance: ' + (state.perf || 'All') + (state.q ? '; Search: ' + state.q : '')]));
       L.push(csvLine(['Generated', now.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })]));
       L.push('');
-      L.push(csvLine(['SUMMARY', 'Installments', 'Amount (PHP)']));
-      L.push(csvLine([inc ? 'To collect (period + overdue)' : 'Due in period', t.dueCount, money(t.dueAmount)]));
-      if (inc) L.push(csvLine(['   of which due in period', t.periodDueCount, money(t.periodDueAmount)]));
-      L.push(csvLine([inc ? '   of which overdue from earlier' : 'Overdue from earlier (not included)', t.carriedCount, money(t.carriedAmount)]));
-      L.push(csvLine(['Paid', t.paidCount, money(t.paidAmount)]));
-      L.push(csvLine(['Still unpaid', t.unpaidCount, money(t.unpaidAmount)]));
-      L.push(csvLine(['Collection rate', '', t.collectionRate == null ? '' : t.collectionRate + '%']));
+      L.push(csvLine(['SUMMARY', 'Count', 'Amount (PHP)']));
+      L.push(csvLine(['Actual due', '', money(t.actualDue || 0)]));
+      L.push(csvLine(['Arrears (as of ' + d.period.from + ')', '', money(t.arrears || 0)]));
+      L.push(csvLine(['Total due', '', money(t.totalDue || 0)]));
+      L.push(csvLine(['Amount collected', t.collectedCount || 0, money(t.collected || 0)]));
+      L.push(csvLine(['Still unpaid', '', money(t.stillUnpaid || 0)]));
+      L.push(csvLine(['Collection rate', '', t.collectedRate == null ? '' : t.collectedRate + '%']));
+      L.push(csvLine(['Expected (Excel projection)', t.expectedCount || 0, money(t.expectedAmount || 0)]));
+      L.push(csvLine(['Floating account (no monthly yet)', t.needsMonthlyCount || 0, money(t.needsMonthlyBalance || 0)]));
       if (o.showClerks && d.clerks.length) {
         L.push('');
-        L.push(csvLine(['PER CLERK', 'To collect (inst.)', 'To collect (PHP)', 'Paid (inst.)', 'Paid (PHP)', 'Unpaid (inst.)', 'Unpaid (PHP)', 'Collection rate', 'Overdue from earlier (inst.)', 'Overdue from earlier (PHP)']));
-        d.clerks.forEach(c => L.push(csvLine([c.name, c.dueCount, money(c.dueAmount), c.paidCount, money(c.paidAmount), c.unpaidCount, money(c.unpaidAmount),
-          c.collectionRate == null ? '' : c.collectionRate + '%', c.carriedCount, money(c.carriedAmount)])));
+        L.push(csvLine(['PER CLERK', 'Actual due (PHP)', 'Arrears (PHP)', 'Total due (PHP)', 'Collected (PHP)', 'Collection rate', 'Still unpaid (PHP)', 'Expected Excel (acct.)', 'Expected Excel (PHP)', 'Floating account (acct.)', 'Floating account (PHP)']));
+        d.clerks.forEach(c => L.push(csvLine([c.name, money(c.actualDue || 0), money(c.arrears || 0), money(c.totalDue || 0), money(c.collected || 0),
+          c.collectedRate == null ? '' : c.collectedRate + '%', money(c.stillUnpaid || 0), c.expectedCount || 0, money(c.expectedAmount || 0),
+          c.needsMonthlyCount || 0, money(c.needsMonthlyBalance || 0)])));
       }
       L.push('');
       L.push(csvLine(['CLIENTS DUE (' + rows.length + ' unpaid installment' + (rows.length === 1 ? '' : 's') + ')']));

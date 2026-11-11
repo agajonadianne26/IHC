@@ -104,6 +104,21 @@ function ihc_build_installments(array $contract): array {
  */
 function ihc_schedule(array $contract, array $payments = [], ?string $today = null): array {
     $today = $today ?? date('Y-m-d');
+    // Imported without a usable monthly amount: nothing is scheduled (so no
+    // dues, aging or reminders) until the clerk sets the monthly. Not settled.
+    if (!empty($contract['needs_monthly'])) {
+        $paid = 0.0;
+        foreach ($payments as $p) $paid += ihc_schedule_payment_amount($p);
+        $tcp = max(0.0, (float)($contract['total_contract_price'] ?? 0) - max(0.0, (float)($contract['discount_amount'] ?? 0)));
+        return [
+            'installments' => [],
+            'next'         => null,
+            'paid'         => round($paid, 2),
+            'outstanding'  => max(0.0, round($tcp - $paid, 2)),
+            'settled'      => false,
+            'onHold'       => true,
+        ];
+    }
     $installments = ihc_build_installments($contract);
 
     $paidTotal = 0.0;
@@ -168,5 +183,6 @@ function ihc_schedule(array $contract, array $payments = [], ?string $today = nu
         'paid'         => round($paidTotal, 2),
         'outstanding'  => max(0.0, round($tcp - $paidTotal, 2)),
         'settled'      => $next === null,
+        'onHold'       => false,
     ];
 }

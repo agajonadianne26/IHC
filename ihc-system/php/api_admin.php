@@ -87,6 +87,7 @@ try {
             'date' => (string)$p['date_collected'],
             'amount' => $principalAmt,
             'principalAmount' => $principalAmt,
+            'cash' => $amt, // actual money received (Dues "Collected")
         ];
     }
 
@@ -159,7 +160,7 @@ try {
             $paid = (float)$schedule['paid'];
             $balance = max(0.0, $total - $paid);
             $status = 'current';
-            if (!$next) $status = 'paid';
+            if (!$next) $status = empty($schedule['onHold']) ? 'paid' : 'current'; // floating account: no schedule yet
             elseif ((string)$next['dueDate'] < $today) $status = 'overdue';
             elseif ((string)$next['dueDate'] <= date('Y-m-d', strtotime('+3 days'))) $status = 'due-soon';
             return [
@@ -175,7 +176,7 @@ try {
                 'terms'          => max(1, (int)($c['installment_terms'] ?? 1)),
                 'nextDueDate'    => $next ? (string)$next['dueDate'] : null,
                 'nextAmount'     => $next ? (float)$next['amount'] : 0.0,
-                'nextType'       => $next ? (string)$next['kind'] : 'settled',
+                'nextType'       => $next ? (string)$next['kind'] : (!empty($schedule['onHold']) ? 'needs_monthly' : 'settled'),
                 'status'         => $status,
                 'officerId'      => trim((string)($c['officer_id'] ?? '')),
             ];
@@ -560,7 +561,38 @@ try {
         $rows = [];
         $clerks = [];
         $totals = ['dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
-                   'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0];
+                   'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0,
+                   'expectedCount' => 0, 'expectedAmount' => 0.0, 'needsMonthlyCount' => 0, 'needsMonthlyBalance' => 0.0,
+                   'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0];
+
+        // Excel-style figures (match the collection workbook's header row):
+        //   actualDue = scheduled amounts falling in the period,
+        //   arrears   = unpaid from before the period, as of its first day
+        //               (payments dated before the period only),
+        //   collected = cash received in the period (payments.amount).
+        // For an imported account, its cutoff month uses the Excel's own
+        // "Actual due <Month>" / "ARREARS" values when the period covers it.
+        $excelCut = function (array $c): ?array {
+            if (empty($c['is_legacy']) || empty($c['opening_balance_as_of'])) return null;
+            $L = json_decode((string)($c['legacy_data'] ?? ''), true);
+            if (!is_array($L)) return null;
+            $first = substr((string)$c['opening_balance_as_of'], 0, 7) . '-01';
+            $label = 'ACTUAL DUE ' . strtoupper(date('F', strtotime($first)));
+            $due = null; $arr = null; $seen = false;
+            foreach ($L as $key => $v) {
+                $K = strtoupper(trim((string)$key));
+                if (!$seen) { if ($K === $label) { $seen = true; $due = $v; } continue; }
+                if (strpos($K, 'ARREARS') === 0) { $arr = $v; break; }
+            }
+            if (!$seen) return null;
+            $n = fn($x) => is_numeric($x = preg_replace('/[^0-9.\-]/', '', (string)$x)) ? (float)$x : 0.0;
+            // The Excel due falls on the account's due day in that month, so a
+            // week/half-month view adds up to the whole month.
+            $day = (int)$n($L['Due Date'] ?? 0) ?: (int)substr((string)($c['start_date'] ?? ''), 8, 2) ?: 1;
+            $last = date('Y-m-t', strtotime($first));
+            $dueDate = substr($first, 0, 8) . sprintf('%02d', min($day, (int)substr($last, 8, 2)));
+            return ['first' => $first, 'last' => $last, 'due' => $n($due), 'arrears' => $n($arr), 'dueDate' => $dueDate];
+        };
 
         foreach ($contractRows as $c) {
             $oid = trim((string)($c['officer_id'] ?? ''));
@@ -590,9 +622,77 @@ try {
             if (!isset($clerks[$clerkKey])) {
                 $clerks[$clerkKey] = ['officerId' => $oid, 'name' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
                     'dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
-                    'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0];
+                    'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0,
+                    'expectedCount' => 0, 'expectedAmount' => 0.0, 'needsMonthlyCount' => 0, 'needsMonthlyBalance' => 0.0,
+                    'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0];
             }
             $k = &$clerks[$clerkKey];
+
+            // Excel-style due / arrears / collected for this contract.
+            $allPays = $paysByContract[$cid] ?? [];
+            $atStart = ihc_schedule($c, array_values(array_filter($allPays, fn($p) => (string)($p['date'] ?? '') < $from)), $from);
+            $cDue = 0.0; $cArr = 0.0; $cutDue = 0.0;
+            $cut = $excelCut($c);
+            foreach ($atStart['installments'] as $inst) {
+                $d = (string)$inst['dueDate'];
+                if ($d >= $from && $d <= $to) {
+                    $cDue += $inst['amount'];
+                    if ($cut && $d >= $cut['first'] && $d <= $cut['last']) $cutDue += $inst['amount'];
+                } elseif ($d < $from) {
+                    $cArr += max(0.0, $inst['amount'] - $inst['paidAmount']);
+                }
+            }
+            // Cutoff month: the schedule rows in it are replaced by the Excel's
+            // own "Actual due <Month>", counted on the account's due date.
+            if ($cut) {
+                $cDue -= $cutDue;
+                if ($cut['dueDate'] >= $from && $cut['dueDate'] <= $to) $cDue += $cut['due'];
+            }
+            if ($cut && $from === $cut['first']) $cArr = $cut['arrears'];
+            // Before an imported account's cutoff month the schedule rows are only
+            // the import's arrears placeholders: months before it come from
+            // legacy_month_snapshots (added after this loop) instead.
+            if ($cut) {
+                foreach ($atStart['installments'] as $inst) {
+                    $d = (string)$inst['dueDate'];
+                    if ($d >= $from && $d <= $to && $d < $cut['first']) $cDue -= $inst['amount'];
+                }
+                if ($from < $cut['first']) $cArr = 0.0;
+            }
+            $cCol = 0.0;
+            foreach ($allPays as $p) {
+                $pd = (string)($p['date'] ?? '');
+                if ($pd >= $from && $pd <= $to) $cCol += (float)($p['cash'] ?? $p['amount'] ?? 0);
+            }
+            $cUnpaid = max(0.0, $cDue + $cArr - $cCol);
+            foreach ([&$k, &$totals] as &$acc) {
+                $acc['actualDue'] += $cDue; $acc['arrears'] += $cArr; $acc['totalDue'] += $cDue + $cArr;
+                $acc['collected'] += $cCol; $acc['stillUnpaid'] += $cUnpaid;
+                if ($cCol > 0.009) $acc['collectedCount']++;
+            }
+            unset($acc);
+
+            // Expected (Excel projection): the monthly amounts from the collection
+            // Excel's JAN..DEC columns, counted when that month's due day falls in
+            // the period. Covers needs-monthly accounts too.
+            // On hold = imported without a monthly amount (no schedule yet).
+            if (!empty($c['needs_monthly'])) {
+                $k['needsMonthlyCount']++; $totals['needsMonthlyCount']++;
+                $k['needsMonthlyBalance'] += (float)$built['outstanding']; $totals['needsMonthlyBalance'] += (float)$built['outstanding'];
+            }
+            $proj = json_decode((string)($c['legacy_projection'] ?? ''), true);
+            if (is_array($proj) && $proj) {
+                $dueDay = (int)substr((string)($c['start_date'] ?? ''), 8, 2) ?: 1;
+                foreach ($proj as $ym => $amt) {
+                    $amt = (float)$amt;
+                    if ($amt <= 0.009 || !preg_match('/^(\d{4})-(\d{2})$/', (string)$ym, $pm)) continue;
+                    $last = (int)date('t', mktime(0, 0, 0, (int)$pm[2], 1, (int)$pm[1]));
+                    $d = sprintf('%s-%02d', $ym, min($dueDay, $last));
+                    if ($d < $from || $d > $to) continue;
+                    $k['expectedCount']++; $k['expectedAmount'] += $amt;
+                    $totals['expectedCount']++; $totals['expectedAmount'] += $amt;
+                }
+            }
 
             foreach ($built['installments'] as $inst) {
                 if ($inst['amount'] <= 0.009) continue;
@@ -644,13 +744,52 @@ try {
             unset($k);
         }
 
+        // Older workbook months (legacy_month_snapshots, e.g. October when the
+        // accounts were imported as of November), including accounts no longer
+        // in the system, so those months equal the Excel.
+        try {
+            ihc_ensure_month_snapshots($pdo);
+            $snap = $pdo->prepare(
+                'SELECT s.*, o.full_name FROM legacy_month_snapshots s LEFT JOIN officers o ON o.id = s.officer_id
+                 WHERE (s.due_date BETWEEN ? AND ?) OR (s.pay_date BETWEEN ? AND ?) OR s.month = ?'
+            );
+            $snap->execute([$from, $to, $from, $to, substr($from, 0, 7)]);
+            foreach ($snap->fetchAll() as $s) {
+                $oid = trim((string)$s['officer_id']);
+                if ($officerFilter !== '' && $oid !== $officerFilter) continue;
+                $sDue = ((string)$s['due_date'] >= $from && (string)$s['due_date'] <= $to) ? (float)$s['actual_due'] : 0.0;
+                $sArr = ($s['month'] . '-01' === $from) ? (float)$s['arrears'] : 0.0;
+                $sCol = ($s['pay_date'] !== null && (string)$s['pay_date'] >= $from && (string)$s['pay_date'] <= $to) ? (float)$s['collected'] : 0.0;
+                // Whole month with its arrears counted: use the Excel's own Total Due cell.
+                $wholeMonth = $s['month'] . '-01' === $from && $to >= date('Y-m-t', strtotime($s['month'] . '-01'));
+                $sTot = ($wholeMonth && $s['total_due'] !== null) ? (float)$s['total_due'] : $sDue + $sArr;
+                if ($sDue == 0.0 && $sArr == 0.0 && $sCol == 0.0 && $sTot == 0.0) continue;
+                $clerkKey = $oid !== '' ? $oid : '—';
+                if (!isset($clerks[$clerkKey])) {
+                    $clerks[$clerkKey] = ['officerId' => $oid, 'name' => (string)($s['full_name'] ?? '') ?: 'Unassigned',
+                        'dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
+                        'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0,
+                        'expectedCount' => 0, 'expectedAmount' => 0.0, 'needsMonthlyCount' => 0, 'needsMonthlyBalance' => 0.0,
+                        'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0];
+                }
+                foreach ([$clerkKey, null] as $target) {
+                    if ($target === null) $acc = &$totals; else $acc = &$clerks[$target];
+                    $acc['actualDue'] += $sDue; $acc['arrears'] += $sArr; $acc['totalDue'] += $sTot;
+                    $acc['collected'] += $sCol; $acc['stillUnpaid'] += max(0.0, $sTot - $sCol);
+                    if ($sCol > 0.009) $acc['collectedCount']++;
+                    unset($acc);
+                }
+            }
+        } catch (Throwable $e) { /* history is optional */ }
+
         usort($rows, fn($a, $b) => [$a['dueDate'], $a['client']] <=> [$b['dueDate'], $b['client']]);
         // With "include overdue from earlier", the older unpaid installments
         // become part of what is due in the period: they are added to Due and
         // Still unpaid, and the collection rate is measured against the total.
         // periodDue* keep the period-only figures for reference.
         $finish = function (array $t) use ($includeOverdue): array {
-            foreach (['dueAmount', 'paidAmount', 'unpaidAmount', 'carriedAmount'] as $f) $t[$f] = round($t[$f], 2);
+            foreach (['dueAmount', 'paidAmount', 'unpaidAmount', 'carriedAmount', 'expectedAmount', 'actualDue', 'arrears', 'totalDue', 'collected', 'stillUnpaid', 'needsMonthlyBalance'] as $f) $t[$f] = round($t[$f], 2);
+            $t['collectedRate'] = $t['totalDue'] > 0 ? round(min(100, $t['collected'] / $t['totalDue'] * 100), 1) : null;
             $t['periodDueCount'] = $t['dueCount'];
             $t['periodDueAmount'] = $t['dueAmount'];
             if ($includeOverdue) {
@@ -733,7 +872,8 @@ try {
                     if ($oldest === null) $oldest = $inst['dueDate'];
                 }
             }
-            if ($built['settled']) $key = 'settled';
+            if (!empty($built['onHold'])) $key = 'current'; // needs monthly: nothing scheduled yet
+            elseif ($built['settled']) $key = 'settled';
             elseif ($oldest === null) $key = 'current';
             else {
                 $days = (int)((strtotime($today) - strtotime($oldest)) / 86400);

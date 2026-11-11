@@ -3014,7 +3014,7 @@
   <script src="../js/portal-store.js"></script>
   <script src="../js/soa.js?v=1"></script>
   <script src="../js/property-address.js?v=1"></script>
-  <script src="../js/dues-report.js?v=7"></script>
+  <script src="../js/dues-report.js?v=12"></script>
   <script src="../js/clerk-reports.js?v=7"></script>
   <!-- SheetJS: reads the collection workbook in the browser for Import Accounts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3323,7 +3323,8 @@
       // the next payment shown becomes the client's installment.
       const paymentType = c.nextInstallmentNo != null
         ? 'Installment Payment #' + c.nextInstallmentNo
-        : (c.nextType === 'settled' ? 'Settled in Full' : 'Downpayment');
+        : (c.nextType === 'settled' ? 'Settled in Full'
+          : (c.nextType === 'needs_monthly' ? 'Needs monthly (set on Import page)' : 'Downpayment'));
       return {
         id: c.accountCode,
         client: c.name,
@@ -3342,7 +3343,8 @@
         // Always the date the endpoint reported (start_date once settled) so
         // this row matches the admin ledger and the client schedule exactly.
         dueDate: c.nextDueDate ? new Date(c.nextDueDate) : TODAY,
-        status: statusFromDate(c.nextDueDate, pending),
+        // "Needs monthly" accounts are not paid — show them as current.
+        status: c.nextType === 'needs_monthly' ? 'current' : statusFromDate(c.nextDueDate, pending),
         notification: notificationStatuses[String(c.contractId)] || 'pending',
         email: c.email,
         phone: c.phone,
@@ -5981,7 +5983,7 @@
         '<span class="imp-chip warn">' + d.summary.warn + ' to check</span>' +
         '<span class="imp-chip error">' + d.summary.error + ' can\'t import</span>' +
         (function () {
-          const fixable = d.rows.filter(r => r.level === 'error' && r.fixable).length;
+          const fixable = d.rows.filter(r => r.fixable).length;
           return fixable ? '<span class="imp-chip warn" title="Enter the missing amounts on these rows, then Recheck">' + fixable + ' fixable here</span>' : '';
         })() +
         (function () {
@@ -6023,7 +6025,7 @@
       if (!d || !body) return;
       const label = { ok: ['paid', 'Ready'], warn: ['due-soon', 'Check'], error: ['overdue', 'Can\'t import'] };
       const rows = d.rows.filter(r => impState.filter === 'all'
-        || (impState.filter === 'fixable' ? (r.level === 'error' && r.fixable) || !!r.manual
+        || (impState.filter === 'fixable' ? !!r.fixable || !!r.manual
           : impState.filter === 'new' ? !r.existingContractId
           : r.level === impState.filter));
       if (!rows.length) {
@@ -6044,7 +6046,7 @@
         // balance usually includes the loan, so the clerk must enter only what
         // the buyer still pays the company before take-out.
         const loanFinanced = /HDMF|PAG-?IBIG|BANK|NHMFC/i.test(r.financing || '') && /equity|loan diff/i.test(r.collectionType || '');
-        const fixBox = (isErr && r.fixable) || r.manual
+        const fixBox = r.fixable || r.manual
           ? '<div class="imp-fix" data-bal="' + escapeHtml(r.openingBalance != null ? r.openingBalance : '') + '" data-mo="' + escapeHtml(r.monthly || '') + '">'
             + (loanFinanced ? '<div class="imp-fix-tip">' + escapeHtml(r.financing) + ' • ' + escapeHtml(r.collectionType) + ': the Excel balance likely <strong>includes the loan</strong>. Enter only what the buyer still pays the company before take-out (e.g. remaining months × monthly).</div>' : '')
             + '<div class="imp-fix-fields">'

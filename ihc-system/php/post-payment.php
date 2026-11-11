@@ -116,6 +116,9 @@ try {
         }
 
         $schedule = ihc_schedule($contract, $existingPayments);
+        if (!empty($schedule['onHold'])) {
+            throw new RuntimeException('This imported account still needs its monthly amount. Set it on the Import page before posting payments.');
+        }
         if ($schedule['next'] === null) {
             throw new RuntimeException('This contract is already settled in full.');
         }

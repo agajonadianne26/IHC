@@ -29,7 +29,7 @@ require_once __DIR__ . '/legacy-import.php';
  *
  * POST JSON {action, officerId, ...}
  *   preview          {headers:[...], rows:[{n, cells:[...]}]}
- *   commit           same + overrides:{ "<n>": {include, email, phone} }
+ *   commit           same + overrides:{ "<n>": {include, email, phone, allowDuplicate} }
  *   incomplete       → this clerk's imported accounts still missing contact info
  *   complete_contact {contractId, email, phone}
  */
@@ -430,6 +430,10 @@ function imp_analyze(PDO $pdo, array $officer, array $headers, array $rows, arra
             $dates = array_filter(array_map('imp_date', preg_split('/\s*,\s*/', imp_str($cell($cells, $c['payDate'])))));
             $payDate = $dates ? end($dates) : null;
             if (!$payDate) { $payDate = $cutoffDue; $issues[] = 'Payment date unreadable; using ' . $cutoffDue . '.'; }
+            // The Excel reports it as a cutoff-month collection: keep it inside
+            // that month so monthly collection totals equal the workbook.
+            $cutFirst = imp_ymd($cutY, $cutM, 1);
+            if ($payDate < $cutFirst) { $issues[] = 'Payment dated ' . $payDate . ' is listed as a ' . date('F', strtotime($cutFirst)) . ' collection; recorded on ' . $cutFirst . '.'; $payDate = $cutFirst; }
             $inv = imp_str($cell($cells, $c['invoice']));
             $orNumber = (preg_match('/\d/', $inv) && !preg_match('/for\s*or/i', $inv)) ? mb_substr($inv, 0, 100) : 'FOR OR';
             $payment = ['amount' => round($collected, 2), 'date' => $payDate, 'orNumber' => $orNumber];
@@ -437,15 +441,19 @@ function imp_analyze(PDO $pdo, array $officer, array $headers, array $rows, arra
         }
 
         // Duplicates: inside the file, then against the database.
+        // overrides["<n>"].allowDuplicate: the Excel deliberately lists the same
+        // buyer + unit more than once (kept so system totals equal the Excel);
+        // only an identical legacy code still counts as "already imported".
+        $allowDup = !empty($ov['allowDuplicate']);
         $dupKey = imp_key($name, $project, $blk, $lot);
         $existingId = null;
-        if (isset($seenKeys[$dupKey])) {
+        if (isset($seenKeys[$dupKey]) && !$allowDup) {
             $errors[] = 'Duplicate of row ' . $seenKeys[$dupKey] . ' (same buyer and unit).';
-        } else {
+        } elseif (!isset($seenKeys[$dupKey])) {
             $seenKeys[$dupKey] = $n;
         }
         if ($legacyCode !== '' && isset($existingByCode[$legacyCode])) $existingId = $existingByCode[$legacyCode];
-        elseif (isset($existingByKey[imp_key($name, $propertyAddress)])) $existingId = $existingByKey[imp_key($name, $propertyAddress)];
+        elseif (!$allowDup && isset($existingByKey[imp_key($name, $propertyAddress)])) $existingId = $existingByKey[imp_key($name, $propertyAddress)];
         if ($existingId !== null) $errors[] = 'Already in the system as CON-' . $existingId . '.';
 
         // Original row, nothing dropped.
@@ -453,6 +461,17 @@ function imp_analyze(PDO $pdo, array $officer, array $headers, array $rows, arra
         foreach ($cells as $i => $v) {
             $s = imp_str($v);
             if ($s !== '') $raw[$labels[$i] ?? ('Column ' . ($i + 1))] = is_int($v) || is_float($v) ? $v : $s;
+        }
+
+        // Blocked only by a missing monthly / balance (or an impossible term):
+        // still imported so the account and its Excel balance are in the
+        // system, but flagged "Needs monthly" — no schedule, dues or reminders
+        // until the clerk enters the amounts (Import page or Fix box).
+        $needsMonthly = false;
+        if ($errors && count($errors) === $soft) {
+            $needsMonthly = true;
+            foreach ($errors as $e) $issues[] = 'Imports as "Needs monthly": ' . $e;
+            $errors = [];
         }
 
         $level = $errors ? 'error' : ($issues ? 'warn' : 'ok');
@@ -492,7 +511,9 @@ function imp_analyze(PDO $pdo, array $officer, array $headers, array $rows, arra
             'payment' => $payment,
             'existingContractId' => $existingId,
             // Blocked only by amounts the clerk can type in the preview.
-            'fixable' => $errors && count($errors) === $soft,
+            'fixable' => $needsMonthly,
+            'needsMonthly' => $needsMonthly,
+            'projection' => ihc_projection_from_raw($raw, $cutY),
             'manual' => $manual ?: null,
             'collectionOfficer' => $rowOfficer !== '' ? $rowOfficer : null,
             'raw' => $raw,
@@ -656,6 +677,7 @@ function imp_account_view(PDO $pdo, array $c): array {
         'email' => (string)$c['email'],
         'phone' => (string)$c['cellphone_number'],
         'accountStatus' => $c['account_status'],
+        'needsMonthly' => !empty($c['needs_monthly']),
         'payment' => $first ? [
             'amount' => (float)$first['amount'],
             'date' => (string)$first['date_collected'],
@@ -765,7 +787,9 @@ try {
         $c = $st->fetch();
         if (!$c || trim((string)$c['officer_id']) !== $officerId || empty($c['import_batch_id'])) imp_fail('Imported account not found among your accounts.', 404);
         $batch = imp_batch($pdo, (int)$c['import_batch_id'], $officerId);
-        if ($batch['status'] !== 'FOR_VERIFICATION') imp_fail('This batch is already confirmed and can no longer be edited here.', 409);
+        // "Needs monthly" accounts stay editable after confirmation — that is
+        // how the clerk completes them.
+        if ($batch['status'] !== 'FOR_VERIFICATION' && empty($c['needs_monthly'])) imp_fail('This batch is already confirmed and can no longer be edited here.', 409);
 
         $f = is_array($data['fields'] ?? null) ? $data['fields'] : [];
         $name = trim(preg_replace('/\s+/', ' ', (string)($f['clientName'] ?? $c['client_name'])));
@@ -809,7 +833,8 @@ try {
             $pdo->prepare(
                 'UPDATE contracts SET client_name = ?, project_name = ?, project_phase = ?, block_no = ?, lot_no = ?,
                         property_address = ?, total_contract_price = ?, opening_balance = ?, monthly_amortization = ?,
-                        installment_terms = ?, start_date = ?, email = ?, cellphone_number = ?, needs_completion = ?
+                        installment_terms = ?, start_date = ?, email = ?, cellphone_number = ?, needs_completion = ?,
+                        needs_monthly = 0
                  WHERE id = ?'
             )->execute([
                 mb_substr($name, 0, 255),
@@ -920,7 +945,7 @@ try {
         exit;
     }
 
-    if (!in_array($action, ['preview', 'commit'], true)) imp_fail('Unknown action.');
+    if (!in_array($action, ['preview', 'commit', 'month_snapshot'], true)) imp_fail('Unknown action.');
 
     $headers = is_array($data['headers'] ?? null) ? $data['headers'] : [];
     $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
@@ -929,6 +954,101 @@ try {
 
     $overrides = is_array($data['overrides'] ?? null) ? $data['overrides'] : [];
     $result = imp_analyze($pdo, $officer, $headers, $rows, $overrides);
+
+    // ---- Month history (reporting only) ----------------------------------
+    // POST {action:'month_snapshot', officerId, headers, rows:[{n,cells}], fileName}
+    // Saves this clerk's rows of an OLDER workbook month (its "AR Balance as of
+    // <Month> <Year>" block: actual due, arrears, collected, payment date) into
+    // legacy_month_snapshots, replacing that clerk's earlier rows for the
+    // month. Balances and schedules are untouched; Dues uses it for that month.
+    if ($action === 'month_snapshot') {
+        ihc_ensure_month_snapshots($pdo);
+        $code = strtoupper(trim((string)($officer['officer_code'] ?? '')));
+        if ($code === '') imp_fail('This clerk has no Officer Code yet.');
+        $headers = is_array($data['headers'] ?? null) ? $data['headers'] : [];
+        $rows = is_array($data['rows'] ?? null) ? $data['rows'] : [];
+        $H = array_map('imp_norm_header', $headers);
+        $find = function (string $name, int $after = -1) use ($H): ?int {
+            foreach ($H as $i => $h) if ($i > $after && $h === $name) return $i;
+            return null;
+        };
+        $arIdx = null; $y = 0; $mo = 0;
+        foreach ($H as $i => $h) {
+            if (preg_match('/^AR BALANCE AS OF ([A-Z]+)\.? (\d{4})$/', $h, $m) && ($mon = IMP_MONTHS[substr($m[1], 0, 3)] ?? 0)) {
+                $arIdx = $i; $y = (int)$m[2]; $mo = $mon; break; // the workbook's own month
+            }
+        }
+        if ($arIdx === null) imp_fail('Could not find an "AR Balance as of <Month> <Year>" column.');
+        $month = sprintf('%04d-%02d', $y, $mo);
+        $col = [
+            'due' => null, 'arrears' => null, 'total' => null, 'collected' => null, 'payDate' => null,
+            'officer' => $find('COLLECTION OFFICER'), 'code' => $find('AJ CODE'), 'project' => $find('PROJECT'),
+            'phase' => $find('PHASE'), 'blk' => $find('BLK'), 'lot' => $find('LOT'), 'dueDay' => $find('DUE DATE'),
+            'status' => $find('STATUS'), 'name' => null,
+        ];
+        foreach ($H as $i => $h) {
+            if ($col['name'] === null && strpos($h, 'BUYER') === 0 && strpos($h, 'NAME') !== false) $col['name'] = $i;
+            if ($i <= $arIdx) continue;
+            if ($col['due'] === null && strpos($h, 'ACTUAL DUE') === 0) $col['due'] = $i;
+            if ($col['arrears'] === null && $h === 'ARREARS') $col['arrears'] = $i;
+            if ($col['total'] === null && strpos($h, 'TOTAL DUE') === 0) $col['total'] = $i;
+            if ($col['collected'] === null && $h === 'AMOUNT COLLECTED') $col['collected'] = $i;
+            if ($col['payDate'] === null && $h === 'DATE OF PAYMENT') $col['payDate'] = $i;
+        }
+        if ($col['name'] === null || $col['due'] === null || $col['officer'] === null) imp_fail('The workbook is missing the buyer, actual due or collection officer column.');
+
+        // This clerk's imported contracts, matched like the import does.
+        $byCode = []; $byKey = [];
+        $st = $pdo->prepare('SELECT id, client_name, property_address, legacy_code FROM contracts WHERE officer_id = ? AND is_legacy = 1');
+        $st->execute([$officerId]);
+        foreach ($st->fetchAll() as $e) {
+            if (trim((string)$e['legacy_code']) !== '') $byCode[strtoupper(trim((string)$e['legacy_code']))] = (int)$e['id'];
+            $byKey[imp_key((string)$e['client_name'], (string)$e['property_address'])] = (int)$e['id'];
+        }
+        $cell = fn($cells, $i) => $i === null ? null : ($cells[$i] ?? null);
+        $first = $month . '-01'; $last = date('Y-m-t', strtotime($first));
+        $out = []; $tot = ['due' => 0, 'arrears' => 0, 'total' => 0, 'collected' => 0, 'ar' => 0]; $matched = 0;
+        foreach ($rows as $row) {
+            $cells = is_array($row['cells'] ?? null) ? $row['cells'] : [];
+            if (strtoupper(imp_str($cell($cells, $col['officer']))) !== $code) continue;
+            $name = imp_str($cell($cells, $col['name'])); if ($name === '') continue;
+            $blk = imp_str($cell($cells, $col['blk'])); $lot = imp_str($cell($cells, $col['lot']));
+            $address = imp_property_address($blk, $lot, imp_str($cell($cells, $col['phase'])), imp_str($cell($cells, $col['project'])));
+            $lc = strtoupper(imp_str($cell($cells, $col['code'])));
+            $cid = ($lc !== '' && isset($byCode[$lc])) ? $byCode[$lc] : ($byKey[imp_key($name, $address)] ?? null);
+            if ($cid) $matched++;
+            $dueDay = (int)imp_num($cell($cells, $col['dueDay']));
+            $dueDate = imp_ymd($y, $mo, $dueDay > 0 ? $dueDay : 1);
+            $collected = (float)imp_num($cell($cells, $col['collected']));
+            $payDate = null;
+            if ($collected > 0) {
+                $dates = array_filter(array_map('imp_date', preg_split('/\s*,\s*/', imp_str($cell($cells, $col['payDate'])))));
+                $payDate = $dates ? end($dates) : $dueDate;
+                if ($payDate < $first || $payDate > $last) $payDate = $payDate < $first ? $first : $last; // listed as this month's collection
+            }
+            $r = [
+                'contract' => $cid, 'code' => $lc ?: null, 'name' => mb_substr($name, 0, 255), 'property' => $address,
+                'status' => mb_substr(imp_str($cell($cells, $col['status'])), 0, 100) ?: null,
+                'ar' => (float)imp_num($cell($cells, $arIdx)),
+                'due' => (float)imp_num($cell($cells, $col['due'])),
+                'arrears' => (float)imp_num($cell($cells, $col['arrears'])),
+                'total' => $col['total'] === null ? null : (float)imp_num($cell($cells, $col['total'])),
+                'collected' => $collected, 'dueDate' => $dueDate, 'payDate' => $payDate, 'n' => (int)($row['n'] ?? 0),
+            ];
+            foreach (['due', 'arrears', 'total', 'collected', 'ar'] as $f) $tot[$f] += (float)$r[$f];
+            $out[] = $r;
+        }
+        $pdo->beginTransaction();
+        $pdo->prepare('DELETE FROM legacy_month_snapshots WHERE officer_id = ? AND month = ?')->execute([$officerId, $month]);
+        $ins = $pdo->prepare('INSERT INTO legacy_month_snapshots (officer_id, month, contract_id, legacy_code, client_name, property, account_status, ar_balance, actual_due, arrears, total_due, collected, due_date, pay_date, source_file, row_no) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        foreach ($out as $r) {
+            $ins->execute([$officerId, $month, $r['contract'], $r['code'], $r['name'], $r['property'], $r['status'], $r['ar'], $r['due'], $r['arrears'], $r['total'], $r['collected'], $r['dueDate'], $r['payDate'], mb_substr((string)($data['fileName'] ?? ''), 0, 255), $r['n']]);
+        }
+        $pdo->commit();
+        echo json_encode(['success' => true, 'month' => $month, 'rows' => count($out), 'matchedContracts' => $matched,
+            'totals' => array_map(fn($v) => round($v, 2), $tot)]);
+        exit;
+    }
 
     if ($action === 'preview') {
         $summary = ['ok' => 0, 'warn' => 0, 'error' => 0];
@@ -1002,8 +1122,9 @@ try {
              project_name, project_phase, block_no, lot_no,
              is_legacy, needs_completion, legacy_code, buyer_code, company, branch, financing_type, receivable_status,
              collection_type, sales_officer, rs_date, pdc, account_status, account_remarks, monthly_amortization,
-             opening_balance, opening_balance_as_of, legacy_data, imported_at, imported_by, import_batch_id)
-         VALUES (?,?,?,?,0,?,?, ?,?,\'lump\',NULL,?,?,0, ?,?,?,?, 1,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?)'
+             opening_balance, opening_balance_as_of, legacy_data, imported_at, imported_by, import_batch_id,
+             needs_monthly, legacy_projection)
+         VALUES (?,?,?,?,0,?,?, ?,?,\'lump\',NULL,?,?,0, ?,?,?,?, 1,?,?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?,?, ?,?)'
     );
     $findUnit = $pdo->prepare('SELECT id, current_contract_id FROM property_units WHERE display_label = ? LIMIT 1');
     $linkUnit = $pdo->prepare('UPDATE property_units SET current_contract_id = ? WHERE id = ?');
@@ -1027,8 +1148,10 @@ try {
 
         foreach ($toImport as $r) {
             $needs = ($r['email'] === '' || $r['phone'] === '') ? 1 : 0;
+            $nm = !empty($r['needsMonthly']);
+            $balanceIn = $r['openingBalance'] !== null ? max(0.0, (float)$r['openingBalance']) : 0.0;
             $insContract->execute([
-                $r['clientName'], $r['email'], $r['phone'], $r['openingBalance'], $r['terms'], $r['startDate'],
+                $r['clientName'], $r['email'], $r['phone'], $balanceIn, $nm ? 1 : $r['terms'], $r['startDate'],
                 $r['propertyAddress'] !== '' ? $r['propertyAddress'] : null, $officerId,
                 $r['bank'], $r['annualRate'],
                 $r['project'] !== '' ? mb_substr($r['project'], 0, 255) : null,
@@ -1043,10 +1166,11 @@ try {
                 $r['collectionType'] ? mb_substr($r['collectionType'], 0, 60) : null,
                 $r['salesOfficer'] ? mb_substr($r['salesOfficer'], 0, 100) : null,
                 $r['rsDate'], $r['pdc'] ? mb_substr($r['pdc'], 0, 20) : null,
-                $r['status'], $r['remarks'], $r['monthly'],
-                $r['openingBalance'], $asOf,
+                $r['status'], $r['remarks'], $nm && $r['monthly'] <= 0.009 ? null : $r['monthly'],
+                $balanceIn, $asOf,
                 json_encode($r['raw'], JSON_UNESCAPED_UNICODE),
                 $now, $officerId, $batchId,
+                $nm ? 1 : 0, json_encode($r['projection'] ?: new stdClass()),
             ]);
             $contractId = (int)$pdo->lastInsertId();
             $imported++;
