@@ -31,6 +31,11 @@
   .dues-btn:hover { background:#f8fafc; }
   .dues-btn.primary { background:#10b981; border-color:#10b981; color:#fff; }
   .dues-btn.primary:hover { background:#059669; }
+  .dues-month { display:inline-flex; align-items:center; gap:4px; }
+  .dues-month .dues-btn { padding:0 10px; font-size:15px; }
+  .dues-month select { height:36px; }
+  .dues-btn.busy { opacity:.6; pointer-events:none; }
+  .dues-updated { font-size:11.5px; color:#64748b; align-self:center; }
   .dues-range { display:inline-flex; align-items:center; height:36px; padding:0 12px; border-radius:8px; background:#f1f5f9; font-size:12.5px; color:#334155; font-weight:600; }
   .dues-kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
   @media (max-width:1280px) { .dues-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
@@ -208,7 +213,19 @@
   function mount(root, opts) {
     injectCss();
     const o = Object.assign({ apiBase: '', officerId: '', showClerks: false }, opts || {});
-    const state = { period: 'week', from: '', to: '', includeOverdue: false, officer: o.officerId || '', perf: '', q: '', data: null, page: 1, allClerks: null };
+    const thisMonth = () => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0'); };
+    const monthRange = (ym) => {
+      const [y, m] = ym.split('-').map(Number);
+      const last = new Date(y, m, 0).getDate();
+      return { from: ym + '-01', to: ym + '-' + String(last).padStart(2, '0') };
+    };
+    const shiftMonth = (ym, k) => {
+      const [y, m] = ym.split('-').map(Number);
+      const d = new Date(y, m - 1 + k, 1);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    };
+    let reqSeq = 0;
+    const state = { period: 'week', month: thisMonth(), from: '', to: '', includeOverdue: false, officer: o.officerId || '', perf: '', q: '', data: null, page: 1, allClerks: null };
 
     root.innerHTML =
       '<div class="dues-wrap">' +
@@ -216,13 +233,23 @@
           '<div class="dues-bar">' +
             '<div class="dues-seg" data-el="seg">' +
               '<button type="button" data-p="week" class="on">This week</button>' +
-              '<button type="button" data-p="month">This month</button>' +
+              '<button type="button" data-p="month">Month</button>' +
               '<button type="button" data-p="custom">Custom</button>' +
             '</div>' +
+            '<span data-el="monthPick" class="dues-month" hidden>' +
+              '<button type="button" class="dues-btn" data-el="mPrev" title="Previous month">‹</button>' +
+              '<select data-el="mSel" aria-label="Month">' +
+                ['January','February','March','April','May','June','July','August','September','October','November','December']
+                  .map((m, i) => '<option value="' + String(i + 1).padStart(2, '0') + '">' + m + '</option>').join('') +
+              '</select>' +
+              '<select data-el="ySel" aria-label="Year"></select>' +
+              '<button type="button" class="dues-btn" data-el="mNext" title="Next month">›</button>' +
+            '</span>' +
             '<span data-el="custom" hidden><input type="date" data-el="from" aria-label="From"> – <input type="date" data-el="to" aria-label="To"></span>' +
             '<span class="dues-range" data-el="range">…</span>' +
           '</div>' +
           '<div class="dues-bar">' +
+            '<span class="dues-updated" data-el="updated"></span>' +
             '<button type="button" class="dues-btn" data-el="refresh">↻ Refresh</button>' +
             '<button type="button" class="dues-btn primary" data-el="csv">⭳ Export Excel</button>' +
           '</div>' +
@@ -338,21 +365,33 @@
         return;
       }
       state.page = 1;
+      const seq = ++reqSeq;   // ignore answers from older, slower requests
+      const btn = $('refresh');
+      btn.classList.add('busy');
+      btn.textContent = '↻ Refreshing…';
       $('range').textContent = 'Loading…';
-      const qs = new URLSearchParams({ action: 'dues', period: state.period, includeOverdue: state.includeOverdue ? '1' : '0', _: String(Date.now()) });
+      // "Month" uses the chosen month (past months included) as a date range.
+      const qs = new URLSearchParams({ action: 'dues', period: state.period === 'month' ? 'custom' : state.period, includeOverdue: state.includeOverdue ? '1' : '0', _: String(Date.now()) });
       if (state.period === 'custom') { qs.set('from', state.from); qs.set('to', state.to); }
+      if (state.period === 'month') { const r = monthRange(state.month); qs.set('from', r.from); qs.set('to', r.to); }
       if (state.officer) qs.set('officerId', state.officer);
       try {
-        const res = await fetch(o.apiBase + '/php/api_admin.php?' + qs.toString());
+        const res = await fetch(o.apiBase + '/php/api_admin.php?' + qs.toString(), { cache: 'no-store' });
         const data = await res.json();
+        if (seq !== reqSeq) return;
         if (!res.ok || !data.success) throw new Error(data.message || 'Could not load dues.');
         // Keep the full clerk list for the dropdown while filtered to one clerk.
         if (o.showClerks && !state.officer) state.allClerks = data.clerks;
         state.data = data;
         render();
+        $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
       } catch (err) {
+        if (seq !== reqSeq) return;
         $('range').textContent = '—';
+        $('updated').textContent = '';
         $('rows').innerHTML = '<tr><td colspan="' + cols + '" class="dues-empty">' + esc(err.message) + '</td></tr>';
+      } finally {
+        if (seq === reqSeq) { btn.classList.remove('busy'); btn.textContent = '↻ Refresh'; }
       }
     }
 
@@ -414,8 +453,32 @@
       state.period = b.dataset.p;
       $('seg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
       $('custom').hidden = state.period !== 'custom';
+      $('monthPick').hidden = state.period !== 'month';
       refresh();
     });
+    // Month + Year dropdowns. Year list: 10 years back to next year, widened
+    // if the user steps past it with ‹ ›.
+    const syncMonthPick = () => {
+      const [y, m] = state.month.split('-').map(Number);
+      const now = new Date().getFullYear();
+      const lo = Math.min(now - 10, y), hi = Math.max(now + 1, y);
+      let html = '';
+      for (let k = hi; k >= lo; k--) html += '<option value="' + k + '"' + (k === y ? ' selected' : '') + '>' + k + '</option>';
+      $('ySel').innerHTML = html;
+      $('mSel').value = String(m).padStart(2, '0');
+    };
+    const setMonth = (ym) => {
+      if (!/^\d{4}-\d{2}$/.test(ym || '')) return;
+      state.month = ym;
+      syncMonthPick();
+      refresh();
+    };
+    syncMonthPick();
+    const fromSelects = () => setMonth($('ySel').value + '-' + $('mSel').value);
+    $('mSel').addEventListener('change', fromSelects);
+    $('ySel').addEventListener('change', fromSelects);
+    $('mPrev').addEventListener('click', () => setMonth(shiftMonth(state.month, -1)));
+    $('mNext').addEventListener('click', () => setMonth(shiftMonth(state.month, 1)));
     $('from').addEventListener('change', (e) => { state.from = e.target.value; refresh(); });
     $('to').addEventListener('change', (e) => { state.to = e.target.value; refresh(); });
     $('overdue').addEventListener('change', (e) => {

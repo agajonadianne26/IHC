@@ -97,7 +97,7 @@
           '<p style="font-size:11px;color:#94a3b8;line-height:1.5;margin:10px 0 0;">Each account is placed by its <strong>oldest unpaid installment</strong>. Overdue amount = everything past due today; Balance = whole remaining balance. Accounts return to Current once their overdue installments are paid.</p></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;gap:8px;flex-wrap:wrap;">' +
           '<p class="dues-h" data-el="agingTitle" style="margin:0;"></p>' +
-          '<div class="dues-bar"><input type="search" data-el="agingQ" placeholder="Search client or code"><button type="button" class="dues-btn" data-el="agingCsv">Export Excel</button></div>' +
+          '<div class="dues-bar"><input type="search" data-el="agingQ" placeholder="Search client or code"><button type="button" class="dues-btn" data-el="agingRefresh">↻ Refresh</button><button type="button" class="dues-btn" data-el="agingCsv">Export Excel</button></div>' +
         '</div>' +
         '<div class="dues-scroll"><table class="dues-table"><thead><tr><th>Client</th><th>Property</th><th>Oldest unpaid due</th><th>Days overdue</th><th>Installments overdue</th><th>Overdue amount</th><th>Balance</th></tr></thead><tbody data-el="agingRows"></tbody></table></div>' +
         '<div data-el="agingPager"></div>' +
@@ -111,6 +111,7 @@
         '<div class="dues-bar" style="margin-bottom:10px;">' +
           '<span class="dues-range">Receipts from</span><input type="date" data-el="from"><span class="dues-range">to</span><input type="date" data-el="to">' +
           '<input type="search" class="grow" data-el="collQ" placeholder="Search client, code or OR">' +
+          '<button type="button" class="dues-btn" data-el="collRefresh">↻ Refresh</button>' +
           '<button type="button" class="dues-btn" data-el="collCsv">Export Excel</button>' +
         '</div>' +
         '<div class="dues-kpis" data-el="collKpis" style="margin-bottom:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));"></div>' +
@@ -213,18 +214,26 @@
       });
     }
 
+    let portSeq = 0;
     async function loadPortfolio() {
+      const seq = ++portSeq;
+      const btns = [$('agingRefresh'), $('collRefresh')];
+      btns.forEach(b => { b.classList.add('busy'); b.textContent = '↻ Refreshing…'; });
       const qs = new URLSearchParams({ action: 'portfolio_report', officerId: o.officerId, from: state.from, to: state.to, _: String(Date.now()) });
       try {
-        const res = await fetch(o.apiBase + '/php/api_admin.php?' + qs.toString());
+        const res = await fetch(o.apiBase + '/php/api_admin.php?' + qs.toString(), { cache: 'no-store' });
         const data = await res.json();
+        if (seq !== portSeq) return;
         if (!res.ok || !data.success) throw new Error(data.message || 'Could not load the report.');
         state.data = data;
         renderAging();
         renderCollections();
       } catch (err) {
+        if (seq !== portSeq) return;
         $('agingRows').innerHTML = '<tr><td colspan="7" class="dues-empty">' + esc(err.message) + '</td></tr>';
         $('collRows').innerHTML = '<tr><td colspan="6" class="dues-empty">' + esc(err.message) + '</td></tr>';
+      } finally {
+        if (seq === portSeq) btns.forEach(b => { b.classList.remove('busy'); b.textContent = '↻ Refresh'; });
       }
     }
 
@@ -245,6 +254,8 @@
       if (state.tab !== 'dues') loadPortfolio();
     }
 
+    $('agingRefresh').addEventListener('click', () => { state.data = null; loadPortfolio(); });
+    $('collRefresh').addEventListener('click', () => { state.data = null; loadPortfolio(); });
     $('tabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-t]'); if (b) show(b.dataset.t); });
     $('bars').addEventListener('click', (e) => {
       const b = e.target.closest('.crep-bar[data-b]');
