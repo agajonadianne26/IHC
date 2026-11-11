@@ -645,15 +645,27 @@ try {
         }
 
         usort($rows, fn($a, $b) => [$a['dueDate'], $a['client']] <=> [$b['dueDate'], $b['client']]);
-        $clerkList = array_values($clerks);
-        foreach ($clerkList as &$cl) {
-            foreach (['dueAmount', 'paidAmount', 'unpaidAmount', 'carriedAmount'] as $f) $cl[$f] = round($cl[$f], 2);
-            $cl['collectionRate'] = $cl['dueAmount'] > 0 ? round(min(100, $cl['paidAmount'] / $cl['dueAmount'] * 100), 1) : null;
-        }
-        unset($cl);
+        // With "include overdue from earlier", the older unpaid installments
+        // become part of what is due in the period: they are added to Due and
+        // Still unpaid, and the collection rate is measured against the total.
+        // periodDue* keep the period-only figures for reference.
+        $finish = function (array $t) use ($includeOverdue): array {
+            foreach (['dueAmount', 'paidAmount', 'unpaidAmount', 'carriedAmount'] as $f) $t[$f] = round($t[$f], 2);
+            $t['periodDueCount'] = $t['dueCount'];
+            $t['periodDueAmount'] = $t['dueAmount'];
+            if ($includeOverdue) {
+                $t['dueCount'] += $t['carriedCount'];
+                $t['dueAmount'] = round($t['dueAmount'] + $t['carriedAmount'], 2);
+                $t['unpaidCount'] += $t['carriedCount'];
+                $t['unpaidAmount'] = round($t['unpaidAmount'] + $t['carriedAmount'], 2);
+            }
+            $t['collectionRate'] = $t['dueAmount'] > 0 ? round(min(100, $t['paidAmount'] / $t['dueAmount'] * 100), 1) : null;
+            $t['includesOverdue'] = $includeOverdue;
+            return $t;
+        };
+        $clerkList = array_map($finish, array_values($clerks));
         usort($clerkList, fn($a, $b) => strcmp($a['name'], $b['name']));
-        foreach (['dueAmount', 'paidAmount', 'unpaidAmount', 'carriedAmount'] as $f) $totals[$f] = round($totals[$f], 2);
-        $totals['collectionRate'] = $totals['dueAmount'] > 0 ? round(min(100, $totals['paidAmount'] / $totals['dueAmount'] * 100), 1) : null;
+        $totals = $finish($totals);
 
         echo json_encode([
             'success' => true,

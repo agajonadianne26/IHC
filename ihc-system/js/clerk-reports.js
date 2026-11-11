@@ -92,12 +92,12 @@
       '</div>' +
       '<div class="crep-pane" data-pane="dues"></div>' +
       '<div class="crep-pane" data-pane="aging" hidden>' +
-        '<div class="dues-kpis" data-el="agingKpis" style="margin-bottom:14px;"></div>' +
+        '<div class="dues-kpis" data-el="agingKpis" style="margin-bottom:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));"></div>' +
         '<div class="crep-card"><h4>Accounts by days overdue <span style="font-weight:400;color:#94a3b8;">(click a bracket to filter the list below)</span></h4><div class="crep-bars" data-el="bars"></div>' +
           '<p style="font-size:11px;color:#94a3b8;line-height:1.5;margin:10px 0 0;">Each account is placed by its <strong>oldest unpaid installment</strong>. Overdue amount = everything past due today; Balance = whole remaining balance. Accounts return to Current once their overdue installments are paid.</p></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;gap:8px;flex-wrap:wrap;">' +
           '<p class="dues-h" data-el="agingTitle" style="margin:0;"></p>' +
-          '<div class="dues-bar"><input type="search" data-el="agingQ" placeholder="Search client or code"><button type="button" class="dues-btn" data-el="agingCsv">Export CSV</button></div>' +
+          '<div class="dues-bar"><input type="search" data-el="agingQ" placeholder="Search client or code"><button type="button" class="dues-btn" data-el="agingCsv">Export Excel</button></div>' +
         '</div>' +
         '<div class="dues-scroll"><table class="dues-table"><thead><tr><th>Client</th><th>Property</th><th>Oldest unpaid due</th><th>Days overdue</th><th>Installments overdue</th><th>Overdue amount</th><th>Balance</th></tr></thead><tbody data-el="agingRows"></tbody></table></div>' +
         '<div data-el="agingPager"></div>' +
@@ -111,9 +111,9 @@
         '<div class="dues-bar" style="margin-bottom:10px;">' +
           '<span class="dues-range">Receipts from</span><input type="date" data-el="from"><span class="dues-range">to</span><input type="date" data-el="to">' +
           '<input type="search" class="grow" data-el="collQ" placeholder="Search client, code or OR">' +
-          '<button type="button" class="dues-btn" data-el="collCsv">Export CSV</button>' +
+          '<button type="button" class="dues-btn" data-el="collCsv">Export Excel</button>' +
         '</div>' +
-        '<div class="dues-kpis" data-el="collKpis" style="margin-bottom:12px;"></div>' +
+        '<div class="dues-kpis" data-el="collKpis" style="margin-bottom:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));"></div>' +
         '<div class="dues-scroll"><table class="dues-table"><thead><tr><th>Date</th><th>Client</th><th>OR / Invoice</th><th>Method</th><th>Amount</th><th>Remarks</th></tr></thead><tbody data-el="collRows"></tbody></table></div>' +
         '<div data-el="collPager"></div>' +
       '</div>';
@@ -262,12 +262,52 @@
     };
     $('from').addEventListener('change', onRange);
     $('to').addEventListener('change', onRange);
-    $('agingCsv').addEventListener('click', () => downloadCsv('aging_' + (state.data ? state.data.today : '') + '.csv',
-      [['Client', 'Account', 'Excel code', 'Phone', 'Property', 'Bracket', 'Oldest unpaid due', 'Days overdue', 'Installments overdue', 'Overdue amount', 'Balance']]
-        .concat(agingFiltered().map(r => [r.client, r.accountCode, r.legacyCode || '', r.phone, r.property, r.bucket, r.oldestDue, r.daysOverdue, r.installmentsOverdue, r.overdueAmount.toFixed(2), r.balance.toFixed(2)]))));
-    $('collCsv').addEventListener('click', () => downloadCsv('collections_' + state.from + '_to_' + state.to + '.csv',
-      [['Date', 'Client', 'Account', 'OR / Invoice', 'Method', 'Amount', 'Remarks']]
-        .concat(collFiltered().map(r => [r.date, r.client, r.accountCode, r.orNumber, r.method, r.amount.toFixed(2), r.remarks]))));
+    // Report-style CSVs (same helpers as Dues & Performance): title, summary,
+    // then every row of the current filter with a total line.
+    const C = window.IHCDues && window.IHCDues.csv;
+    const stamp = () => new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    $('agingCsv').addEventListener('click', () => {
+      const d = state.data;
+      if (!d || !C) return;
+      const rows = agingFiltered();
+      const L = [C.line(['AGING OF ACCOUNTS REPORT']), C.line(['As of', fmtDate(d.today)]),
+        C.line(['Bracket', state.bucket ? d.aging.buckets[state.bucket].label : 'All overdue accounts']), C.line(['Generated', stamp()]), '',
+        C.line(['SUMMARY', 'Accounts', 'Overdue amount (PHP)', 'Balance (PHP)'])];
+      ['current', '1-30', '31-60', '61-90', '91-120', '120+', 'settled'].forEach(k => {
+        const b = d.aging.buckets[k];
+        L.push(C.line([b.label, b.count, C.money(b.amount), C.money(b.balance)]));
+      });
+      L.push('', C.line(['OVERDUE ACCOUNTS (' + rows.length + ')']),
+        C.line(['No.', 'Client', 'Account no.', 'Excel code', 'Contact no.', 'Property', 'Bracket', 'Oldest unpaid due', 'Days overdue', 'Installments overdue', 'Overdue amount (PHP)', 'Balance (PHP)']));
+      let tOver = 0, tBal = 0;
+      rows.forEach((r, i) => {
+        tOver += r.overdueAmount; tBal += r.balance;
+        L.push([C.cell(i + 1), C.cell(r.client), C.cell(r.accountCode), C.cell(r.legacyCode || ''), r.phone ? C.asText(r.phone) : C.cell(''), C.cell(r.property),
+          C.cell(d.aging.buckets[r.bucket].label), C.cell(fmtDate(r.oldestDue)), C.cell(r.daysOverdue), C.cell(r.installmentsOverdue),
+          C.cell(C.money(r.overdueAmount)), C.cell(C.money(r.balance))].join(','));
+      });
+      L.push(C.line(['', 'TOTAL', '', '', '', '', '', '', '', '', C.money(tOver), C.money(tBal)]));
+      C.download('aging_' + d.today + (state.bucket ? '_' + state.bucket : '') + '.csv', L);
+    });
+    $('collCsv').addEventListener('click', () => {
+      const d = state.data;
+      if (!d || !C) return;
+      const rows = collFiltered();
+      const L = [C.line(['COLLECTIONS REPORT']), C.line(['Receipts from', fmtDate(d.collections.from) + ' – ' + fmtDate(d.collections.to)]),
+        C.line(['Search', ($('collQ').value || '').trim() || '(none)']), C.line(['Generated', stamp()]), '',
+        C.line(['MONTHLY SUMMARY', 'Due (PHP)', 'Collected (PHP)', 'Collection rate'])];
+      d.months.forEach(m => L.push(C.line([m.label, C.money(m.due), C.money(m.collected), m.rate == null ? '' : m.rate + '%'])));
+      L.push('', C.line(['BY PAYMENT METHOD', 'Amount (PHP)']));
+      d.collections.byMethod.forEach(m => L.push(C.line([m.method, C.money(m.amount)])));
+      L.push('', C.line(['RECEIPTS (' + rows.length + ')']), C.line(['No.', 'Date', 'Client', 'Account no.', 'OR / Invoice', 'Method', 'Amount (PHP)', 'Remarks']));
+      let tot = 0;
+      rows.forEach((r, i) => {
+        tot += r.amount;
+        L.push(C.line([i + 1, fmtDate(r.date), r.client, r.accountCode, r.orNumber, r.method, C.money(r.amount), r.remarks]));
+      });
+      L.push(C.line(['', 'TOTAL', '', '', '', '', C.money(tot)]));
+      C.download('collections_' + state.from + '_to_' + state.to + '.csv', L);
+    });
 
     show('dues');
     return { refresh, show };
