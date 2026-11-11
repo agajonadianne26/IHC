@@ -1,2 +1,8 @@
 # Local database dumps (contain client data and password hashes) — never commit.
 backups/
+
+.agents
+graphify-out/
+
+skills-lock.json
+
