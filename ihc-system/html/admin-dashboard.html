@@ -1479,7 +1479,7 @@
         <a class="sidebar-link" href="#" data-page="notifications">
           <i data-lucide="bell"></i>
           <span>Notifications Log</span>
-          <span class="nav-badge">3</span>
+          <span class="nav-badge" id="notificationsBadge">3</span>
         </a>
         <a class="sidebar-link" href="#" data-page="properties">
           <i data-lucide="building-2"></i>
@@ -2438,6 +2438,11 @@
         : '../log in.html';
       return;
     }
+    const notificationsViewedKey = 'IHC_ADMIN_NOTIFICATIONS_VIEWED_' +
+      String(currentUser.officerId || currentUser.email || 'admin');
+    if (localStorage.getItem(notificationsViewedKey) === '1') {
+      document.getElementById('notificationsBadge')?.remove();
+    }
 
     /* Role scope — inventory_admin (Property Inventory manager) sees ONLY the
        Property Inventory module. Financial dashboards, contracts, posting,
@@ -2949,7 +2954,11 @@
       if (name === 'contracts') renderContracts();
       if (name === 'schedules') renderScheduleSelect();
       if (name === 'clerks' || name === 'clients') loadTeam();
-      if (name === 'notifications') renderNotifications();
+      if (name === 'notifications') {
+        renderNotifications();
+        document.getElementById('notificationsBadge')?.remove();
+        localStorage.setItem(notificationsViewedKey, '1');
+      }
       if (name === 'properties') loadPropertyUnits();
       if (name === 'reports') {
         loadRemittances(); loadReconciliation(); loadForecast();
