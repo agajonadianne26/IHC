@@ -8,6 +8,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+  (function(){try{
+    var t = localStorage.getItem('IHC_THEME');
+    if(!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  }catch(e){}})();
+  </script>
   <style>
     /* ==========================================
        DESIGN TOKENS
@@ -270,8 +277,9 @@
     .sidebar-footer {
       padding: 16px 16px 20px;
       border-top: 1px solid rgba(255,255,255,0.08);
+      
     }
-
+    
     .sidebar-admin {
       display: flex;
       align-items: center;
@@ -1430,11 +1438,252 @@
       .soa-doc-title { text-align: left; }
       .soa-info-grid { grid-template-columns: 1fr; }
     }
+    /* ===== THEME TOGGLE BUTTON ===== */
+    .btn-theme { margin-top: 14px; }
+    .btn-theme:hover { background: rgba(59,130,246,0.12); color: #bfdbfe; border-color: rgba(59,130,246,0.35); }
 
-  </style>
-  <link rel="stylesheet" href="../css/soa.css?v=4">
-</head>
-<body>
+    /* ===== DARK MODE ===== */
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --sidebar-bg: #070d1a;
+      --sidebar-hover: #162036;
+      --sidebar-active: #162036;
+      --bg-main: #0b1120;
+      --bg-card: #111a2e;
+      --bg-input: #0d1526;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #6b7a93;
+      --border: #243049;
+      --border-light: #1a2438;
+      --accent-emerald-bg: rgba(16,185,129,0.15);
+      --accent-amber-bg: rgba(245,158,11,0.15);
+      --accent-rose-bg: rgba(244,63,94,0.15);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+      --shadow: 0 1px 3px rgba(0,0,0,0.5);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.45);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.6);
+    }
+    html[data-theme="dark"] .sidebar { border-right: 1px solid rgba(255,255,255,0.06); }
+
+    /* Hard-coded light surfaces */
+    html[data-theme="dark"] .data-table th,
+    html[data-theme="dark"] .soa-toolbar { background: #0d1526; }
+    html[data-theme="dark"] .data-table tbody tr:hover { background: #162036; }
+    html[data-theme="dark"] .filter-tab:hover { background: rgba(255,255,255,0.06); }
+    html[data-theme="dark"] .btn-print,
+    html[data-theme="dark"] .btn-primary.btn-white,
+    html[data-theme="dark"] .btn-cancel-inv,
+    html[data-theme="dark"] .btn-close-modal,
+    html[data-theme="dark"] .inv-count,
+    html[data-theme="dark"] .inv-modal,
+    html[data-theme="dark"] .header-search input:focus {
+      background: var(--bg-card); color: var(--text-primary); border-color: var(--border);
+    }
+    html[data-theme="dark"] .btn-primary.btn-white:hover,
+    html[data-theme="dark"] .btn-print:hover,
+    html[data-theme="dark"] .btn-cancel-inv:hover { background: #162036; }
+    html[data-theme="dark"] .inv-count.active { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+    html[data-theme="dark"] .inv-form-group label { color: var(--text-secondary); }
+    html[data-theme="dark"] .inv-modal-head,
+    html[data-theme="dark"] .inv-modal-foot { border-color: var(--border); }
+
+    /* Form controls (many have inline white backgrounds) */
+    html[data-theme="dark"] input,
+    html[data-theme="dark"] select,
+    html[data-theme="dark"] textarea {
+      background: var(--bg-input) !important;
+      color: var(--text-primary) !important;
+      border-color: var(--border) !important;
+    }
+    html[data-theme="dark"] input::placeholder,
+    html[data-theme="dark"] textarea::placeholder { color: var(--text-muted); }
+    html[data-theme="dark"] .inv-form-group input[readonly] { background: #0a1222 !important; }
+    html[data-theme="dark"] #tempPwValue { background: #0a1222 !important; border-color: #475569 !important; }
+    html[data-theme="dark"] .btn-secondary { background: #1a2438 !important; color: var(--text-primary) !important; }
+
+    /* Tinted icon tiles, IDs and badges */
+    html[data-theme="dark"] .kpi-icon.blue,
+    html[data-theme="dark"] .report-card .rp-icon.blue,
+    html[data-theme="dark"] .contract-id { background: rgba(59,130,246,0.15); }
+    html[data-theme="dark"] .contract-id { color: #93c5fd; }
+    html[data-theme="dark"] .status-badge.current { background: rgba(59,130,246,0.18); color: #93c5fd; }
+    html[data-theme="dark"] .row-status.ok,
+    html[data-theme="dark"] .status-badge.paid,
+    html[data-theme="dark"] .notif-badge.sent,
+    html[data-theme="dark"] .sync-badge { color: #6ee7b7; }
+    html[data-theme="dark"] .sync-badge { border-color: rgba(16,185,129,0.35); }
+    html[data-theme="dark"] .row-status.warn,
+    html[data-theme="dark"] .status-badge.due-soon,
+    html[data-theme="dark"] .notif-badge.pending { color: #fcd34d; }
+    html[data-theme="dark"] .row-status.danger,
+    html[data-theme="dark"] .status-badge.overdue,
+    html[data-theme="dark"] .notif-badge.failed { color: #fda4af; }
+
+    /* Scrollbars */
+    html[data-theme="dark"] .table-scroll { scrollbar-color: #475569 #0d1526; }
+    html[data-theme="dark"] .table-scroll::-webkit-scrollbar-track { background: #0d1526; }
+    html[data-theme="dark"] .table-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+    /* SOA modal is a paper document: keep it light so it prints correctly */
+    html[data-theme="dark"] .soa-modal {
+      --bg-main:#f1f5f9; --bg-card:#fff; --bg-input:#f8fafc;
+      --text-primary:#0f172a; --text-secondary:#64748b; --text-muted:#94a3b8;
+      --border:#e2e8f0; --border-light:#f1f5f9;
+      --accent-emerald-bg:#ecfdf5; --accent-amber-bg:#fffbeb; --accent-rose-bg:#fff1f2;
+      color-scheme: light;
+    }
+    html[data-theme="dark"] .soa-modal .soa-toolbar { background: #f8fafc; }
+    html[data-theme="dark"] .soa-modal .soa-table th { background: #f1f5f9; }
+    html[data-theme="dark"] .soa-modal .btn-close-modal { background: #fff; color: #64748b; border-color: #e2e8f0; }
+    /* ===== BLACK & GOLD (overrides the navy dark theme above) ===== */
+  html[data-theme="dark"] {
+    --sidebar-bg: #050505;
+    --sidebar-hover: #17140c;
+    --sidebar-active: #1c170a;
+    --sidebar-active-border: #d4af37;
+    --text-sidebar: #a39b85;
+    --text-sidebar-active: #f3d98b;
+    --bg-main: #0a0a0a;
+    --bg-card: #141414;
+    --bg-input: #0f0f0f;
+    --text-primary: #f5f0e1;
+    --text-secondary: #a8a190;
+    --text-muted: #76705f;
+    --border: #2e2a1e;
+    --border-light: #1f1c14;
+    --accent-blue: #d4af37;   /* gold replaces blue everywhere */
+  }
+
+  /* Sidebar details */
+  html[data-theme="dark"] .sidebar { border-right: 1px solid rgba(212,175,55,0.18); }
+  html[data-theme="dark"] .sidebar-brand,
+  html[data-theme="dark"] .sidebar-footer { border-color: rgba(212,175,55,0.18); }
+  html[data-theme="dark"] .sidebar-section-label { color: rgba(212,175,55,0.6); }
+  html[data-theme="dark"] .sidebar-link:hover { color: #f3d98b; }
+  html[data-theme="dark"] .btn-theme:hover { background: rgba(212,175,55,0.12); color: #f3d98b; border-color: rgba(212,175,55,0.4); }
+
+  /* Gold buttons need dark text */
+  html[data-theme="dark"] .btn-primary,
+  html[data-theme="dark"] .btn-remind,
+  html[data-theme="dark"] .btn-do-print,
+  html[data-theme="dark"] .inv-count.active { color: #111 !important; }
+  html[data-theme="dark"] .btn-primary:hover,
+  html[data-theme="dark"] .btn-remind:hover,
+  html[data-theme="dark"] .btn-do-print:hover { background: #e6c04f; }
+  html[data-theme="dark"] .btn-primary.btn-white { color: var(--text-primary) !important; }
+  html[data-theme="dark"] .btn-primary.btn-white:hover,
+  html[data-theme="dark"] .btn-print:hover,
+  html[data-theme="dark"] .btn-cancel-inv:hover { background: #1c170a; }
+
+  /* Avatars */
+  html[data-theme="dark"] .header-profile-avatar { background: linear-gradient(135deg, #e6c04f, #b8860b); color: #111; }
+  html[data-theme="dark"] .sidebar-avatar { background: linear-gradient(135deg, #e6c04f, #b8860b); color: #111; }
+
+  /* Tints that were blue */
+  html[data-theme="dark"] .kpi-icon.blue,
+  html[data-theme="dark"] .report-card .rp-icon.blue,
+  html[data-theme="dark"] .contract-id { background: rgba(212,175,55,0.15); }
+  html[data-theme="dark"] .contract-id { color: #e6c76a; }
+  html[data-theme="dark"] .status-badge.current { background: rgba(212,175,55,0.18); color: #e6c76a; }
+
+  /* Surfaces that were navy */
+  html[data-theme="dark"] .data-table th,
+  html[data-theme="dark"] .soa-toolbar { background: #0f0f0f; }
+  html[data-theme="dark"] .data-table tbody tr:hover { background: #1a170d; }
+  html[data-theme="dark"] .inv-form-group input[readonly],
+  html[data-theme="dark"] #tempPwValue { background: #0c0c0c !important; }
+  html[data-theme="dark"] .btn-secondary { background: #1c1a12 !important; }
+  html[data-theme="dark"] .table-scroll { scrollbar-color: #5a4c1c #0f0f0f; }
+  html[data-theme="dark"] .table-scroll::-webkit-scrollbar-track { background: #0f0f0f; }
+  html[data-theme="dark"] .table-scroll::-webkit-scrollbar-thumb { background: #5a4c1c; }
+
+  /* Gold focus ring */
+  html[data-theme="dark"] input:focus,
+  html[data-theme="dark"] select:focus,
+  html[data-theme="dark"] textarea:focus {
+    border-color: #d4af37 !important;
+    box-shadow: 0 0 0 3px rgba(212,175,55,0.18) !important;
+    outline: none;
+  }
+    /* ===== BLUE GRADIENTS + LIGHTER BASE (overrides black & gold) ===== */
+  html[data-theme="dark"] {
+    --bg-main: #0f1a30;
+    --bg-card: #18213b;
+    --bg-input: #111a31;
+    --border: #2d3858;
+    --border-light: #232d4a;
+    --sidebar-hover: #1a2a4d;
+    --sidebar-active: #1b2d55;
+    --text-secondary: #aab3c8;
+    --text-muted: #7f89a3;
+  }
+
+  /* Page background */
+  html[data-theme="dark"] body {
+    background: linear-gradient(160deg, #12274d 0%, #0e1830 50%, #121c34 100%) fixed;
+  }
+
+  /* Sidebar + header */
+  html[data-theme="dark"] .sidebar {
+    background: linear-gradient(180deg, #11265a 0%, #0b1730 55%, #09111f 100%);
+    border-right: 1px solid rgba(212,175,55,0.25);
+  }
+  html[data-theme="dark"] .header {
+    background: linear-gradient(90deg, #14306a 0%, #101f40 55%, #111a33 100%);
+    border-bottom: 1px solid rgba(212,175,55,0.2);
+  }
+  html[data-theme="dark"] .sidebar-link.active {
+    background: linear-gradient(90deg, rgba(59,130,246,0.32), rgba(59,130,246,0.04));
+  }
+  html[data-theme="dark"] .sidebar-link:hover {
+    background: linear-gradient(90deg, rgba(59,130,246,0.18), rgba(59,130,246,0.02));
+  }
+
+  /* Cards and panels */
+  html[data-theme="dark"] .kpi-card,
+  html[data-theme="dark"] .chart-card,
+  html[data-theme="dark"] .table-section,
+  html[data-theme="dark"] .report-card,
+  html[data-theme="dark"] .inv-modal {
+    background: linear-gradient(145deg, #1d2b4d 0%, #16203a 100%);
+  }
+  html[data-theme="dark"] .kpi-card.blue::before {
+    background: linear-gradient(90deg, #2563eb, #60a5fa, #d4af37);
+  }
+  html[data-theme="dark"] .kpi-icon.blue,
+  html[data-theme="dark"] .report-card .rp-icon.blue {
+    background: linear-gradient(135deg, rgba(59,130,246,0.35), rgba(212,175,55,0.2));
+  }
+
+  /* Tables, inputs and misc surfaces */
+  html[data-theme="dark"] .data-table th,
+  html[data-theme="dark"] .soa-toolbar { background: #121b33; }
+  html[data-theme="dark"] .data-table tbody tr:hover { background: #1f2d52; }
+  html[data-theme="dark"] .inv-form-group input[readonly],
+  html[data-theme="dark"] #tempPwValue { background: #0f1830 !important; }
+  html[data-theme="dark"] .btn-secondary { background: #1d2a4a !important; }
+  html[data-theme="dark"] .btn-print:hover,
+  html[data-theme="dark"] .btn-cancel-inv:hover,
+  html[data-theme="dark"] .btn-primary.btn-white:hover { background: #1f2d52; }
+  html[data-theme="dark"] .filter-tabs { background: #111a31; }
+
+  /* Gold buttons get a soft gradient (white/outline buttons excluded) */
+  html[data-theme="dark"] .btn-primary:not(.btn-white),
+  html[data-theme="dark"] .btn-remind,
+  html[data-theme="dark"] .btn-do-print {
+    background: linear-gradient(135deg, #f0cd6a, #c9a227);
+    border-color: #c9a227;
+  }
+  html[data-theme="dark"] .btn-primary:not(.btn-white):hover,
+  html[data-theme="dark"] .btn-remind:hover,
+  html[data-theme="dark"] .btn-do-print:hover {
+    background: linear-gradient(135deg, #f6d97f, #d4af37);
+  }
+    </style>
+    <link rel="stylesheet" href="../css/soa.css?v=4">
+  </head>
+  <body>
 
   <div class="layout">
 
@@ -1515,6 +1764,10 @@
             <small>System Admin</small>
           </div>
         </div>
+        <button class="btn-logout-sidebar btn-theme" id="themeToggleBtn" type="button" aria-pressed="false">
+      <i data-lucide="moon" style="width:14px;height:14px;"></i>
+      <span>Dark Mode</span>
+      </button>
         <button class="btn-logout-sidebar" id="logoutBtn">
           <i data-lucide="log-out" style="width:14px;height:14px;"></i>
           <span>Sign Out</span>
@@ -3150,7 +3403,7 @@
             labels: data.months,
             datasets: [
               { label: 'Collected (actual)', data: data.actual, backgroundColor: '#10b981' },
-              { label: 'Expected (unpaid due)', data: data.expected, backgroundColor: '#3b82f6' }
+              { label: 'Expected (unpaid due)', data: data.expected, backgroundColor: (getComputedStyle(document.documentElement).getPropertyValue('--accent-blue') || '#3b82f6').trim() }
             ]
           },
           options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
@@ -5146,6 +5399,49 @@ const closeTempPw = () => {
       showView('properties');
     }
     applyRoleScope();
+    /* ==========================================
+   THEME TOGGLE (light / dark)
+    ========================================== */
+    const THEME_KEY = 'IHC_THEME';
+    const themeBtn = document.getElementById('themeToggleBtn');
+
+   function applyChartTheme(dark) {
+  const grid = dark ? 'rgba(212,175,55,0.12)' : '#f1f5f9';
+  const accent = (getComputedStyle(document.documentElement).getPropertyValue('--accent-blue') || '#3b82f6').trim();
+  Chart.defaults.color = dark ? '#a8a190' : '#666';
+  Chart.defaults.borderColor = grid;
+
+  if (cashFlowChartInstance) {
+    const d0 = cashFlowChartInstance.data.datasets[0];
+    if (d0) { d0.backgroundColor = accent + 'bf'; d0.borderColor = accent; }
+  }
+  if (forecastChartInstance && forecastChartInstance.data.datasets[1]) {
+    forecastChartInstance.data.datasets[1].backgroundColor = accent;
+  }
+  [cashFlowChartInstance, agingChartInstance, forecastChartInstance].forEach(ch => {
+    if (!ch) return;
+    const s = ch.options.scales || {};
+    if (s.x && s.x.grid && s.x.grid.display !== false) s.x.grid.color = grid;
+    if (s.y && s.y.grid && s.y.grid.display !== false) s.y.grid.color = grid;
+    ch.update('none');
+  });
+}
+
+    function applyTheme(theme, persist) {
+      const dark = theme === 'dark';
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      themeBtn.innerHTML = '<i data-lucide="' + (dark ? 'sun' : 'moon') + '" style="width:14px;height:14px;"></i>' +
+                          '<span>' + (dark ? 'Light Mode' : 'Dark Mode') + '</span>';
+      themeBtn.setAttribute('aria-pressed', String(dark));
+      lucide.createIcons();
+      applyChartTheme(dark);
+      if (persist) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} }
+    }
+
+    themeBtn.addEventListener('click', () => {
+      applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark', true);
+    });
+    applyTheme(document.documentElement.getAttribute('data-theme') || 'light', false);
 
     /* ==========================================
        LUCIDE ICONS INIT
