@@ -182,7 +182,7 @@
     return String(c.v).length;
   }
 
-  function buildXlsx(XLSX, lines, sheetName) {
+  function buildSheet(XLSX, lines, name) {
     const rows = lines.map(l => parseCsvLine(l).map(toCell));
     const ws = {};
     const widths = [];
@@ -200,18 +200,48 @@
     });
     ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(rows.length - 1, 0), c: maxC } });
     ws['!cols'] = Array.from({ length: maxC + 1 }, (_, i) => ({ wch: Math.min(45, Math.max(8, (widths[i] || 8) + 2)) }));
+    return ws;
+  }
+
+  function safeSheetName(name) {
+    return String(name || 'Report').replace(/[:\\/?*\[\]]/g, ' ').trim().slice(0, 31) || 'Report';
+  }
+
+  function buildXlsx(XLSX, lines, name) {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, (sheetName || 'Report').slice(0, 31));
+    XLSX.utils.book_append_sheet(wb, buildSheet(XLSX, lines, name), safeSheetName(name));
+    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  }
+
+  function buildWorkbook(XLSX, sheets) {
+    const wb = XLSX.utils.book_new();
+    (sheets || []).forEach(s => {
+      XLSX.utils.book_append_sheet(wb, buildSheet(XLSX, s.lines || [], s.name), safeSheetName(s.name));
+    });
     return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   }
 
   function downloadCsv(filename, lines) {
     const base = filename.replace(/\.csv$/i, '');
     const csvFallback = () => saveBlob(base + '.csv',
-      new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+      new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     return loadXlsx().then(XLSX => {
       const sheet = /^(\w+)/.exec(base);
       const data = buildXlsx(XLSX, lines, sheet ? sheet[1].charAt(0).toUpperCase() + sheet[1].slice(1) : 'Report');
+      saveBlob(base + '.xlsx', new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    }).catch(csvFallback);
+  }
+
+  function downloadWorkbook(filename, sheets) {
+    const base = filename.replace(/\.(xlsx|csv)$/i, '');
+    const csvFallback = () => {
+      (sheets || []).forEach((s, i) => {
+        const suffix = sheets.length > 1 ? '-' + String(s.name || ('Sheet' + (i + 1))).replace(/[^A-Za-z0-9]+/g, '-') : '';
+        saveBlob(base + suffix + '.csv', new Blob(['\uFEFF' + (s.lines || []).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+      });
+    };
+    return loadXlsx().then(XLSX => {
+      const data = buildWorkbook(XLSX, sheets);
       saveBlob(base + '.xlsx', new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     }).catch(csvFallback);
   }
@@ -574,5 +604,5 @@ const state = {
     return { refresh };
   }
 
-  window.IHCDues = { mount, csv: { cell: csvCell, line: csvLine, money, asText, download: downloadCsv } };
+  window.IHCDues = { mount, csv: { cell: csvCell, line: csvLine, money, asText, download: downloadCsv, workbook: downloadWorkbook } };
 })();

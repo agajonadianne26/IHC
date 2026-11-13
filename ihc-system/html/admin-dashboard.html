@@ -145,6 +145,17 @@
     .report-card h3 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
     .report-card p { font-size: 11px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
     .report-card .btn-primary { height: 30px; font-size: 11px; }
+    .report-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+    .report-period { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-card); }
+    .report-period button { border: 0; background: transparent; padding: 0 14px; height: 36px; font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: background .18s ease, color .18s ease; }
+    .report-period button + button { border-left: 1px solid var(--border); }
+    .report-period button:hover { background: var(--bg-main); color: var(--text-primary); }
+    .report-period button.on { background: #0f172a; color: #fff; }
+    .report-period-label { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+    @media (max-width: 720px) {
+      .report-actions { width: 100%; justify-content: flex-start; }
+      .report-period-label { width: 100%; }
+    }
 
     /* ==========================================
        SIDEBAR
@@ -2152,36 +2163,43 @@
           <div class="subhead">
             <div>
               <h2>Reports & Exports</h2>
-              <p>Generate and export financial summary reports for your collection records.</p>
+              <p>Download live financial reports as Excel workbooks, by week or by month.</p>
             </div>
-            <button class="btn-primary" id="generateAllReportsBtn" type="button">
-              <i data-lucide="file-down" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px;"></i>Export All Reports (PDF)
-            </button>
+            <div class="report-actions">
+              <div class="report-period" id="reportPeriod" role="group" aria-label="Report period">
+                <button type="button" data-period="week">This Week</button>
+                <button type="button" data-period="month" class="on">This Month</button>
+              </div>
+              <span class="report-period-label" id="reportPeriodLabel"></span>
+              <button class="btn-primary" id="generateAllReportsBtn" type="button">
+                <i data-lucide="file-down" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px;"></i>Export All Reports (Excel)
+              </button>
+            </div>
           </div>
           <div class="report-grid">
             <div class="report-card">
               <div class="rp-icon blue"><i data-lucide="wallet" style="width:20px;height:20px;"></i></div>
               <h3>Collection Summary</h3>
-              <p>Total expected vs. actual collections across all contracts.</p>
-              <button class="btn-primary" data-report="Collection Summary Report">Generate</button>
+              <p>Full-period totals, per-clerk performance, unpaid installments, and actual receipts.</p>
+              <button class="btn-primary" data-report="collection">Export Excel</button>
             </div>
             <div class="report-card">
               <div class="rp-icon emerald"><i data-lucide="calendar-range" style="width:20px;height:20px;"></i></div>
               <h3>Cash Flow Forecast</h3>
-              <p>6-month forecast vs. actual collection trend chart and figures.</p>
-              <button class="btn-primary" data-report="Cash Flow Forecast Report">Generate</button>
+              <p>Weekly or monthly expected vs. actual collections with variance.</p>
+              <button class="btn-primary" data-report="cashflow">Export Excel</button>
             </div>
             <div class="report-card">
               <div class="rp-icon amber"><i data-lucide="clock" style="width:20px;height:20px;"></i></div>
               <h3>Aging of Accounts</h3>
-              <p>Delinquency bracket breakdown by aging period.</p>
-              <button class="btn-primary" data-report="Aging of Accounts Report">Generate</button>
+              <p>Aging buckets and detailed overdue accounts as of today.</p>
+              <button class="btn-primary" data-report="aging">Export Excel</button>
             </div>
             <div class="report-card">
               <div class="rp-icon rose"><i data-lucide="alert-triangle" style="width:20px;height:20px;"></i></div>
               <h3>Due &amp; Overdue Register</h3>
-              <p>List of accounts due within 3 days and all overdue accounts.</p>
-              <button class="btn-primary" data-report="Due &amp; Overdue Register">Generate</button>
+              <p>Accounts due in the selected period and all overdue accounts.</p>
+              <button class="btn-primary" data-report="dueoverdue">Export Excel</button>
             </div>
           </div>
 
@@ -2658,7 +2676,8 @@
   ============================================= -->
   <script src="../js/soa.js?v=1"></script>
   <script src="../js/property-address.js?v=1"></script>
-  <script src="../js/dues-report.js?v=17"></script>
+  <script src="../js/dues-report.js?v=18"></script>
+  <script src="../js/admin-reports.js?v=1"></script>
   <script>
   'use strict';
 
@@ -2718,7 +2737,7 @@
        LIVE DATA - MySQL via php/api_admin.php
        loadAdminData() below fills these asynchronously.
     ========================================== */
-    const API_BASE = 'http://localhost/IHC/ihc-system';
+    const API_BASE = new URL('../', window.location.href).pathname.replace(/\/$/, '');
     const HOLDING_API = API_BASE + '/php/api_holding_reservation.php';
     const TODAY = new Date();
     TODAY.setHours(0, 0, 0, 0);
@@ -3509,7 +3528,7 @@
     }
 
     /* ==========================================
-       REPORTS VIEW - PDF EXPORT
+       REPORTS VIEW - EXPORTS
     ========================================== */
     function getReportCompanyName() {
       const el = document.getElementById('soaCompanyName');
@@ -3523,32 +3542,6 @@
     function fmtDateFile(d) {
       const dt = d instanceof Date ? d : new Date();
       return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
-    }
-    function toImgData(canvas) {
-      if (!canvas) return '';
-      try {
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = canvas.width;
-        exportCanvas.height = canvas.height;
-        const context = exportCanvas.getContext('2d');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-        context.drawImage(canvas, 0, 0);
-        const data = exportCanvas.toDataURL('image/jpeg', 0.95);
-        return data && data.length > 64 ? data : '';
-      } catch (e) { return ''; }
-    }
-    function setReportImage(id, canvas) {
-      const img = document.getElementById(id);
-      if (!img) return;
-      const src = toImgData(canvas);
-      if (src) {
-        img.src = src;
-        img.style.display = '';
-      } else {
-        img.removeAttribute('src');
-        img.style.display = 'none';
-      }
     }
     function reportCell(v, align, extra) {
       return '<td style="padding:6px 8px; border:1px solid #e5e7eb;' + (align ? 'text-align:' + align + ';' : '') + (extra || '') + '">' + v + '</td>';
@@ -3606,7 +3599,6 @@
         filename = 'Cash-Flow-Forecast-' + fileDate + '.pdf';
         document.getElementById('cf-company').textContent = company;
         document.getElementById('cf-generated').textContent = genStr;
-        setReportImage('cashflowImg', cashFlowChartInstance ? cashFlowChartInstance.canvas : null);
         const tbody = document.getElementById('cf-tbody');
         let tf = 0, ta = 0, html = '';
         if (cashFlowChartInstance && cashFlowChartInstance.data) {
@@ -3633,7 +3625,6 @@
         filename = 'Aging-of-Accounts-' + fileDate + '.pdf';
         document.getElementById('ag-company').textContent = company;
         document.getElementById('ag-generated').textContent = genStr;
-        setReportImage('agingImg', agingChartInstance ? agingChartInstance.canvas : null);
         const buckets = [0, 0, 0, 0, 0];
         contracts.forEach(c => {
           if (c.status !== 'overdue') { buckets[0]++; return; }
@@ -3788,49 +3779,11 @@
       }
     }
 
-    document.querySelectorAll('.report-card .btn-primary').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const rpt = btn.dataset.report;
-        let type = null;
-        if (rpt === 'Collection Summary Report') type = 'collection';
-        else if (rpt === 'Cash Flow Forecast Report') type = 'cashflow';
-        else if (rpt === 'Aging of Accounts Report') type = 'aging';
-        else if (rpt === 'Due & Overdue Register') type = 'dueoverdue';
-        if (!type) { showToast(rpt + ' generated & ready for export', 'success'); return; }
-        const orig = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = 'Generating...';
-        try {
-          await generatePdfReport(type);
-          showToast(rpt + ' exported as PDF', 'success');
-        } catch (err) {
-          console.error('PDF export failed:', err);
-          showToast('Failed to generate PDF: ' + (err.message || 'unknown error'), 'info');
-        } finally {
-          btn.disabled = false;
-          btn.textContent = orig;
-        }
-      });
-    });
-
-    /* Export all four reports as one multi-page PDF */
-    const generateAllReportsBtn = document.getElementById('generateAllReportsBtn');
-    if (generateAllReportsBtn) {
-      generateAllReportsBtn.addEventListener('click', async () => {
-        const orig = generateAllReportsBtn.innerHTML;
-        generateAllReportsBtn.disabled = true;
-        generateAllReportsBtn.textContent = 'Generating...';
-        try {
-          await generateAllPdfReports();
-          showToast('All reports exported as one PDF', 'success');
-        } catch (err) {
-          console.error('Combined PDF export failed:', err);
-          showToast('Failed to generate PDF: ' + (err.message || 'unknown error'), 'info');
-        } finally {
-          generateAllReportsBtn.disabled = false;
-          generateAllReportsBtn.innerHTML = orig;
-          if (window.lucide && lucide.createIcons) lucide.createIcons();
-        }
+    if (window.IHCAdminReports) {
+      window.IHCAdminReports.mount({
+        apiBase: API_BASE,
+        company: () => getReportCompanyName(),
+        notify: showToast
       });
     }
 
