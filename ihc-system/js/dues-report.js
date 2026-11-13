@@ -330,24 +330,32 @@ const state = {
         filteredRows().map(r => r.accountCode)
       ).size;
       $('kpis').innerHTML = [
-        { k: '#3b82f6', label: 'Actual due', amount: php(t.actualDue || 0), sub: 'scheduled in this period' },
-        { k: '#f43f5e', label: 'Arrears', amount: php(t.arrears || 0), sub: 'unpaid as of ' + fmtDate(d.period.from) },
-        { k: '#8b5cf6', label: 'Total due', amount: php(t.totalDue || 0), sub: 'actual due + arrears' },
-        { k: '#10b981', label: 'Amount collected', amount: php(t.collected || 0), sub: (rate == null ? '—' : rate + '%') + ' of total due • ' + (t.collectedCount || 0) + ' account(s)', meter: rate },
-       { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0), sub: unpaidAccounts + ' account(s) • still owed per account (advances not netted)', action: 'unpaid' },
-        { k: '#0ea5e9', label: 'Expected (Excel)', amount: php(t.expectedAmount || 0), sub: (t.expectedCount || 0) + ' account(s) • JAN–DEC projection' },
-        { k: '#64748b', label: 'Floating account', amount: php(t.needsMonthlyBalance || 0), sub: (t.needsMonthlyCount || 0) + ' account(s) • no monthly yet, not in dues' },
-      ].map(c => '<div class="dues-kpi" style="--k:' + c.k + ';"><small>' + esc(c.label) + (c.tag ? '<em>' + esc(c.tag) + '</em>' : '') + '</small>' +
-        '<strong>' + esc(c.amount) + '</strong><span>' + esc(c.sub) + '</span>' +
-               (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') +
-        (c.action === 'unpaid'
-          ? '<button type="button" class="unpaid-filter-btn' + (state.unpaidOnly ? ' active' : '') + '" data-filter-unpaid>' +
-            (state.unpaidOnly
-              ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Show All'
-              : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>Filter Unpaid') +
-            '</button>'
-          : '') +
-        '</div>').join('');
+  { k: '#3b82f6', label: 'Actual due', amount: php(t.actualDue || 0), sub: 'scheduled in this period' },
+  { k: '#f43f5e', label: 'Arrears', amount: php(t.arrears || 0), sub: 'unpaid as of ' + fmtDate(d.period.from) },
+  { k: '#8b5cf6', label: 'Total due', amount: php(t.totalDue || 0), sub: 'actual due + arrears' },
+  { k: '#10b981', label: 'Amount collected', amount: php(t.collected || 0), sub: (rate == null ? '—' : rate + '%') + ' of total due • ' + (t.collectedCount || 0) + ' account(s)', meter: rate },
+  { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0), sub: unpaidAccounts + ' account(s) • still owed per account (advances not netted)', action: 'unpaid' },
+  { k: '#0ea5e9', label: 'Expected (Excel)', amount: php(t.expectedAmount || 0), sub: (t.expectedCount || 0) + ' account(s) • JAN–DEC projection' },
+  { k: '#64748b', label: 'Floating account', amount: php(t.needsMonthlyBalance || 0), sub: (t.needsMonthlyCount || 0) + ' account(s) • no monthly yet, not in dues' },
+].map(c => 
+  '<div class="dues-kpi" style="--k:' + c.k + ';">' +
+    '<small>' + esc(c.label) + (c.tag ? '<em>' + esc(c.tag) + '</em>' : '') + '</small>' +
+    '<strong>' + esc(c.amount) + '</strong>' +
+    '<span>' + esc(c.sub) + '</span>' +
+    (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') +
+    (c.action === 'unpaid'
+      ? '<button type="button" class="unpaid-filter-btn' + (state.unpaidOnly ? ' active' : '') + '" data-filter-unpaid>' +
+        (state.unpaidOnly
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Show All'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>Filter Unpaid') +
+        '</button>'
+      : '') +
+    '<div style="margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap;">' +
+      '<a href="../php/filtered-dues-list.php?type=has_payment" style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; text-decoration: none;">Last Payment Date</a>' +
+      '<a href="../php/filtered-dues-list.php?type=reserved" style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; text-decoration: none;">Last Reserved Date</a>' +
+    '</div>' +
+  '</div>'
+).join('');
 
       $('note').hidden = !inc;
       if (inc) $('note').textContent = 'The list also shows unpaid installments from before ' + fmtDate(d.period.from) + ' (' + t.carriedCount + ' installment(s), ' + php(t.carriedAmount) + ' still unpaid today).';
