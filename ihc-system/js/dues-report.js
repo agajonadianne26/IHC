@@ -31,6 +31,13 @@
   .dues-btn:hover { background:#f8fafc; }
   .dues-btn.primary { background:#10b981; border-color:#10b981; color:#fff; }
   .dues-btn.primary:hover { background:#059669; }
+    .dues-btn { box-shadow:0 1px 2px rgba(15,23,42,.06); transition:all .18s ease; }
+  .dues-btn:hover { border-color:#cbd5e1; transform:translateY(-1px); box-shadow:0 4px 10px rgba(15,23,42,.08); }
+  .dues-btn:active { transform:translateY(0); box-shadow:none; }
+  .dues-btn.primary { box-shadow:0 2px 6px rgba(16,185,129,.3); }
+  .dues-btn.primary:hover { box-shadow:0 4px 12px rgba(16,185,129,.4); }
+  .dues-seg button { transition:background .18s ease, color .18s ease; }
+  .dues-seg button:not(.on):hover { background:#f1f5f9; color:#0f172a; }
   .dues-month { display:inline-flex; align-items:center; gap:4px; }
   .dues-month .dues-btn { padding:0 10px; font-size:15px; }
   .dues-month select { height:36px; }
@@ -48,6 +55,13 @@
   .dues-kpi em { display:inline-block; font-style:normal; font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; background:#fff1f2; color:#9f1239; margin-left:4px; vertical-align:1px; }
   .dues-kpi .meter { height:6px; border-radius:3px; background:#f1f5f9; overflow:hidden; margin-top:8px; }
   .dues-kpi .meter i { display:block; height:100%; background:var(--k); }
+      .dues-kpi .unpaid-filter-btn { display:inline-flex; align-items:center; gap:6px; margin-top:12px; padding:8px 14px; border:1px solid #fcd34d; border-radius:999px; background:#fffbeb; color:#b45309; font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; transition:all .18s ease; }
+  .dues-kpi .unpaid-filter-btn svg { width:13px; height:13px; flex-shrink:0; }
+  .dues-kpi .unpaid-filter-btn:hover { background:#fef3c7; border-color:#f59e0b; transform:translateY(-1px); box-shadow:0 4px 10px rgba(245,158,11,.25); }
+  .dues-kpi .unpaid-filter-btn:active { transform:translateY(0); box-shadow:none; }
+  .dues-kpi .unpaid-filter-btn:focus-visible { outline:2px solid #f59e0b; outline-offset:2px; }
+  .dues-kpi .unpaid-filter-btn.active { background:linear-gradient(135deg,#f59e0b,#d97706); border-color:#d97706; color:#fff; box-shadow:0 4px 10px rgba(217,119,6,.35); }
+  .dues-kpi .unpaid-filter-btn.active:hover { background:linear-gradient(135deg,#d97706,#b45309); }
   .dues-note { font-size:11.5px; color:#9f1239; background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; padding:7px 10px; }
   .dues-h { font-size:13px; font-weight:700; margin:0; color:#0f172a; }
   .dues-sec-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
@@ -225,8 +239,21 @@
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
     };
     let reqSeq = 0;
-    const state = { period: 'week', month: thisMonth(), from: '', to: '', includeOverdue: false, officer: o.officerId || '', perf: '', q: '', data: null, page: 1, allClerks: null };
-
+    
+const state = {
+    period: 'week',
+    month: thisMonth(),
+    from: '',
+    to: '',
+    includeOverdue: false,
+    officer: o.officerId || '',
+    perf: '',
+    q: '',
+    unpaidOnly: false,
+    data: null,
+    page: 1,
+    allClerks: null
+};
     root.innerHTML =
       '<div class="dues-wrap">' +
         '<div class="dues-top">' +
@@ -272,13 +299,16 @@
     const $ = (n) => root.querySelector('[data-el="' + n + '"]');
     const cols = o.showClerks ? 8 : 7;
 
-    function filteredRows() {
+       function filteredRows() {
       const d = state.data;
       if (!d) return [];
       const q = state.q.toLowerCase();
       return d.rows.filter(r =>
+        (!state.unpaidOnly || r.status === 'overdue' || r.carried) &&
         (!state.perf || r.performance.label === state.perf) &&
-        (!q || [r.client, r.accountCode, r.legacyCode, r.property].some(v => String(v || '').toLowerCase().includes(q))));
+        (!q || [r.client, r.accountCode, r.legacyCode, r.property]
+          .some(v => String(v || '').toLowerCase().includes(q)))
+      );
     }
 
     function periodLabel() {
@@ -295,17 +325,29 @@
       // Cards follow the collection workbook's header row:
       // Actual due + Arrears = Total due; Collected = cash received in the period.
       const rate = t.collectedRate == null ? null : t.collectedRate;
+            // Bilang ng unique accounts na may unpaid (hindi per installment)
+            const unpaidAccounts = new Set(
+        filteredRows().map(r => r.accountCode)
+      ).size;
       $('kpis').innerHTML = [
         { k: '#3b82f6', label: 'Actual due', amount: php(t.actualDue || 0), sub: 'scheduled in this period' },
         { k: '#f43f5e', label: 'Arrears', amount: php(t.arrears || 0), sub: 'unpaid as of ' + fmtDate(d.period.from) },
         { k: '#8b5cf6', label: 'Total due', amount: php(t.totalDue || 0), sub: 'actual due + arrears' },
         { k: '#10b981', label: 'Amount collected', amount: php(t.collected || 0), sub: (rate == null ? '—' : rate + '%') + ' of total due • ' + (t.collectedCount || 0) + ' account(s)', meter: rate },
-        { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0), sub: 'still owed per account (advances not netted)' },
+       { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0), sub: unpaidAccounts + ' account(s) • still owed per account (advances not netted)', action: 'unpaid' },
         { k: '#0ea5e9', label: 'Expected (Excel)', amount: php(t.expectedAmount || 0), sub: (t.expectedCount || 0) + ' account(s) • JAN–DEC projection' },
         { k: '#64748b', label: 'Floating account', amount: php(t.needsMonthlyBalance || 0), sub: (t.needsMonthlyCount || 0) + ' account(s) • no monthly yet, not in dues' },
       ].map(c => '<div class="dues-kpi" style="--k:' + c.k + ';"><small>' + esc(c.label) + (c.tag ? '<em>' + esc(c.tag) + '</em>' : '') + '</small>' +
         '<strong>' + esc(c.amount) + '</strong><span>' + esc(c.sub) + '</span>' +
-        (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') + '</div>').join('');
+               (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') +
+        (c.action === 'unpaid'
+          ? '<button type="button" class="unpaid-filter-btn' + (state.unpaidOnly ? ' active' : '') + '" data-filter-unpaid>' +
+            (state.unpaidOnly
+              ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Show All'
+              : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>Filter Unpaid') +
+            '</button>'
+          : '') +
+        '</div>').join('');
 
       $('note').hidden = !inc;
       if (inc) $('note').textContent = 'The list also shows unpaid installments from before ' + fmtDate(d.period.from) + ' (' + t.carriedCount + ' installment(s), ' + php(t.carriedAmount) + ' still unpaid today).';
@@ -336,8 +378,9 @@
       if (state.page > pages) state.page = pages;
       const rows = all.slice((state.page - 1) * PER_PAGE, state.page * PER_PAGE);
       const totalDue = all.reduce((s, r) => s + r.amountDue, 0);
-      $('listTitle').textContent = 'Clients due — ' + all.length + ' unpaid installment(s)';
-      $('listSub').textContent = (inc ? 'including overdue from earlier • ' : '') + (state.perf || state.q ? 'filtered • ' : '') + 'total ' + php(totalDue);
+            $('listTitle').textContent = (state.unpaidOnly ? 'Still unpaid accounts — ' : 'Clients due — ')
+        + all.length + ' unpaid installment(s) • ' + new Set(all.map(r => r.accountCode)).size + ' account(s)';
+      $('listSub').textContent = (inc ? 'including overdue from earlier • ' : '') + (state.unpaidOnly ? 'still unpaid filter • ' : '') + (state.perf || state.q ? 'filtered • ' : '') + 'total ' + php(totalDue);
       $('pager').innerHTML = all.length > PER_PAGE
         ? '<div class="dues-pager"><span>Showing ' + ((state.page - 1) * PER_PAGE + 1) + '–' + Math.min(all.length, state.page * PER_PAGE) + ' of ' + all.length + '</span><div>' +
           '<button type="button" data-go="' + (state.page - 1) + '"' + (state.page <= 1 ? ' disabled' : '') + '>‹ Prev</button>' +
@@ -497,7 +540,18 @@
     });
     $('perf').addEventListener('change', (e) => { state.perf = e.target.value; state.page = 1; render(); });
     $('q').addEventListener('input', (e) => { state.q = e.target.value.trim(); state.page = 1; render(); });
-    $('refresh').addEventListener('click', refresh);
+        $('kpis').addEventListener('click', (e) => {
+      if (!e.target.closest('[data-filter-unpaid]')) return;
+      state.unpaidOnly = !state.unpaidOnly;
+      state.page = 1;
+      // isama ang arrears para lumabas ang mga lumang unpaid
+      state.includeOverdue = state.unpaidOnly;
+      $('overdue').checked = state.includeOverdue;
+      $('overdueLbl').classList.toggle('on', state.includeOverdue);
+      refresh();
+      $('listTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+        $('refresh').addEventListener('click', refresh);
     $('csv').addEventListener('click', exportCsv);
     $('pager').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-go]');
