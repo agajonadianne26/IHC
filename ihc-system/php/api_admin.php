@@ -530,10 +530,15 @@ try {
 
     // ---- Dues & performance: who is due this week / month -------------
     // GET ?action=dues&period=week|month|custom[&from=&to=][&officerId=][&includeOverdue=1]
+    //        [&phase=][&perf=][&q=][&unpaidOnly=1]
     // Rows are the UNPAID installments falling in the period (straight from
     // ihc_schedule(), so a payment posted anywhere makes its row disappear),
     // optionally plus older unpaid ones. Each row carries the client's payment
     // performance; `clerks` summarises the period per collection officer.
+    // phase / perf / q / unpaidOnly narrow the SET OF ACCOUNTS the report
+    // covers, so every card figure (money AND account counts) follows them.
+    // Returns account counts: `stillUnpaidCount` (unique accounts with an
+    // unpaid balance) and `unpaidAccountCount` (unique accounts listed).
     if ($action === 'dues') {
         $period = (string)($_GET['period'] ?? 'week');
         $todayD = new DateTimeImmutable($today);
@@ -557,13 +562,55 @@ try {
         }
         $officerFilter = trim((string)($_GET['officerId'] ?? ''));
         $includeOverdue = (string)($_GET['includeOverdue'] ?? '0') === '1';
+        // Extra report filters. Each one narrows the SET OF ACCOUNTS the report
+        // covers, so every card figure (amounts and account counts) follows it.
+        $phaseFilter  = trim((string)($_GET['phase'] ?? ''));      // '' = all, '__none__' = no phase
+        if ($phaseFilter !== '' && $phaseFilter !== '__none__') $phaseFilter = mb_strtoupper($phaseFilter);
+        $perfFilter   = trim((string)($_GET['perf'] ?? ''));       // '' = all, else Good|Fair|Poor|New
+        $qFilter      = trim((string)($_GET['q'] ?? ''));          // free text (client / code / property)
+        $unpaidOnly   = (string)($_GET['unpaidOnly'] ?? '0') === '1'; // only accounts that still owe
 
         $rows = [];
         $clerks = [];
         $totals = ['dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
                    'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0,
                    'expectedCount' => 0, 'expectedAmount' => 0.0, 'needsMonthlyCount' => 0, 'needsMonthlyBalance' => 0.0,
-                   'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0];
+                   'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0,
+                   'stillUnpaidCount' => 0, 'unpaidAccountCount' => 0];
+
+        // ---- Property phase per account -------------------------------
+        // contracts.project_phase is the account's own phase; when it is empty
+        // the phase of the linked property unit is used instead. The list of
+        // phases is built from ALL accounts so the dropdown never loses an
+        // option when a phase filter is on.
+        $unitPhase = [];
+        try {
+            foreach ($pdo->query("SELECT display_label, phase FROM property_units WHERE phase IS NOT NULL AND TRIM(phase) <> ''") as $u) {
+                $unitPhase[(string)$u['display_label']] = trim((string)$u['phase']);
+            }
+        } catch (Throwable $e) { /* units are optional */ }
+        $phaseOf = [];        // contract id  -> phase
+        $phaseByLegacy = [];  // legacy code  -> phase (for month snapshots)
+        $phaseSet = [];
+        foreach ($contractRows as $c) {
+            $ph = trim((string)($c['project_phase'] ?? ''));
+            if ($ph === '') $ph = $unitPhase[(string)($c['property_address'] ?? '')] ?? '';
+            $ph = $ph === '' ? '' : mb_strtoupper($ph);   // the sheet mixes cases ('2A' / '2a')
+            $phaseOf[(int)$c['id']] = $ph;
+            $lc = trim((string)($c['legacy_code'] ?? ''));
+            if ($lc !== '') $phaseByLegacy[$lc] = $ph;
+            if ($ph !== '') $phaseSet[$ph] = true;
+        }
+        $phases = array_keys($phaseSet);
+        sort($phases, SORT_NATURAL | SORT_FLAG_CASE);
+
+        // Account keys used to count an account once, however many rows or
+        // workbook months contribute to it.
+        $balanceKeys = [];        // global: accounts with an unpaid balance
+        $clerkBalanceKeys = [];   // per clerk
+        $viewKeys = [];           // global: accounts listed in the table
+        $clerkViewKeys = [];      // per clerk
+        $accounts = [];           // account detail for the "Still unpaid" list
 
         // Excel-style figures (match the collection workbook's header row):
         //   actualDue = scheduled amounts falling in the period,
@@ -618,13 +665,28 @@ try {
             else $label = 'Fair';
             $perf = ['label' => $label, 'onTimeRate' => $rate, 'onTime' => $onTime, 'late' => $late, 'missed' => $missed];
 
+            // ---- Report filters (they narrow the set of accounts) ------
+            $ph = $phaseOf[$cid] ?? '';
+            if ($phaseFilter !== '') {
+                if ($phaseFilter === '__none__') { if ($ph !== '') continue; }
+                elseif ($ph !== $phaseFilter) continue;
+            }
+            if ($perfFilter !== '' && $label !== $perfFilter) continue;
+            // "Filter unpaid": only accounts that still owe something overdue.
+            if ($unpaidOnly && $missed < 1) continue;
+            if ($qFilter !== '') {
+                $hay = mb_strtolower(trim((string)$c['client_name']) . ' ' . 'con-' . $cid . ' ' . mb_strtolower(trim((string)($c['legacy_code'] ?? ''))) . ' ' . mb_strtolower(trim((string)($c['property_address'] ?? ''))));
+                if (strpos($hay, mb_strtolower($qFilter)) === false) continue;
+            }
+
             $clerkKey = $oid !== '' ? $oid : '—';
             if (!isset($clerks[$clerkKey])) {
                 $clerks[$clerkKey] = ['officerId' => $oid, 'name' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
                     'dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
                     'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0,
                     'expectedCount' => 0, 'expectedAmount' => 0.0, 'needsMonthlyCount' => 0, 'needsMonthlyBalance' => 0.0,
-                    'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0];
+                    'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0,
+                    'stillUnpaidCount' => 0, 'unpaidAccountCount' => 0];
             }
             $k = &$clerks[$clerkKey];
 
@@ -665,6 +727,35 @@ try {
                 if ($pd >= $from && $pd <= $to) $cCol += (float)($p['cash'] ?? $p['amount'] ?? 0);
             }
             $cUnpaid = max(0.0, $cDue + $cArr - $cCol);
+            // An account counts once, no matter how many installments or
+            // workbook months land on it.
+            if ($cUnpaid > 0.009) {
+                $balanceKeys['C:' . $cid] = true;
+                $clerkBalanceKeys[$clerkKey]['C:' . $cid] = true;
+            }
+            // Detail of the account for the "Still unpaid" list (the modal).
+            $akey = 'C:' . $cid;
+            if (!isset($accounts[$akey])) {
+                $accounts[$akey] = [
+                    'key' => $akey, 'contractId' => $cid, 'accountCode' => 'CON-' . $cid,
+                    'legacyCode' => (string)($c['legacy_code'] ?? ''), 'client' => (string)$c['client_name'],
+                    'property' => (string)($c['property_address'] ?? ''), 'phase' => $ph,
+                    'officerId' => $oid, 'clerk' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
+                    'performance' => $perf['label'],
+                    'due' => 0.0, 'arrears' => 0.0, 'collected' => 0.0, 'balance' => 0.0,
+                    'installments' => 0, 'oldestDue' => null, 'lastPayment' => null,
+                ];
+            }
+            $accounts[$akey]['due'] += $cDue;
+            $accounts[$akey]['arrears'] += $cArr;
+            $accounts[$akey]['collected'] += $cCol;
+            $accounts[$akey]['balance'] += $cUnpaid;
+            foreach ($allPays as $p) {
+                $pd = (string)($p['date'] ?? '');
+                if ($pd !== '' && ($accounts[$akey]['lastPayment'] === null || $pd > $accounts[$akey]['lastPayment'])) {
+                    $accounts[$akey]['lastPayment'] = $pd;
+                }
+            }
             foreach ([&$k, &$totals] as &$acc) {
                 $acc['actualDue'] += $cDue; $acc['arrears'] += $cArr; $acc['totalDue'] += $cDue + $cArr;
                 $acc['collected'] += $cCol; $acc['stillUnpaid'] += $cUnpaid;
@@ -718,8 +809,19 @@ try {
                 }
 
                 $show = !$inst['paid'] && ($inPeriod || ($includeOverdue && $due < $from));
+                // "Filter unpaid" keeps only what is already overdue.
+                if ($unpaidOnly) $show = !$inst['paid'] && ($due < $today || ($includeOverdue && $due < $from));
                 if (!$show) continue;
                 $daysOverdue = $due < $today ? (int)((strtotime($today) - strtotime($due)) / 86400) : 0;
+                // Accounts listed in the table (each one counted once).
+                $viewKeys['C:' . $cid] = true;
+                $clerkViewKeys[$clerkKey]['C:' . $cid] = true;
+                if (isset($accounts[$akey])) {
+                    $accounts[$akey]['installments']++;
+                    if ($accounts[$akey]['oldestDue'] === null || $due < $accounts[$akey]['oldestDue']) {
+                        $accounts[$akey]['oldestDue'] = $due;
+                    }
+                }
                 $rows[] = [
                     'contractId' => $cid,
                     'accountCode' => 'CON-' . $cid,
@@ -728,6 +830,7 @@ try {
                     'phone' => (string)$c['cellphone_number'],
                     'email' => (string)$c['email'],
                     'property' => (string)($c['property_address'] ?? ''),
+                    'phase' => $ph,
                     'officerId' => $oid,
                     'clerk' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
                     'installment' => $inst['kind'] === 'downpayment' ? 'Downpayment' : 'Installment #' . $inst['no'],
@@ -757,6 +860,21 @@ try {
             foreach ($snap->fetchAll() as $s) {
                 $oid = trim((string)$s['officer_id']);
                 if ($officerFilter !== '' && $oid !== $officerFilter) continue;
+                // A workbook month has no payment history, so it cannot answer
+                // the performance filter; its phase comes from the account.
+                if ($perfFilter !== '') continue;
+                if ($qFilter !== '') {
+                    $hay = mb_strtolower(trim((string)$s['client_name']) . ' ' . trim((string)($s['legacy_code'] ?? '')) . ' ' . mb_strtolower(trim((string)($s['property'] ?? ''))));
+                    if (strpos($hay, mb_strtolower($qFilter)) === false) continue;
+                }
+                // The phase of the account this workbook month belongs to.
+                $sph = '';
+                if ($s['contract_id'] !== null && isset($phaseOf[(int)$s['contract_id']])) $sph = $phaseOf[(int)$s['contract_id']];
+                elseif (trim((string)($s['legacy_code'] ?? '')) !== '') $sph = $phaseByLegacy[trim((string)$s['legacy_code'])] ?? '';
+                if ($phaseFilter !== '') {
+                    if ($phaseFilter === '__none__') { if ($sph !== '') continue; }
+                    elseif ($sph !== $phaseFilter) continue;
+                }
                 $sDue = ((string)$s['due_date'] >= $from && (string)$s['due_date'] <= $to) ? (float)$s['actual_due'] : 0.0;
                 $sArr = ($s['month'] . '-01' === $from) ? (float)$s['arrears'] : 0.0;
                 $sCol = ($s['pay_date'] !== null && (string)$s['pay_date'] >= $from && (string)$s['pay_date'] <= $to) ? (float)$s['collected'] : 0.0;
@@ -770,7 +888,38 @@ try {
                         'dueCount' => 0, 'dueAmount' => 0.0, 'paidCount' => 0, 'paidAmount' => 0.0,
                         'unpaidCount' => 0, 'unpaidAmount' => 0.0, 'carriedCount' => 0, 'carriedAmount' => 0.0,
                         'expectedCount' => 0, 'expectedAmount' => 0.0, 'needsMonthlyCount' => 0, 'needsMonthlyBalance' => 0.0,
-                        'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0];
+                        'actualDue' => 0.0, 'arrears' => 0.0, 'totalDue' => 0.0, 'collected' => 0.0, 'stillUnpaid' => 0.0, 'collectedCount' => 0,
+                        'stillUnpaidCount' => 0, 'unpaidAccountCount' => 0];
+                }
+                // The account key is shared with the accounts loop, so an
+                // account is never counted twice.
+                $sKey = ($s['contract_id'] !== null && $s['contract_id'] !== '')
+                    ? 'C:' . (int)$s['contract_id']
+                    : 'L:' . trim((string)($s['legacy_code'] ?? '')) . '#' . $s['month'];
+                if (max(0.0, $sTot - $sCol) > 0.009) {
+                    $balanceKeys[$sKey] = true;
+                    $clerkBalanceKeys[$clerkKey][$sKey] = true;
+                }
+                if (!isset($accounts[$sKey])) {
+                    $accounts[$sKey] = [
+                        'key' => $sKey,
+                        'contractId' => ($s['contract_id'] !== null && $s['contract_id'] !== '') ? (int)$s['contract_id'] : null,
+                        'accountCode' => ($s['contract_id'] !== null && $s['contract_id'] !== '') ? 'CON-' . (int)$s['contract_id'] : (string)($s['legacy_code'] ?? '—'),
+                        'legacyCode' => (string)($s['legacy_code'] ?? ''), 'client' => (string)$s['client_name'],
+                        'property' => (string)($s['property'] ?? ''),
+                        'phase' => $sph,
+                        'officerId' => $oid, 'clerk' => (string)($s['full_name'] ?? '') ?: 'Unassigned',
+                        'performance' => '—',
+                        'due' => 0.0, 'arrears' => 0.0, 'collected' => 0.0, 'balance' => 0.0,
+                        'installments' => 0, 'oldestDue' => null, 'lastPayment' => null,
+                    ];
+                }
+                $accounts[$sKey]['due'] += $sDue;
+                $accounts[$sKey]['arrears'] += $sArr;
+                $accounts[$sKey]['collected'] += $sCol;
+                $accounts[$sKey]['balance'] += max(0.0, $sTot - $sCol);
+                if ((string)($s['due_date'] ?? '') !== '' && ($accounts[$sKey]['oldestDue'] === null || (string)$s['due_date'] < $accounts[$sKey]['oldestDue'])) {
+                    $accounts[$sKey]['oldestDue'] = (string)$s['due_date'];
                 }
                 foreach ([$clerkKey, null] as $target) {
                     if ($target === null) $acc = &$totals; else $acc = &$clerks[$target];
@@ -806,13 +955,42 @@ try {
         usort($clerkList, fn($a, $b) => strcmp($a['name'], $b['name']));
         $totals = $finish($totals);
 
+        // ---- Account counts -------------------------------------------
+        // stillUnpaidCount = unique accounts with an unpaid balance (the
+        // accounts the "Still unpaid" money belongs to).
+        // unpaidAccountCount = unique accounts listed in the table.
+        $totals['stillUnpaidCount'] = count($balanceKeys);
+        $totals['unpaidAccountCount'] = count($viewKeys);
+        foreach ($clerkList as $i => $cl) {
+            $ck = (string)$cl['officerId'] !== '' ? (string)$cl['officerId'] : '—';
+            $clerkList[$i]['stillUnpaidCount'] = count($clerkBalanceKeys[$ck] ?? []);
+            $clerkList[$i]['unpaidAccountCount'] = count($clerkViewKeys[$ck] ?? []);
+        }
+
+        // The accounts behind the "Still unpaid" money: one row per account,
+        // biggest balance first. This is what the card's modal lists.
+        $accountList = [];
+        foreach ($accounts as $a) {
+            if ((float)$a['balance'] <= 0.009) continue;
+            foreach (['due', 'arrears', 'collected', 'balance'] as $f) $a[$f] = round((float)$a[$f], 2);
+            $accountList[] = $a;
+        }
+        usort($accountList, function ($x, $y) {
+            if ($x['balance'] !== $y['balance']) return $y['balance'] <=> $x['balance'];
+            return strcasecmp((string)$x['client'], (string)$y['client']);
+        });
+
         echo json_encode([
             'success' => true,
             'today' => $today,
             'period' => ['type' => $period, 'from' => $from, 'to' => $to],
+            'filters' => ['phase' => $phaseFilter, 'perf' => $perfFilter, 'q' => $qFilter,
+                          'unpaidOnly' => $unpaidOnly, 'includeOverdue' => $includeOverdue],
+            'phases' => $phases,
             'totals' => $totals,
             'clerks' => $clerkList,
             'rows' => $rows,
+            'accounts' => $accountList,
         ]);
         exit;
     }

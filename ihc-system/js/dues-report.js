@@ -11,6 +11,9 @@
  *
  * "Include overdue from earlier" folds the older unpaid installments into the
  * cards (server-side: Due / Still unpaid / Collection rate) and the list.
+ * Every filter (period, clerk, property phase, payment performance, search)
+ * is applied by the server, so the cards, the account counts and the list
+ * always describe the same set of accounts.
  */
 (function () {
   'use strict';
@@ -53,16 +56,13 @@
   .dues-kpi strong { display:block; font-size:19px; margin-top:6px; color:#0f172a; letter-spacing:-.3px; }
   .dues-kpi span { display:block; font-size:11.5px; color:#64748b; margin-top:3px; }
   .dues-kpi em { display:inline-block; font-style:normal; font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; background:#fff1f2; color:#9f1239; margin-left:4px; vertical-align:1px; }
+  .dues-kpi .dues-kpi-count { display:inline-flex; align-items:baseline; gap:5px; margin-top:9px; padding:3px 10px; border-radius:999px; background:#f8fafc; border:1px solid #e2e8f0; color:#64748b; font-size:11px; font-weight:600; }
+  .dues-kpi .dues-kpi-count b { font-size:13px; font-weight:700; color:#334155; }
   .dues-kpi .meter { height:6px; border-radius:3px; background:#f1f5f9; overflow:hidden; margin-top:8px; }
   .dues-kpi .meter i { display:block; height:100%; background:var(--k); }
-      .dues-kpi .unpaid-filter-btn { display:inline-flex; align-items:center; gap:6px; margin-top:12px; padding:8px 14px; border:1px solid #fcd34d; border-radius:999px; background:#fffbeb; color:#b45309; font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; transition:all .18s ease; }
-  .dues-kpi .unpaid-filter-btn svg { width:13px; height:13px; flex-shrink:0; }
-  .dues-kpi .unpaid-filter-btn:hover { background:#fef3c7; border-color:#f59e0b; transform:translateY(-1px); box-shadow:0 4px 10px rgba(245,158,11,.25); }
-  .dues-kpi .unpaid-filter-btn:active { transform:translateY(0); box-shadow:none; }
-  .dues-kpi .unpaid-filter-btn:focus-visible { outline:2px solid #f59e0b; outline-offset:2px; }
-  .dues-kpi .unpaid-filter-btn.active { background:linear-gradient(135deg,#f59e0b,#d97706); border-color:#d97706; color:#fff; box-shadow:0 4px 10px rgba(217,119,6,.35); }
-  .dues-kpi .unpaid-filter-btn.active:hover { background:linear-gradient(135deg,#d97706,#b45309); }
   .dues-note { font-size:11.5px; color:#9f1239; background:#fff1f2; border:1px solid #fecdd3; border-radius:8px; padding:7px 10px; }
+  .dues-scope { font-size:11.5px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:7px 10px; }
+  .dues-scope b { color:#0f172a; }
   .dues-h { font-size:13px; font-weight:700; margin:0; color:#0f172a; }
   .dues-sec-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
   .dues-sec-head span { font-size:11.5px; color:#64748b; }
@@ -88,6 +88,30 @@
   .dues-pager button { min-width:32px; height:30px; padding:0 10px; border:1px solid #e2e8f0; border-radius:6px; background:#fff; font:inherit; font-size:12px; font-weight:600; cursor:pointer; margin-left:4px; }
   .dues-pager button:disabled { opacity:.4; cursor:not-allowed; }
   @media (max-width: 720px) { .dues-bar .grow { min-width:100%; } }
+  /* ---- "Still unpaid" card -> accounts modal ---- */
+  .dues-kpi[data-card] { cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+  .dues-kpi[data-card]:hover { transform:translateY(-2px); border-color:#fcd34d; box-shadow:0 8px 20px rgba(15,23,42,.10); }
+  .dues-kpi[data-card]:focus-visible { outline:2px solid #f59e0b; outline-offset:2px; }
+  .dues-modal { position:fixed; inset:0; z-index:9999; display:none; }
+  .dues-modal.open { display:block; }
+  .dues-modal-backdrop { position:absolute; inset:0; background:rgba(15,23,42,.55); }
+  .dues-modal-box { position:relative; margin:4vh auto; width:calc(100% - 40px); max-width:1040px; max-height:92vh; display:flex; flex-direction:column; background:#fff; border-radius:16px; box-shadow:0 24px 60px rgba(15,23,42,.35); overflow:hidden; }
+  .dues-modal-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px 14px; border-bottom:1px solid #e2e8f0; }
+  .dues-modal-head h3 { margin:0; font-size:15px; color:#0f172a; }
+  .dues-modal-head p { margin:4px 0 0; font-size:12px; color:#64748b; }
+  .dues-modal-x { flex-shrink:0; border:0; background:#f1f5f9; width:32px; height:32px; border-radius:8px; font-size:18px; line-height:1; cursor:pointer; color:#475569; }
+  .dues-modal-x:hover { background:#e2e8f0; color:#0f172a; }
+  .dues-modal-tools { display:flex; align-items:center; gap:12px; padding:12px 20px; }
+  .dues-modal-tools input { flex:1; height:36px; border:1px solid #e2e8f0; border-radius:8px; padding:0 10px; font:inherit; font-size:12.5px; background:#fff; color:#0f172a; }
+  .dues-modal-tools span { font-size:12px; color:#64748b; white-space:nowrap; }
+  .dues-modal-body { flex:1; overflow:auto; padding:0 20px; }
+  .dues-modal .dues-table { min-width:720px; }
+  .dues-modal .dues-table th[data-sort] { cursor:pointer; user-select:none; }
+  .dues-modal .dues-table th[data-sort]:hover { color:#0f172a; }
+  .dues-modal-foot { padding:12px 20px 16px; border-top:1px solid #e2e8f0; }
+  .dues-modal-foot .dues-pager { padding:0; }
+  .dues-modal-empty { text-align:center; padding:34px; color:#94a3b8; }
+  @media (max-width:720px) { .dues-modal-box { width:calc(100% - 16px); margin:2vh auto; max-height:96vh; } }
   `;
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -99,6 +123,11 @@
   };
   const STATUS = { overdue: 'Overdue', 'due-today': 'Due today', upcoming: 'Upcoming' };
   const PER_PAGE = 25;
+  // Property phases are stored as codes ("1", "2A") or as a building name.
+  const phaseLabel = (v) => {
+    const s = String(v == null ? '' : v);
+    return /^[0-9]+[A-Z]?$/i.test(s) ? 'Phase ' + s : s;
+  };
 
   // ---- CSV helpers (Excel-friendly: BOM, CRLF, numbers without ₱/commas,
   // phone numbers kept as text so the leading 0 survives) ----
@@ -254,6 +283,137 @@
     document.head.appendChild(st);
   }
 
+  // ---- "Still unpaid" accounts modal ---------------------------------
+  // One modal for the whole page: the card hands it the accounts the server
+  // returned for the CURRENT filters, so the list always matches the card.
+  const MODAL_PAGE = 25;
+  let modalEl = null;
+  let modalState = { q: '', page: 1, sort: { key: 'balance', dir: -1 } };
+  let modalData = { accounts: [], sub: '', scope: '' };
+
+  function ensureModal() {
+    if (modalEl) return modalEl;
+    const m = document.createElement('div');
+    m.id = 'ihc-dues-modal';
+    m.className = 'dues-modal';
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.innerHTML =
+      '<div class="dues-modal-backdrop" data-close></div>' +
+      '<div class="dues-modal-box">' +
+        '<div class="dues-modal-head">' +
+          '<div><h3>Still unpaid accounts</h3><p data-el="mSub"></p></div>' +
+          '<button type="button" class="dues-modal-x" data-close aria-label="Close">&times;</button>' +
+        '</div>' +
+        '<div class="dues-modal-tools">' +
+          '<input type="search" data-el="mSearch" placeholder="Search client, account no., Excel code, property or clerk">' +
+          '<span data-el="mCount"></span>' +
+        '</div>' +
+        '<div class="dues-modal-body">' +
+          '<table class="dues-table"><thead><tr>' +
+            '<th data-sort="client">Client</th><th>Account / Property</th><th>Clerk</th>' +
+            '<th class="num" data-sort="balance">Unpaid balance</th>' +
+          '</tr></thead><tbody data-el="mRows"></tbody></table>' +
+          '<div class="dues-modal-empty" data-el="mEmpty" hidden>No account matches.</div>' +
+        '</div>' +
+        '<div class="dues-modal-foot"><div class="dues-pager" data-el="mPager"></div></div>' +
+      '</div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', (e) => {
+      if (e.target.closest('[data-close]')) { closeModal(); return; }
+      const go = e.target.closest('[data-go]');
+      if (go && !go.disabled) { modalState.page = Number(go.dataset.go); renderModal(); return; }
+      const th = e.target.closest('th[data-sort]');
+      if (th) {
+        const key = th.dataset.sort;
+        modalState.sort = modalState.sort.key === key
+          ? { key: key, dir: -modalState.sort.dir }
+          : { key: key, dir: key === 'balance' ? -1 : 1 };
+        modalState.page = 1;
+        renderModal();
+      }
+    });
+    const search = m.querySelector('[data-el="mSearch"]');
+    search.addEventListener('input', () => {
+      modalState.q = search.value.trim();
+      modalState.page = 1;
+      renderModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && m.classList.contains('open')) closeModal();
+    });
+    modalEl = m;
+    return m;
+  }
+
+  function closeModal() {
+    if (!modalEl) return;
+    modalEl.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function openUnpaidModal(accounts, sub, scope, total) {
+    const m = ensureModal();
+    modalData = { accounts: accounts || [], sub: sub || '', scope: scope || '', total: total || 0 };
+    modalState.q = '';
+    modalState.page = 1;
+    modalState.sort = { key: 'balance', dir: -1 };
+    const search = m.querySelector('[data-el="mSearch"]');
+    if (search) search.value = '';
+    renderModal();
+    m.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const first = m.querySelector('[data-el="mSearch"]');
+    if (first) first.focus();
+  }
+
+  function renderModal() {
+    const m = modalEl;
+    if (!m) return;
+    const q = modalState.q.toLowerCase();
+    let list = modalData.accounts.filter(a =>
+      !q || [a.client, a.accountCode, a.legacyCode, a.property, a.clerk, a.phase]
+        .some(v => String(v || '').toLowerCase().includes(q)));
+    const key = modalState.sort.key;
+    const dir = modalState.sort.dir;
+    list = list.slice().sort((x, y) => {
+      if (key === 'client') return dir * String(x.client || '').localeCompare(String(y.client || ''));
+      return dir * ((Number(x.balance) || 0) - (Number(y.balance) || 0));
+    });
+
+    const pages = Math.max(1, Math.ceil(list.length / MODAL_PAGE));
+    if (modalState.page > pages) modalState.page = pages;
+    if (modalState.page < 1) modalState.page = 1;
+    const rows = list.slice((modalState.page - 1) * MODAL_PAGE, modalState.page * MODAL_PAGE);
+    // Unfiltered, show the card's own figure; when searching, the sum of the
+    // accounts that are actually listed.
+    const total = modalState.q ? list.reduce((s, a) => s + (Number(a.balance) || 0), 0) : (modalData.total || 0);
+
+    m.querySelector('[data-el="mSub"]').textContent = modalData.sub + (modalData.scope ? ' • ' + modalData.scope : '');
+    m.querySelector('[data-el="mCount"]').textContent = list.length + ' account(s) • ' + php(total);
+    const empty = m.querySelector('[data-el="mEmpty"]');
+    empty.hidden = list.length > 0;
+    m.querySelector('[data-el="mRows"]').innerHTML = rows.map(a =>
+      '<tr>' +
+        '<td><strong>' + esc(a.client || '—') + '</strong>' +
+          '<span class="dues-sub">' + esc(a.performance || '—') + (a.phase ? ' • ' + esc(phaseLabel(a.phase)) : '') + '</span>' +
+          (a.lastPayment ? '<span class="dues-sub">last payment ' + fmtDate(a.lastPayment) + '</span>' : '') + '</td>' +
+        '<td><strong>' + esc(a.accountCode || '—') + '</strong>' +
+          (a.legacyCode ? '<span class="dues-sub">' + esc(a.legacyCode) + '</span>' : '') +
+          '<span class="dues-sub">' + esc(a.property || '—') + '</span></td>' +
+        '<td>' + esc(a.clerk || 'Unassigned') + '</td>' +
+        '<td class="num"><strong>' + php(a.balance || 0) + '</strong>' +
+          '<span class="dues-sub">due ' + php(a.due || 0) + ' • arrears ' + php(a.arrears || 0) + '</span>' +
+          (a.oldestDue ? '<span class="dues-sub">oldest due ' + fmtDate(a.oldestDue) + '</span>' : '') + '</td>' +
+      '</tr>').join('');
+    m.querySelector('[data-el="mPager"]').innerHTML = list.length > MODAL_PAGE
+      ? '<span>Showing ' + ((modalState.page - 1) * MODAL_PAGE + 1) + '–' + Math.min(list.length, modalState.page * MODAL_PAGE) + ' of ' + list.length + '</span><div>' +
+        '<button type="button" data-go="' + (modalState.page - 1) + '"' + (modalState.page <= 1 ? ' disabled' : '') + '>‹ Prev</button>' +
+        '<span style="margin:0 6px;">Page ' + modalState.page + ' of ' + pages + '</span>' +
+        '<button type="button" data-go="' + (modalState.page + 1) + '"' + (modalState.page >= pages ? ' disabled' : '') + '>Next ›</button></div></div>'
+      : (list.length ? '<span>Showing all ' + list.length + ' account(s)</span><div></div>' : '');
+  }
+
   function mount(root, opts) {
     injectCss();
     const o = Object.assign({ apiBase: '', officerId: '', showClerks: false }, opts || {});
@@ -277,9 +437,9 @@ const state = {
     to: '',
     includeOverdue: false,
     officer: o.officerId || '',
+    phase: '',
     perf: '',
     q: '',
-    unpaidOnly: false,
     data: null,
     page: 1,
     allClerks: null
@@ -313,12 +473,14 @@ const state = {
         '</div>' +
         '<div class="dues-bar">' +
           (o.showClerks ? '<select data-el="officer" aria-label="Clerk"><option value="">All clerks</option></select>' : '') +
+          '<select data-el="phase" aria-label="Property phase"><option value="">All phases</option></select>' +
           '<select data-el="perf" aria-label="Payment performance"><option value="">All performance</option><option value="Good">Good payers</option><option value="Fair">Fair</option><option value="Poor">Poor</option><option value="New">New (no history)</option></select>' +
           '<label class="chk" data-el="overdueLbl"><input type="checkbox" data-el="overdue"> Include overdue from earlier</label>' +
           '<input type="search" class="grow" data-el="q" placeholder="Search client, account no., Excel code or property">' +
         '</div>' +
         '<div class="dues-kpis" data-el="kpis"></div>' +
         '<div class="dues-note" data-el="note" hidden></div>' +
+        '<div class="dues-scope" data-el="scope" hidden></div>' +
         (o.showClerks ? '<div><div class="dues-sec-head"><p class="dues-h">Collection performance per clerk</p><span data-el="clerksSub"></span></div><div class="dues-scroll"><table class="dues-table" style="min-width:1080px;"><thead><tr><th>Clerk</th><th class="num">Actual due</th><th class="num">Arrears</th><th class="num">Total due</th><th class="num">Collected</th><th>Collection rate</th><th class="num">Still unpaid</th><th class="num">Expected (Excel)</th><th class="num">Floating account</th></tr></thead><tbody data-el="clerks"></tbody></table></div></div>' : '') +
         '<div><div class="dues-sec-head"><p class="dues-h" data-el="listTitle">Clients due</p><span data-el="listSub"></span></div><div class="dues-scroll"><table class="dues-table"><thead><tr>' +
           '<th>Due date</th><th>Client</th><th>Property</th><th>Installment</th><th class="num">Amount due</th><th>Status</th><th>Payment performance</th>' +
@@ -332,13 +494,10 @@ const state = {
        function filteredRows() {
       const d = state.data;
       if (!d) return [];
-      const q = state.q.toLowerCase();
-      return d.rows.filter(r =>
-        (!state.unpaidOnly || r.status === 'overdue' || r.carried) &&
-        (!state.perf || r.performance.label === state.perf) &&
-        (!q || [r.client, r.accountCode, r.legacyCode, r.property]
-          .some(v => String(v || '').toLowerCase().includes(q)))
-      );
+      // The server already applies every filter (period, clerk, phase,
+      // performance, search), so the rows it sends are the rows of the
+      // current filter state.
+      return d.rows;
     }
 
     function periodLabel() {
@@ -355,31 +514,33 @@ const state = {
       // Cards follow the collection workbook's header row:
       // Actual due + Arrears = Total due; Collected = cash received in the period.
       const rate = t.collectedRate == null ? null : t.collectedRate;
-            // Bilang ng unique accounts na may unpaid (hindi per installment)
-            const unpaidAccounts = new Set(
-        filteredRows().map(r => r.accountCode)
-      ).size;
+      // Accounts with an unpaid balance (server-side, follows every filter) and
+      // the accounts listed in the table below (grows with "include overdue").
+      const unpaidAccounts = Number(t.stillUnpaidCount || 0);
+      const viewAccounts = Number(t.unpaidAccountCount || 0);
+      const olderOnly = Math.max(0, unpaidAccounts - viewAccounts);
+      const unpaidLabel = unpaidAccounts === 1 ? 'account with an unpaid balance' : 'accounts with an unpaid balance';
+      const unpaidSub = viewAccounts + ' in the Clients due list'
+        + (olderOnly > 0 ? ' • ' + olderOnly + ' owing only from earlier periods' : '');
       $('kpis').innerHTML = [
   { k: '#3b82f6', label: 'Actual due', amount: php(t.actualDue || 0), sub: 'scheduled in this period' },
   { k: '#f43f5e', label: 'Arrears', amount: php(t.arrears || 0), sub: 'unpaid as of ' + fmtDate(d.period.from) },
   { k: '#8b5cf6', label: 'Total due', amount: php(t.totalDue || 0), sub: 'actual due + arrears' },
   { k: '#10b981', label: 'Amount collected', amount: php(t.collected || 0), sub: (rate == null ? '—' : rate + '%') + ' of total due • ' + (t.collectedCount || 0) + ' account(s)', meter: rate },
-  { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0), sub: unpaidAccounts + ' account(s) • still owed per account (advances not netted)', action: 'unpaid' },
+  { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0),
+    count: unpaidAccounts, countLabel: unpaidLabel,
+    sub: unpaidSub, action: 'unpaid' },
   { k: '#0ea5e9', label: 'Expected (Excel)', amount: php(t.expectedAmount || 0), sub: (t.expectedCount || 0) + ' account(s) • JAN–DEC projection' },
   { k: '#64748b', label: 'Floating account', amount: php(t.needsMonthlyBalance || 0), sub: (t.needsMonthlyCount || 0) + ' account(s) • no monthly yet, not in dues' },
-].map(c => 
-  '<div class="dues-kpi" style="--k:' + c.k + ';">' +
+].map(c =>
+  '<div class="dues-kpi" style="--k:' + c.k + ';"' + (c.action === 'unpaid' ? ' data-card="unpaid" role="button" tabindex="0" aria-label="Show the accounts with an unpaid balance"' : '') + '>' +
     '<small>' + esc(c.label) + (c.tag ? '<em>' + esc(c.tag) + '</em>' : '') + '</small>' +
     '<strong>' + esc(c.amount) + '</strong>' +
+    (c.count != null
+      ? '<span class="dues-kpi-count"><b>' + esc(c.count) + '</b> ' + esc(c.countLabel) + '</span>'
+      : '') +
     '<span>' + esc(c.sub) + '</span>' +
     (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') +
-    (c.action === 'unpaid'
-      ? '<button type="button" class="unpaid-filter-btn' + (state.unpaidOnly ? ' active' : '') + '" data-filter-unpaid>' +
-        (state.unpaidOnly
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Show All'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>Filter Unpaid') +
-        '</button>'
-      : '') +
     '<div style="margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap;">' +
       '<a href="../php/filtered-dues-list.php?type=has_payment" style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; text-decoration: none;">Last Payment Date</a>' +
       '<a href="../php/filtered-dues-list.php?type=reserved" style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; text-decoration: none;">Last Reserved Date</a>' +
@@ -389,6 +550,26 @@ const state = {
 
       $('note').hidden = !inc;
       if (inc) $('note').textContent = 'The list also shows unpaid installments from before ' + fmtDate(d.period.from) + ' (' + t.carriedCount + ' installment(s), ' + php(t.carriedAmount) + ' still unpaid today).';
+
+      // Which accounts the cards (and their counts) cover right now.
+      const f = d.filters || {};
+      const scope = [];
+      if (f.phase) scope.push('phase: ' + (f.phase === '__none__' ? 'no phase' : phaseLabel(f.phase)));
+      if (f.perf) scope.push('payment performance: ' + f.perf);
+      if (f.q) scope.push('search: "' + f.q + '"');
+      if (f.unpaidOnly) scope.push('unpaid only (overdue)');
+      $('scope').hidden = !scope.length;
+      if (scope.length) $('scope').innerHTML = '<b>Scope:</b> ' + esc(scope.join(' • ')) + ' — the cards and the account count cover these accounts only.';
+
+      // Property phase filter. The list comes from every account, so the
+      // dropdown keeps all its options while a phase is selected.
+      const phaseSel = $('phase');
+      if (phaseSel) {
+        phaseSel.innerHTML = ['<option value="">All phases</option>']
+          .concat((d.phases || []).map(p => '<option value="' + esc(p) + '">' + esc(phaseLabel(p)) + '</option>'))
+          .concat(['<option value="__none__">(no phase)</option>']).join('');
+        phaseSel.value = state.phase || '';
+      }
 
       if (o.showClerks) {
         const sel = $('officer');
@@ -405,7 +586,7 @@ const state = {
             '<td class="num"><strong>' + php(c.totalDue || 0) + '</strong></td>' +
             '<td class="num">' + php(c.collected || 0) + '<span class="dues-sub">' + (c.collectedCount || 0) + ' acct.</span></td>' +
             '<td>' + (r == null ? '—' : '<strong>' + r + '%</strong><div class="dues-bar-rate"><i style="width:' + Math.min(100, r) + '%"></i></div>') + '</td>' +
-            '<td class="num">' + php(c.stillUnpaid || 0) + '</td>' +
+            '<td class="num">' + php(c.stillUnpaid || 0) + '<span class="dues-sub">' + (c.stillUnpaidCount || 0) + ' acct.</span></td>' +
             '<td class="num">' + php(c.expectedAmount || 0) + '<span class="dues-sub">' + (c.expectedCount || 0) + ' acct.</span></td>' +
             '<td class="num">' + php(c.needsMonthlyBalance || 0) + '<span class="dues-sub">' + (c.needsMonthlyCount || 0) + ' acct.</span></td></tr>';
         }).join('') : '<tr><td colspan="9" class="dues-empty">No dues in this period.</td></tr>';
@@ -416,9 +597,9 @@ const state = {
       if (state.page > pages) state.page = pages;
       const rows = all.slice((state.page - 1) * PER_PAGE, state.page * PER_PAGE);
       const totalDue = all.reduce((s, r) => s + r.amountDue, 0);
-            $('listTitle').textContent = (state.unpaidOnly ? 'Still unpaid accounts — ' : 'Clients due — ')
+      $('listTitle').textContent = 'Clients due — '
         + all.length + ' unpaid installment(s) • ' + new Set(all.map(r => r.accountCode)).size + ' account(s)';
-      $('listSub').textContent = (inc ? 'including overdue from earlier • ' : '') + (state.unpaidOnly ? 'still unpaid filter • ' : '') + (state.perf || state.q ? 'filtered • ' : '') + 'total ' + php(totalDue);
+      $('listSub').textContent = (inc ? 'including overdue from earlier • ' : '') + (state.perf || state.q ? 'filtered • ' : '') + 'total ' + php(totalDue);
       $('pager').innerHTML = all.length > PER_PAGE
         ? '<div class="dues-pager"><span>Showing ' + ((state.page - 1) * PER_PAGE + 1) + '–' + Math.min(all.length, state.page * PER_PAGE) + ' of ' + all.length + '</span><div>' +
           '<button type="button" data-go="' + (state.page - 1) + '"' + (state.page <= 1 ? ' disabled' : '') + '>‹ Prev</button>' +
@@ -462,6 +643,9 @@ const state = {
       if (state.period === 'custom') { qs.set('from', state.from); qs.set('to', state.to); }
       if (state.period === 'month') { const r = monthRange(state.month); qs.set('from', r.from); qs.set('to', r.to); }
       if (state.officer) qs.set('officerId', state.officer);
+      if (state.phase) qs.set('phase', state.phase);
+      if (state.perf) qs.set('perf', state.perf);
+      if (state.q) qs.set('q', state.q);
       try {
         const res = await fetch(o.apiBase + '/php/api_admin.php?' + qs.toString(), { cache: 'no-store' });
         const data = await res.json();
@@ -499,7 +683,7 @@ const state = {
       L.push(csvLine(['Period', periodLabel()]));
       L.push(csvLine(['Clerk', clerkName]));
       L.push(csvLine(['Overdue from earlier', inc ? 'Included' : 'Not included']));
-      L.push(csvLine(['Filters', 'Performance: ' + (state.perf || 'All') + (state.q ? '; Search: ' + state.q : '')]));
+      L.push(csvLine(['Filters', 'Performance: ' + (state.perf || 'All') + (state.phase ? '; Phase: ' + (state.phase === '__none__' ? 'no phase' : phaseLabel(state.phase)) : '') + (state.q ? '; Search: ' + state.q : '')]));
       L.push(csvLine(['Generated', now.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })]));
       L.push('');
       L.push(csvLine(['SUMMARY', 'Count', 'Amount (PHP)']));
@@ -507,15 +691,16 @@ const state = {
       L.push(csvLine(['Arrears (as of ' + d.period.from + ')', '', money(t.arrears || 0)]));
       L.push(csvLine(['Total due', '', money(t.totalDue || 0)]));
       L.push(csvLine(['Amount collected', t.collectedCount || 0, money(t.collected || 0)]));
-      L.push(csvLine(['Still unpaid', '', money(t.stillUnpaid || 0)]));
+      L.push(csvLine(['Still unpaid (accounts with an unpaid balance)', t.stillUnpaidCount || 0, money(t.stillUnpaid || 0)]));
+      L.push(csvLine(['Still unpaid (accounts owing in this view)', t.unpaidAccountCount || 0, '']));
       L.push(csvLine(['Collection rate', '', t.collectedRate == null ? '' : t.collectedRate + '%']));
       L.push(csvLine(['Expected (Excel projection)', t.expectedCount || 0, money(t.expectedAmount || 0)]));
       L.push(csvLine(['Floating account (no monthly yet)', t.needsMonthlyCount || 0, money(t.needsMonthlyBalance || 0)]));
       if (o.showClerks && d.clerks.length) {
         L.push('');
-        L.push(csvLine(['PER CLERK', 'Actual due (PHP)', 'Arrears (PHP)', 'Total due (PHP)', 'Collected (PHP)', 'Collection rate', 'Still unpaid (PHP)', 'Expected Excel (acct.)', 'Expected Excel (PHP)', 'Floating account (acct.)', 'Floating account (PHP)']));
+        L.push(csvLine(['PER CLERK', 'Actual due (PHP)', 'Arrears (PHP)', 'Total due (PHP)', 'Collected (PHP)', 'Collection rate', 'Still unpaid (PHP)', 'Still unpaid (acct.)', 'Expected Excel (acct.)', 'Expected Excel (PHP)', 'Floating account (acct.)', 'Floating account (PHP)']));
         d.clerks.forEach(c => L.push(csvLine([c.name, money(c.actualDue || 0), money(c.arrears || 0), money(c.totalDue || 0), money(c.collected || 0),
-          c.collectedRate == null ? '' : c.collectedRate + '%', money(c.stillUnpaid || 0), c.expectedCount || 0, money(c.expectedAmount || 0),
+          c.collectedRate == null ? '' : c.collectedRate + '%', money(c.stillUnpaid || 0), c.stillUnpaidCount || 0, c.expectedCount || 0, money(c.expectedAmount || 0),
           c.needsMonthlyCount || 0, money(c.needsMonthlyBalance || 0)])));
       }
       L.push('');
@@ -576,20 +761,42 @@ const state = {
       $('overdueLbl').classList.toggle('on', e.target.checked);
       refresh();
     });
-    $('perf').addEventListener('change', (e) => { state.perf = e.target.value; state.page = 1; render(); });
-    $('q').addEventListener('input', (e) => { state.q = e.target.value.trim(); state.page = 1; render(); });
-        $('kpis').addEventListener('click', (e) => {
-      if (!e.target.closest('[data-filter-unpaid]')) return;
-      state.unpaidOnly = !state.unpaidOnly;
+    $('perf').addEventListener('change', (e) => { state.perf = e.target.value; state.page = 1; refresh(); });
+    $('phase').addEventListener('change', (e) => { state.phase = e.target.value; state.page = 1; refresh(); });
+    // The search runs on the server, so it is debounced to avoid a request per keystroke.
+    let qTimer = null;
+    $('q').addEventListener('input', (e) => {
+      state.q = e.target.value.trim();
       state.page = 1;
-      // isama ang arrears para lumabas ang mga lumang unpaid
-      state.includeOverdue = state.unpaidOnly;
-      $('overdue').checked = state.includeOverdue;
-      $('overdueLbl').classList.toggle('on', state.includeOverdue);
-      refresh();
-      $('listTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      clearTimeout(qTimer);
+      qTimer = setTimeout(() => refresh(), 300);
     });
         $('refresh').addEventListener('click', refresh);
+    // The "Still unpaid" card opens the accounts behind the money.
+    const openUnpaid = () => {
+      const d = state.data;
+      if (!d) return;
+      const t = d.totals || {};
+      const f = d.filters || {};
+      const scope = [];
+      if (f.phase) scope.push('phase: ' + (f.phase === '__none__' ? 'no phase' : phaseLabel(f.phase)));
+      if (f.perf) scope.push('performance: ' + f.perf);
+      if (f.q) scope.push('search: "' + f.q + '"');
+      const n = Number(t.stillUnpaidCount || 0);
+      const sub = n + (n === 1 ? ' account' : ' accounts') + ' • ' + php(t.stillUnpaid || 0) + ' • ' + periodLabel();
+      openUnpaidModal(d.accounts || [], sub, scope.join(' • '), Number(t.stillUnpaid || 0));
+    };
+    $('kpis').addEventListener('click', (e) => {
+      const card = e.target.closest('[data-card="unpaid"]');
+      if (card) openUnpaid();
+    });
+    $('kpis').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target.closest('[data-card="unpaid"]');
+      if (!card) return;
+      e.preventDefault();
+      openUnpaid();
+    });
     $('csv').addEventListener('click', exportCsv);
     $('pager').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-go]');
