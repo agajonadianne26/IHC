@@ -885,6 +885,7 @@ try {
                     'accountCode' => 'CON-' . $cid,
                     'legacyCode' => $c['legacy_code'] ?? null,
                     'client' => (string)$c['client_name'],
+                    'clerk' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
                     'phone' => (string)$c['cellphone_number'],
                     'property' => (string)($c['property_address'] ?? ''),
                     'bucket' => $key,
