@@ -2308,6 +2308,18 @@
               <p>Every enrolled client, the employee who owns the contract, and its payment standing.</p>
             </div>
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <select id="clientClerkFilter" aria-label="Filter clients by clerk"
+                      style="height:38px; min-width:180px; border:1px solid var(--border); border-radius:6px; padding:0 10px; font-family:inherit; font-size:12px;">
+                <option value="">All clerks</option>
+              </select>
+              <select id="clientStatusFilter" aria-label="Filter clients by status"
+                      style="height:38px; min-width:190px; border:1px solid var(--border); border-radius:6px; padding:0 10px; font-family:inherit; font-size:12px;">
+                <option value="">All statuses</option>
+                <option value="overdue">Overdue</option>
+                <option value="due-soon">Due Soon</option>
+                <option value="current">Current</option>
+                <option value="paid">Settled</option>
+              </select>
               <input id="clientSearch" type="text" placeholder="Search client, email, contract, property"
                      style="height:38px; min-width:260px; border:1px solid var(--border); border-radius:6px; padding:0 12px; font-family:inherit; font-size:12px;">
               <button class="btn-primary" id="refreshClientsBtn" type="button"><i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Refresh</button>
@@ -4439,15 +4451,32 @@
       const body = document.getElementById('clientsBody');
       if(!body || !teamData) return;
       const search = (document.getElementById('clientSearch')?.value || '').toLowerCase().trim();
+      const selectedStatus = document.getElementById('clientStatusFilter')?.value || '';
+      const clerkFilter = document.getElementById('clientClerkFilter');
+      let selectedClerk = clerkFilter?.value || '';
+      if(clerkFilter){
+        const options = ['<option value="">All clerks</option>', '<option value="__unassigned__">Unassigned</option>'];
+        (teamData.clerks || []).forEach(g=>{
+          const firstName = String(g.name || '').trim().split(/\s+/)[0].toLowerCase();
+          if(['jeremy', 'rea'].includes(firstName)) return;
+          const label = g.officerCode ? g.name + ' (' + g.officerCode + ')' : g.name;
+          options.push('<option value="'+teamEsc(g.officerId)+'">'+teamEsc(label)+'</option>');
+        });
+        clerkFilter.innerHTML = options.join('');
+        clerkFilter.value = selectedClerk;
+        selectedClerk = clerkFilter.value;
+      }
       const all = flattenClients();
-      const list = search
-        ? all.filter(c => [c.name, c.email, c.accountCode, c.propertyAddress, c.ownerName]
+      const list = all.filter(c =>
+        (!selectedClerk || (selectedClerk === '__unassigned__' ? !c.ownerId : String(c.ownerId) === selectedClerk))
+        && (!selectedStatus || c.status === selectedStatus)
+        && (!search || [c.name, c.email, c.accountCode, c.propertyAddress, c.ownerName]
             .some(v => String(v == null ? '' : v).toLowerCase().includes(search)))
-        : all;
+      );
 
       if(!list.length){
         body.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:24px; color:var(--text-muted);">'
-          + (all.length ? 'No clients match your search.' : 'No clients enrolled yet.')
+          + (all.length ? 'No clients match the selected clerk, status, and search.' : 'No clients enrolled yet.')
           + '</td></tr>';
         return;
       }
@@ -4509,6 +4538,8 @@
     document.getElementById('refreshTeamBtn')?.addEventListener('click', loadTeam);
     document.getElementById('refreshClientsBtn')?.addEventListener('click', loadTeam);
     document.getElementById('clientSearch')?.addEventListener('input', renderClients);
+    document.getElementById('clientClerkFilter')?.addEventListener('change', renderClients);
+    document.getElementById('clientStatusFilter')?.addEventListener('change', renderClients);
 
     /* ==========================================
        PROPERTY INVENTORY — master list backing
