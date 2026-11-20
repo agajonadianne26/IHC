@@ -541,10 +541,6 @@ const state = {
       : '') +
     '<span>' + esc(c.sub) + '</span>' +
     (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') +
-    '<div style="margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap;">' +
-      '<a href="../php/filtered-dues-list.php?type=has_payment" style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; text-decoration: none;">Last Payment Date</a>' +
-      '<a href="../php/filtered-dues-list.php?type=reserved" style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; text-decoration: none;">Last Reserved Date</a>' +
-    '</div>' +
   '</div>'
 ).join('');
 
