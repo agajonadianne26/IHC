@@ -92,6 +92,8 @@
   .dues-kpi[data-card] { cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
   .dues-kpi[data-card]:hover { transform:translateY(-2px); border-color:#fcd34d; box-shadow:0 8px 20px rgba(15,23,42,.10); }
   .dues-kpi[data-card]:focus-visible { outline:2px solid #f59e0b; outline-offset:2px; }
+  .dues-kpi .dues-kpi-more { display:inline-flex; align-items:center; gap:3px; margin-top:8px; font-size:10.5px; font-weight:700; color:#0f172a; opacity:.68; transition:opacity .18s ease; }
+  .dues-kpi[data-card]:hover .dues-kpi-more { opacity:1; }
   .dues-modal { position:fixed; inset:0; z-index:9999; display:none; }
   .dues-modal.open { display:block; }
   .dues-modal-backdrop { position:absolute; inset:0; background:rgba(15,23,42,.55); }
@@ -101,8 +103,10 @@
   .dues-modal-head p { margin:4px 0 0; font-size:12px; color:#64748b; }
   .dues-modal-x { flex-shrink:0; border:0; background:#f1f5f9; width:32px; height:32px; border-radius:8px; font-size:18px; line-height:1; cursor:pointer; color:#475569; }
   .dues-modal-x:hover { background:#e2e8f0; color:#0f172a; }
-  .dues-modal-tools { display:flex; align-items:center; gap:12px; padding:12px 20px; }
-  .dues-modal-tools input { flex:1; height:36px; border:1px solid #e2e8f0; border-radius:8px; padding:0 10px; font:inherit; font-size:12.5px; background:#fff; color:#0f172a; }
+  .dues-modal-tools { display:flex; align-items:center; gap:10px; padding:12px 20px; flex-wrap:wrap; }
+  .dues-modal-tools input { flex:1; min-width:190px; height:36px; border:1px solid #e2e8f0; border-radius:8px; padding:0 10px; font:inherit; font-size:12.5px; background:#fff; color:#0f172a; }
+  .dues-modal-tools select { height:36px; max-width:220px; border:1px solid #e2e8f0; border-radius:8px; padding:0 10px; font:inherit; font-size:12.5px; background:#fff; color:#0f172a; }
+  .dues-modal-tools .dues-btn { height:36px; }
   .dues-modal-tools span { font-size:12px; color:#64748b; white-space:nowrap; }
   .dues-modal-body { flex:1; overflow:auto; padding:0 20px; }
   .dues-modal .dues-table { min-width:720px; }
@@ -123,6 +127,24 @@
   };
   const STATUS = { overdue: 'Overdue', 'due-today': 'Due today', upcoming: 'Upcoming' };
   const PER_PAGE = 25;
+  // Every KPI card opens the accounts behind its money. `field` is the
+  // account property that is summed; `total` is due + arrears.
+  const CARD_DEFS = {
+    actualDue: { title: 'Actual due accounts', field: 'due', amountLabel: 'Due in period' },
+    arrears: { title: 'Arrears accounts', field: 'arrears', amountLabel: 'Arrears' },
+    totalDue: { title: 'Total due accounts', field: 'total', amountLabel: 'Total due' },
+    collected: { title: 'Amount collected accounts', field: 'collected', amountLabel: 'Collected' },
+    unpaid: { title: 'Still unpaid accounts', field: 'balance', amountLabel: 'Unpaid balance' },
+    expected: { title: 'Expected (Excel) accounts', field: 'expected', amountLabel: 'Expected (Excel)' },
+    floating: { title: 'Floating accounts', field: 'needsMonthly', amountLabel: 'Floating balance' }
+  };
+  const accountAmount = (a, field) => {
+    if (!a) return 0;
+    if (field === 'total') {
+      return Number(a.total != null ? a.total : (Number(a.due) || 0) + (Number(a.arrears) || 0)) || 0;
+    }
+    return Number(a[field]) || 0;
+  };
   // Property phases are stored as codes ("1", "2A") or as a building name.
   const phaseLabel = (v) => {
     const s = String(v == null ? '' : v);
@@ -283,13 +305,19 @@
     document.head.appendChild(st);
   }
 
-  // ---- "Still unpaid" accounts modal ---------------------------------
-  // One modal for the whole page: the card hands it the accounts the server
-  // returned for the CURRENT filters, so the list always matches the card.
+  // ---- Card details modal ---------------------------------------------
+  // One modal for the whole page. Every KPI card (Actual due, Arrears,
+  // Total due, Collected, Still unpaid, Expected, Floating) opens it with
+  // the accounts behind that card's money for the CURRENT filters. The
+  // clerk dropdown filters those accounts, and Export Excel downloads the
+  // list as a real .xlsx (CSV fallback).
   const MODAL_PAGE = 25;
   let modalEl = null;
-  let modalState = { q: '', page: 1, sort: { key: 'balance', dir: -1 } };
-  let modalData = { accounts: [], sub: '', scope: '' };
+  let modalState = { q: '', clerk: '', page: 1, sort: { key: 'amount', dir: -1 } };
+  let modalData = {
+    accounts: [], key: 'unpaid', field: 'balance', title: 'Still unpaid accounts',
+    amountLabel: 'Unpaid balance', sub: '', scope: '', periodLabel: '', from: '', to: '', total: 0
+  };
 
   function ensureModal() {
     if (modalEl) return modalEl;
@@ -302,17 +330,19 @@
       '<div class="dues-modal-backdrop" data-close></div>' +
       '<div class="dues-modal-box">' +
         '<div class="dues-modal-head">' +
-          '<div><h3>Still unpaid accounts</h3><p data-el="mSub"></p></div>' +
+          '<div><h3 data-el="mTitle">Accounts</h3><p data-el="mSub"></p></div>' +
           '<button type="button" class="dues-modal-x" data-close aria-label="Close">&times;</button>' +
         '</div>' +
         '<div class="dues-modal-tools">' +
           '<input type="search" data-el="mSearch" placeholder="Search client, account no., Excel code, property or clerk">' +
+          '<select data-el="mClerk" aria-label="Filter by clerk"><option value="">All clerks</option></select>' +
           '<span data-el="mCount"></span>' +
+          '<button type="button" class="dues-btn primary" data-el="mExport">⭳ Export Excel</button>' +
         '</div>' +
         '<div class="dues-modal-body">' +
           '<table class="dues-table"><thead><tr>' +
-            '<th data-sort="client">Client</th><th>Account / Property</th><th>Clerk</th>' +
-            '<th class="num" data-sort="balance">Unpaid balance</th>' +
+            '<th data-sort="client">Client</th><th>Account / Property</th><th data-sort="clerk">Clerk</th>' +
+            '<th class="num" data-sort="amount" data-el="mAmountHead">Amount</th>' +
           '</tr></thead><tbody data-el="mRows"></tbody></table>' +
           '<div class="dues-modal-empty" data-el="mEmpty" hidden>No account matches.</div>' +
         '</div>' +
@@ -328,7 +358,7 @@
         const key = th.dataset.sort;
         modalState.sort = modalState.sort.key === key
           ? { key: key, dir: -modalState.sort.dir }
-          : { key: key, dir: key === 'balance' ? -1 : 1 };
+          : { key: key, dir: key === 'amount' ? -1 : 1 };
         modalState.page = 1;
         renderModal();
       }
@@ -339,6 +369,13 @@
       modalState.page = 1;
       renderModal();
     });
+    const clerk = m.querySelector('[data-el="mClerk"]');
+    clerk.addEventListener('change', () => {
+      modalState.clerk = clerk.value;
+      modalState.page = 1;
+      renderModal();
+    });
+    m.querySelector('[data-el="mExport"]').addEventListener('click', exportModal);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && m.classList.contains('open')) closeModal();
     });
@@ -352,49 +389,106 @@
     document.body.style.overflow = '';
   }
 
-  function openUnpaidModal(accounts, sub, scope, total) {
+  function openCardModal(key, d) {
+    const def = CARD_DEFS[key] || CARD_DEFS.unpaid;
+    const field = def.field;
+    const source = (Array.isArray(d.accountDetails) && d.accountDetails.length)
+      ? d.accountDetails
+      : (d.accounts || []);
+    const accounts = source.filter(a => accountAmount(a, field) > 0.009);
+    const total = accounts.reduce((s, a) => s + accountAmount(a, field), 0);
+    const pLabel = d.period ? fmtDate(d.period.from) + ' – ' + fmtDate(d.period.to) : '';
+    const f = d.filters || {};
+    const scope = [];
+    if (f.phase) scope.push('phase: ' + (f.phase === '__none__' ? 'no phase' : phaseLabel(f.phase)));
+    if (f.perf) scope.push('performance: ' + f.perf);
+    if (f.q) scope.push('search: "' + f.q + '"');
+    if (f.includeOverdue) scope.push('including overdue from earlier');
     const m = ensureModal();
-    modalData = { accounts: accounts || [], sub: sub || '', scope: scope || '', total: total || 0 };
+    modalData = {
+      key: key, field: field, accounts: accounts,
+      title: def.title, amountLabel: def.amountLabel,
+      sub: accounts.length + (accounts.length === 1 ? ' account' : ' accounts')
+        + ' • ' + php(total) + ' • ' + pLabel,
+      scope: scope.join(' • '),
+      periodLabel: pLabel,
+      from: d.period ? d.period.from : '',
+      to: d.period ? d.period.to : '',
+      total: total
+    };
     modalState.q = '';
+    modalState.clerk = '';
     modalState.page = 1;
-    modalState.sort = { key: 'balance', dir: -1 };
+    modalState.sort = { key: 'amount', dir: -1 };
+    m.querySelector('[data-el="mTitle"]').textContent = def.title;
+    m.querySelector('[data-el="mAmountHead"]').textContent = def.amountLabel;
     const search = m.querySelector('[data-el="mSearch"]');
     if (search) search.value = '';
+    // All clerks in the current scope, plus any clerk that appears in the
+    // account list (workbook months may belong to a clerk with no dues row).
+    const clerkMap = {};
+    (d.clerks || []).forEach(c => { clerkMap[c.officerId || '—'] = c.name || 'Unassigned'; });
+    accounts.forEach(a => {
+      const ck = a.officerId || '—';
+      if (!(ck in clerkMap)) clerkMap[ck] = a.clerk || 'Unassigned';
+    });
+    const sel = m.querySelector('[data-el="mClerk"]');
+    sel.innerHTML = ['<option value="">All clerks</option>'].concat(
+      Object.keys(clerkMap)
+        .sort((x, y) => String(clerkMap[x]).localeCompare(String(clerkMap[y])))
+        .map(ck => '<option value="' + esc(ck) + '">' + esc(clerkMap[ck]) + '</option>')
+    ).join('');
+    sel.value = '';
     renderModal();
     m.classList.add('open');
     document.body.style.overflow = 'hidden';
-    const first = m.querySelector('[data-el="mSearch"]');
-    if (first) first.focus();
+    if (search) search.focus();
+  }
+
+  function modalFiltered() {
+    const q = modalState.q.toLowerCase();
+    const clerk = modalState.clerk;
+    const field = modalData.field;
+    let list = (modalData.accounts || []).filter(a => {
+      if (clerk && (a.officerId || '—') !== clerk) return false;
+      if (!q) return true;
+      return [a.client, a.accountCode, a.legacyCode, a.property, a.clerk, a.phase]
+        .some(v => String(v || '').toLowerCase().includes(q));
+    });
+    const key = modalState.sort.key;
+    const dir = modalState.sort.dir;
+    list = list.slice().sort((x, y) => {
+      if (key === 'client') return dir * String(x.client || '').localeCompare(String(y.client || ''));
+      if (key === 'clerk') return dir * String(x.clerk || '').localeCompare(String(y.clerk || ''));
+      return dir * (accountAmount(x, field) - accountAmount(y, field));
+    });
+    const total = list.reduce((s, a) => s + accountAmount(a, field), 0);
+    return { list: list, total: total };
   }
 
   function renderModal() {
     const m = modalEl;
     if (!m) return;
-    const q = modalState.q.toLowerCase();
-    let list = modalData.accounts.filter(a =>
-      !q || [a.client, a.accountCode, a.legacyCode, a.property, a.clerk, a.phase]
-        .some(v => String(v || '').toLowerCase().includes(q)));
-    const key = modalState.sort.key;
-    const dir = modalState.sort.dir;
-    list = list.slice().sort((x, y) => {
-      if (key === 'client') return dir * String(x.client || '').localeCompare(String(y.client || ''));
-      return dir * ((Number(x.balance) || 0) - (Number(y.balance) || 0));
-    });
-
+    const filtered = modalFiltered();
+    const list = filtered.list;
+    const total = filtered.total;
     const pages = Math.max(1, Math.ceil(list.length / MODAL_PAGE));
     if (modalState.page > pages) modalState.page = pages;
     if (modalState.page < 1) modalState.page = 1;
     const rows = list.slice((modalState.page - 1) * MODAL_PAGE, modalState.page * MODAL_PAGE);
-    // Unfiltered, show the card's own figure; when searching, the sum of the
-    // accounts that are actually listed.
-    const total = modalState.q ? list.reduce((s, a) => s + (Number(a.balance) || 0), 0) : (modalData.total || 0);
 
     m.querySelector('[data-el="mSub"]').textContent = modalData.sub + (modalData.scope ? ' • ' + modalData.scope : '');
     m.querySelector('[data-el="mCount"]').textContent = list.length + ' account(s) • ' + php(total);
     const empty = m.querySelector('[data-el="mEmpty"]');
     empty.hidden = list.length > 0;
-    m.querySelector('[data-el="mRows"]').innerHTML = rows.map(a =>
-      '<tr>' +
+    m.querySelector('[data-el="mRows"]').innerHTML = rows.map(a => {
+      const amount = accountAmount(a, modalData.field);
+      const parts = [];
+      if (Number(a.collected) > 0.009) parts.push('collected ' + php(a.collected));
+      if (Number(a.balance) > 0.009) parts.push('unpaid ' + php(a.balance));
+      if (Number(a.expected) > 0.009) parts.push('expected ' + php(a.expected));
+      if (Number(a.needsMonthly) > 0.009) parts.push('floating ' + php(a.needsMonthly));
+      return '<tr>' +
         '<td><strong>' + esc(a.client || '—') + '</strong>' +
           '<span class="dues-sub">' + esc(a.performance || '—') + (a.phase ? ' • ' + esc(phaseLabel(a.phase)) : '') + '</span>' +
           (a.lastPayment ? '<span class="dues-sub">last payment ' + fmtDate(a.lastPayment) + '</span>' : '') + '</td>' +
@@ -402,16 +496,56 @@
           (a.legacyCode ? '<span class="dues-sub">' + esc(a.legacyCode) + '</span>' : '') +
           '<span class="dues-sub">' + esc(a.property || '—') + '</span></td>' +
         '<td>' + esc(a.clerk || 'Unassigned') + '</td>' +
-        '<td class="num"><strong>' + php(a.balance || 0) + '</strong>' +
+        '<td class="num"><strong>' + php(amount) + '</strong>' +
           '<span class="dues-sub">due ' + php(a.due || 0) + ' • arrears ' + php(a.arrears || 0) + '</span>' +
+          (parts.length ? '<span class="dues-sub">' + esc(parts.join(' • ')) + '</span>' : '') +
           (a.oldestDue ? '<span class="dues-sub">oldest due ' + fmtDate(a.oldestDue) + '</span>' : '') + '</td>' +
-      '</tr>').join('');
+      '</tr>';
+    }).join('');
     m.querySelector('[data-el="mPager"]').innerHTML = list.length > MODAL_PAGE
       ? '<span>Showing ' + ((modalState.page - 1) * MODAL_PAGE + 1) + '–' + Math.min(list.length, modalState.page * MODAL_PAGE) + ' of ' + list.length + '</span><div>' +
         '<button type="button" data-go="' + (modalState.page - 1) + '"' + (modalState.page <= 1 ? ' disabled' : '') + '>‹ Prev</button>' +
         '<span style="margin:0 6px;">Page ' + modalState.page + ' of ' + pages + '</span>' +
         '<button type="button" data-go="' + (modalState.page + 1) + '"' + (modalState.page >= pages ? ' disabled' : '') + '>Next ›</button></div></div>'
       : (list.length ? '<span>Showing all ' + list.length + ' account(s)</span><div></div>' : '');
+  }
+
+  function exportModal() {
+    if (!modalData.accounts) return;
+    const filtered = modalFiltered();
+    const list = filtered.list;
+    const sel = modalEl && modalEl.querySelector('[data-el="mClerk"]');
+    const clerkName = sel && sel.value
+      ? ((sel.options[sel.selectedIndex] || {}).text || sel.value)
+      : 'All clerks';
+    const L = [];
+    L.push(csvLine(['DUES & PERFORMANCE — ' + String(modalData.title || '').toUpperCase()]));
+    L.push(csvLine(['Card', modalData.title]));
+    L.push(csvLine(['Period', modalData.periodLabel]));
+    if (modalData.scope) L.push(csvLine(['Scope', modalData.scope]));
+    L.push(csvLine(['Clerk', clerkName]));
+    if (modalState.q) L.push(csvLine(['Search', modalState.q]));
+    L.push(csvLine(['Generated', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })]));
+    L.push('');
+    const header = ['No.', 'Client', 'Account no.', 'Excel code', 'Property', 'Phase', 'Clerk', 'Performance',
+      'Due in period (PHP)', 'Arrears (PHP)', 'Total due (PHP)', 'Collected (PHP)', 'Unpaid balance (PHP)',
+      'Expected Excel (PHP)', 'Floating account (PHP)', 'Installments', 'Oldest due', 'Last payment'];
+    L.push(csvLine(header));
+    list.forEach((a, i) => L.push(csvLine([
+      i + 1, a.client || '', a.accountCode || '', a.legacyCode || '', a.property || '',
+      a.phase ? phaseLabel(a.phase) : '', a.clerk || 'Unassigned', a.performance || '',
+      money(a.due || 0), money(a.arrears || 0),
+      money(a.total != null ? a.total : (Number(a.due) || 0) + (Number(a.arrears) || 0)),
+      money(a.collected || 0), money(a.balance || 0), money(a.expected || 0), money(a.needsMonthly || 0),
+      a.installments || 0, a.oldestDue ? fmtDate(a.oldestDue) : '', a.lastPayment ? fmtDate(a.lastPayment) : ''
+    ])));
+    const col = { due: 8, arrears: 9, total: 10, collected: 11, balance: 12, expected: 13, needsMonthly: 14 }[modalData.field];
+    const totalRow = new Array(header.length).fill('');
+    totalRow[1] = 'TOTAL';
+    if (col != null) totalRow[col] = money(filtered.total);
+    L.push(csvLine(totalRow));
+    const tag = String(modalData.key || 'accounts');
+    downloadCsv('dues_' + tag + '_' + (modalData.from || '') + '_to_' + (modalData.to || '') + '.csv', L);
   }
 
   function mount(root, opts) {
@@ -523,17 +657,17 @@ const state = {
       const unpaidSub = viewAccounts + ' in the Clients due list'
         + (olderOnly > 0 ? ' • ' + olderOnly + ' owing only from earlier periods' : '');
       $('kpis').innerHTML = [
-  { k: '#3b82f6', label: 'Actual due', amount: php(t.actualDue || 0), sub: 'scheduled in this period' },
-  { k: '#f43f5e', label: 'Arrears', amount: php(t.arrears || 0), sub: 'unpaid as of ' + fmtDate(d.period.from) },
-  { k: '#8b5cf6', label: 'Total due', amount: php(t.totalDue || 0), sub: 'actual due + arrears' },
-  { k: '#10b981', label: 'Amount collected', amount: php(t.collected || 0), sub: (rate == null ? '—' : rate + '%') + ' of total due • ' + (t.collectedCount || 0) + ' account(s)', meter: rate },
+  { k: '#3b82f6', label: 'Actual due', amount: php(t.actualDue || 0), sub: 'scheduled in this period', action: 'actualDue' },
+  { k: '#f43f5e', label: 'Arrears', amount: php(t.arrears || 0), sub: 'unpaid as of ' + fmtDate(d.period.from), action: 'arrears' },
+  { k: '#8b5cf6', label: 'Total due', amount: php(t.totalDue || 0), sub: 'actual due + arrears', action: 'totalDue' },
+  { k: '#10b981', label: 'Amount collected', amount: php(t.collected || 0), sub: (rate == null ? '—' : rate + '%') + ' of total due • ' + (t.collectedCount || 0) + ' account(s)', meter: rate, action: 'collected' },
   { k: '#f59e0b', label: 'Still unpaid', amount: php(t.stillUnpaid || 0),
     count: unpaidAccounts, countLabel: unpaidLabel,
     sub: unpaidSub, action: 'unpaid' },
-  { k: '#0ea5e9', label: 'Expected (Excel)', amount: php(t.expectedAmount || 0), sub: (t.expectedCount || 0) + ' account(s) • JAN–DEC projection' },
-  { k: '#64748b', label: 'Floating account', amount: php(t.needsMonthlyBalance || 0), sub: (t.needsMonthlyCount || 0) + ' account(s) • no monthly yet, not in dues' },
+  { k: '#0ea5e9', label: 'Expected (Excel)', amount: php(t.expectedAmount || 0), sub: (t.expectedCount || 0) + ' account(s) • JAN–DEC projection', action: 'expected' },
+  { k: '#64748b', label: 'Floating account', amount: php(t.needsMonthlyBalance || 0), sub: (t.needsMonthlyCount || 0) + ' account(s) • no monthly yet, not in dues', action: 'floating' },
 ].map(c =>
-  '<div class="dues-kpi" style="--k:' + c.k + ';"' + (c.action === 'unpaid' ? ' data-card="unpaid" role="button" tabindex="0" aria-label="Show the accounts with an unpaid balance"' : '') + '>' +
+  '<div class="dues-kpi" style="--k:' + c.k + ';"' + (c.action ? ' data-card="' + c.action + '" role="button" tabindex="0" aria-label="Show the accounts behind ' + esc(c.label) + '"' : '') + '>' +
     '<small>' + esc(c.label) + (c.tag ? '<em>' + esc(c.tag) + '</em>' : '') + '</small>' +
     '<strong>' + esc(c.amount) + '</strong>' +
     (c.count != null
@@ -541,6 +675,7 @@ const state = {
       : '') +
     '<span>' + esc(c.sub) + '</span>' +
     (c.meter != null ? '<div class="meter"><i style="width:' + Math.min(100, c.meter) + '%"></i></div>' : '') +
+    (c.action ? '<span class="dues-kpi-more">View accounts ›</span>' : '') +
   '</div>'
 ).join('');
 
@@ -768,30 +903,22 @@ const state = {
       qTimer = setTimeout(() => refresh(), 300);
     });
         $('refresh').addEventListener('click', refresh);
-    // The "Still unpaid" card opens the accounts behind the money.
-    const openUnpaid = () => {
+    // Every KPI card opens the accounts behind its money.
+    const openCard = (card) => {
       const d = state.data;
       if (!d) return;
-      const t = d.totals || {};
-      const f = d.filters || {};
-      const scope = [];
-      if (f.phase) scope.push('phase: ' + (f.phase === '__none__' ? 'no phase' : phaseLabel(f.phase)));
-      if (f.perf) scope.push('performance: ' + f.perf);
-      if (f.q) scope.push('search: "' + f.q + '"');
-      const n = Number(t.stillUnpaidCount || 0);
-      const sub = n + (n === 1 ? ' account' : ' accounts') + ' • ' + php(t.stillUnpaid || 0) + ' • ' + periodLabel();
-      openUnpaidModal(d.accounts || [], sub, scope.join(' • '), Number(t.stillUnpaid || 0));
+      openCardModal(card.dataset.card, d);
     };
     $('kpis').addEventListener('click', (e) => {
-      const card = e.target.closest('[data-card="unpaid"]');
-      if (card) openUnpaid();
+      const card = e.target.closest('[data-card]');
+      if (card) openCard(card);
     });
     $('kpis').addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      const card = e.target.closest('[data-card="unpaid"]');
+      const card = e.target.closest('[data-card]');
       if (!card) return;
       e.preventDefault();
-      openUnpaid();
+      openCard(card);
     });
     $('csv').addEventListener('click', exportCsv);
     $('pager').addEventListener('click', (e) => {

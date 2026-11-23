@@ -610,7 +610,7 @@ try {
         $clerkBalanceKeys = [];   // per clerk
         $viewKeys = [];           // global: accounts listed in the table
         $clerkViewKeys = [];      // per clerk
-        $accounts = [];           // account detail for the "Still unpaid" list
+        $accounts = [];           // account detail behind every period card
 
         // Excel-style figures (match the collection workbook's header row):
         //   actualDue = scheduled amounts falling in the period,
@@ -742,12 +742,14 @@ try {
                     'property' => (string)($c['property_address'] ?? ''), 'phase' => $ph,
                     'officerId' => $oid, 'clerk' => (string)($c['clerk_name'] ?? '') ?: 'Unassigned',
                     'performance' => $perf['label'],
-                    'due' => 0.0, 'arrears' => 0.0, 'collected' => 0.0, 'balance' => 0.0,
+                    'due' => 0.0, 'arrears' => 0.0, 'total' => 0.0, 'collected' => 0.0, 'balance' => 0.0,
+                    'expected' => 0.0, 'needsMonthly' => 0.0,
                     'installments' => 0, 'oldestDue' => null, 'lastPayment' => null,
                 ];
             }
             $accounts[$akey]['due'] += $cDue;
             $accounts[$akey]['arrears'] += $cArr;
+            $accounts[$akey]['total'] += $cDue + $cArr;
             $accounts[$akey]['collected'] += $cCol;
             $accounts[$akey]['balance'] += $cUnpaid;
             foreach ($allPays as $p) {
@@ -770,6 +772,7 @@ try {
             if (!empty($c['needs_monthly'])) {
                 $k['needsMonthlyCount']++; $totals['needsMonthlyCount']++;
                 $k['needsMonthlyBalance'] += (float)$built['outstanding']; $totals['needsMonthlyBalance'] += (float)$built['outstanding'];
+                $accounts[$akey]['needsMonthly'] += (float)$built['outstanding'];
             }
             $proj = json_decode((string)($c['legacy_projection'] ?? ''), true);
             if (is_array($proj) && $proj) {
@@ -782,6 +785,7 @@ try {
                     if ($d < $from || $d > $to) continue;
                     $k['expectedCount']++; $k['expectedAmount'] += $amt;
                     $totals['expectedCount']++; $totals['expectedAmount'] += $amt;
+                    $accounts[$akey]['expected'] += $amt;
                 }
             }
 
@@ -910,12 +914,14 @@ try {
                         'phase' => $sph,
                         'officerId' => $oid, 'clerk' => (string)($s['full_name'] ?? '') ?: 'Unassigned',
                         'performance' => '—',
-                        'due' => 0.0, 'arrears' => 0.0, 'collected' => 0.0, 'balance' => 0.0,
+                        'due' => 0.0, 'arrears' => 0.0, 'total' => 0.0, 'collected' => 0.0, 'balance' => 0.0,
+                        'expected' => 0.0, 'needsMonthly' => 0.0,
                         'installments' => 0, 'oldestDue' => null, 'lastPayment' => null,
                     ];
                 }
                 $accounts[$sKey]['due'] += $sDue;
                 $accounts[$sKey]['arrears'] += $sArr;
+                $accounts[$sKey]['total'] += $sTot;
                 $accounts[$sKey]['collected'] += $sCol;
                 $accounts[$sKey]['balance'] += max(0.0, $sTot - $sCol);
                 if ((string)($s['due_date'] ?? '') !== '' && ($accounts[$sKey]['oldestDue'] === null || (string)$s['due_date'] < $accounts[$sKey]['oldestDue'])) {
@@ -980,6 +986,26 @@ try {
             return strcasecmp((string)$x['client'], (string)$y['client']);
         });
 
+        // Every account behind the period cards (Actual due, Arrears, Total
+        // due, Collected, Still unpaid, Expected Excel, Floating account).
+        // The client filters this list per card, so all the money figures and
+        // their account counts always match the cards.
+        $accountDetails = [];
+        foreach ($accounts as $a) {
+            foreach (['due', 'arrears', 'total', 'collected', 'balance', 'expected', 'needsMonthly'] as $f) {
+                $a[$f] = round((float)$a[$f], 2);
+            }
+            $active = false;
+            foreach (['due', 'arrears', 'total', 'collected', 'balance', 'expected', 'needsMonthly'] as $f) {
+                if ($a[$f] > 0.009) { $active = true; break; }
+            }
+            if ($active) $accountDetails[] = $a;
+        }
+        usort($accountDetails, function ($x, $y) {
+            if ($x['balance'] !== $y['balance']) return $y['balance'] <=> $x['balance'];
+            return strcasecmp((string)$x['client'], (string)$y['client']);
+        });
+
         echo json_encode([
             'success' => true,
             'today' => $today,
@@ -991,6 +1017,7 @@ try {
             'clerks' => $clerkList,
             'rows' => $rows,
             'accounts' => $accountList,
+            'accountDetails' => $accountDetails,
         ]);
         exit;
     }
