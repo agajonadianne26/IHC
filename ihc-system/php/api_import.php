@@ -241,6 +241,25 @@ function imp_analyze(PDO $pdo, array $officer, array $headers, array $rows, arra
         $existingByKey[imp_key((string)$e['client_name'], (string)$e['property_address'])] = (int)$e['id'];
     }
 
+    // Re-uploads: what an existing imported account holds now, so a row that
+    // is already in the system becomes an UPDATE (Excel wins) instead of an error.
+    $existingInfo = [];
+    foreach ($pdo->query('SELECT id, officer_id, is_legacy, opening_balance, opening_balance_as_of, monthly_amortization,
+                                 needs_monthly, start_date, account_status, account_remarks, legacy_data
+                          FROM contracts WHERE is_legacy = 1') as $e) {
+        $existingInfo[(int)$e['id']] = $e;
+    }
+    $postedCount = [];   // contract id => payments posted in the system (not from the Excel)
+    $importedPays = [];  // contract id => 'Imported (Excel)' payments
+    foreach ($pdo->query('SELECT id, contract_id, amount, date_collected, or_number, payment_method FROM payments ORDER BY id') as $p) {
+        if (!preg_match('/(\d+)\s*$/', (string)$p['contract_id'], $m)) continue;
+        $cid = (int)$m[1];
+        if ((string)$p['payment_method'] === 'Imported (Excel)') $importedPays[$cid][] = $p;
+        else $postedCount[$cid] = ($postedCount[$cid] ?? 0) + 1;
+    }
+    $cutFirstDay = imp_ymd($cutY, $cutM, 1);
+    $cutLastDay = date('Y-m-t', strtotime($cutFirstDay));
+
     // Bank default rates (snapshotted like the New Contract form does).
     $rates = [];
     try {
@@ -454,13 +473,64 @@ function imp_analyze(PDO $pdo, array $officer, array $headers, array $rows, arra
         }
         if ($legacyCode !== '' && isset($existingByCode[$legacyCode])) $existingId = $existingByCode[$legacyCode];
         elseif (!$allowDup && isset($existingByKey[imp_key($name, $propertyAddress)])) $existingId = $existingByKey[imp_key($name, $propertyAddress)];
-        if ($existingId !== null) $errors[] = 'Already in the system as CON-' . $existingId . '.';
-
         // Original row, nothing dropped.
         $raw = [];
         foreach ($cells as $i => $v) {
             $s = imp_str($v);
             if ($s !== '') $raw[$labels[$i] ?? ('Column ' . ($i + 1))] = is_int($v) || is_float($v) ? $v : $s;
+        }
+
+        // Already in the system: re-uploading the workbook UPDATES the account
+        // (AR balance, monthly and the Excel's collection) — the Excel wins.
+        $update = null;
+        if ($existingId !== null) {
+            $ex = $existingInfo[$existingId] ?? null;
+            $exAsOf = $ex ? substr((string)$ex['opening_balance_as_of'], 0, 7) . '-01' : '';
+            if (!$ex) {
+                $errors[] = 'Already in the system as CON-' . $existingId . ' (entered by hand, not imported) — update it from the Clients page.';
+            } elseif ((string)$ex['officer_id'] !== (string)$officer['id']) {
+                $errors[] = 'Already in the system as CON-' . $existingId . ' under another clerk.';
+            } elseif ($exAsOf === '-01' || $exAsOf > $cutFirstDay) {
+                $errors[] = 'CON-' . $existingId . ' already has a newer balance (as of ' . ($exAsOf !== '-01' ? date('F Y', strtotime($exAsOf)) : '?') . ') than this file.';
+            } elseif (!empty($postedCount[$existingId])) {
+                $errors[] = 'CON-' . $existingId . ' has ' . $postedCount[$existingId] . ' payment(s) posted in the system since the import — the Excel cannot overwrite it. Update it from the Clients page.';
+            } else {
+                $mode = $exAsOf === $cutFirstDay ? 'same' : 'newer';
+                $changes = [];
+                $peso = fn($v) => number_format((float)$v, 2);
+                $newBal = $balance !== null ? round($balance, 2) : 0.0;
+                $oldBal = round((float)$ex['opening_balance'], 2);
+                if ($mode === 'newer') $changes[] = 'Balance moves to ' . date('F Y', strtotime($cutFirstDay)) . ' (was as of ' . date('F Y', strtotime($exAsOf)) . ').';
+                if (abs($newBal - $oldBal) > 0.009) $changes[] = 'AR balance ' . $peso($oldBal) . ' → ' . $peso($newBal) . '.';
+                $oldMo = $ex['monthly_amortization'] !== null ? round((float)$ex['monthly_amortization'], 2) : 0.0;
+                if (abs($monthly - $oldMo) > 0.009) $changes[] = 'Monthly ' . $peso($oldMo) . ' → ' . $peso($monthly) . '.';
+                if (substr((string)$ex['start_date'], 0, 10) !== $startDate) {
+                    $changes[] = 'First due ' . date('Y-m-d', strtotime(substr((string)$ex['start_date'], 0, 10) . ' +1 month')) . ' → ' . $firstDue . '.';
+                }
+                // The Excel's collection for this month vs the imported one.
+                $inMonth = array_values(array_filter($importedPays[$existingId] ?? [], fn($p) => (string)$p['date_collected'] >= $cutFirstDay && substr((string)$p['date_collected'], 0, 10) <= $cutLastDay));
+                $oldPaid = array_sum(array_map(fn($p) => (float)$p['amount'], $inMonth));
+                $samePay = $payment
+                    ? (count($inMonth) === 1 && abs((float)$inMonth[0]['amount'] - $payment['amount']) < 0.01
+                        && substr((string)$inMonth[0]['date_collected'], 0, 10) === $payment['date'] && (string)$inMonth[0]['or_number'] === $payment['orNumber'])
+                    : !$inMonth;
+                if (!$samePay) {
+                    $changes[] = $payment
+                        ? 'Collected ' . $peso($oldPaid) . ' → ' . $peso($payment['amount']) . ' (' . $payment['date'] . ', ' . $payment['orNumber'] . ').'
+                        : 'Collected ' . $peso($oldPaid) . ' → none (the Excel has no collection).';
+                }
+                if ((int)$ex['needs_monthly'] !== ($errors && count($errors) === $soft ? 1 : 0)) {
+                    $changes[] = $errors && count($errors) === $soft ? 'Becomes "Needs monthly".' : 'No longer "Needs monthly".';
+                }
+                $oldRaw = json_decode((string)$ex['legacy_data'], true) ?: [];
+                if (!$changes && $oldRaw != $raw) $changes[] = 'Other Excel details changed (due, arrears, status…).';
+                $update = ['contractId' => $existingId, 'mode' => $mode, 'changes' => $changes, 'unchanged' => !$changes,
+                           'paymentChanged' => !$samePay,
+                           'replacePaymentIds' => $samePay ? [] : array_map(fn($p) => (int)$p['id'], $inMonth)];
+                $info[] = $changes
+                    ? 'Already in the system as CON-' . $existingId . ' — will be UPDATED from this file: ' . implode(' ', $changes)
+                    : 'Already in the system as CON-' . $existingId . ' — no changes in this file.';
+            }
         }
 
         // Blocked only by a missing monthly / balance (or an impossible term):
@@ -510,6 +580,8 @@ function imp_analyze(PDO $pdo, array $officer, array $headers, array $rows, arra
             'startDate' => $startDate,
             'payment' => $payment,
             'existingContractId' => $existingId,
+            // Set when the row will update that existing account instead.
+            'update' => $update,
             // Blocked only by amounts the clerk can type in the preview.
             'fixable' => $needsMonthly,
             'needsMonthly' => $needsMonthly,
@@ -575,6 +647,125 @@ function imp_post_import_activity(PDO $pdo, array $ids): array {
         } catch (Throwable $e) { /* table not present */ }
     }
     return $found;
+}
+
+/** Keep an account's previous workbook month in legacy_month_snapshots before
+ *  its balance moves to a newer month, so Dues for that month stays equal to
+ *  the Excel. Collected stays 0 here: that month's cash is still in payments. */
+function imp_snapshot_previous_month(PDO $pdo, array $c, string $officerId): void {
+    // (The table is created by the caller BEFORE its transaction: DDL would
+    // silently commit it in MySQL.)
+    $first = substr((string)$c['opening_balance_as_of'], 0, 7) . '-01';
+    $month = substr($first, 0, 7);
+    $st = $pdo->prepare('SELECT COUNT(*) FROM legacy_month_snapshots WHERE officer_id = ? AND month = ? AND contract_id = ?');
+    $st->execute([$officerId, $month, (int)$c['id']]);
+    if ((int)$st->fetchColumn() > 0) return;
+    $L = json_decode((string)($c['legacy_data'] ?? ''), true) ?: [];
+    $n = fn($x) => is_numeric($x = preg_replace('/[^0-9.\-]/', '', (string)$x)) ? (float)$x : 0.0;
+    $label = 'ACTUAL DUE ' . strtoupper(date('F', strtotime($first)));
+    $due = 0.0; $arr = 0.0; $tot = null; $seen = false; $gotArr = false;
+    foreach ($L as $key => $v) {
+        $K = strtoupper(trim((string)$key));
+        if (!$seen) { if ($K === $label) { $seen = true; $due = $n($v); } continue; }
+        if (!$gotArr && strpos($K, 'ARREARS') === 0) { $arr = $n($v); $gotArr = true; continue; }
+        if (strpos($K, 'TOTAL DUE') === 0) { $tot = $n($v); break; }
+    }
+    $day = (int)$n($L['Due Date'] ?? 0) ?: (int)substr((string)$c['start_date'], 8, 2) ?: 1;
+    $last = date('Y-m-t', strtotime($first));
+    $dueDate = substr($first, 0, 8) . sprintf('%02d', min($day, (int)substr($last, 8, 2)));
+    $pdo->prepare('INSERT INTO legacy_month_snapshots (officer_id, month, contract_id, legacy_code, client_name, property, account_status,
+                   ar_balance, actual_due, arrears, total_due, collected, due_date, pay_date, source_file, row_no)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,NULL,?,NULL)')
+        ->execute([$officerId, $month, (int)$c['id'], $c['legacy_code'] ?: null, (string)$c['client_name'], $c['property_address'],
+                   $c['account_status'], (float)$c['opening_balance'], $due, $arr, $tot, $dueDate, 'kept when re-imported']);
+}
+
+/** Apply a re-upload to an account that is already in the system (Excel wins):
+ *  balance, monthly, terms, first due, Excel details and the month's collection.
+ *  Runs inside the caller's transaction; returns the before/after for the audit. */
+function imp_apply_update(PDO $pdo, array $r, array $cutoff, string $officerId, string $fileLabel): array {
+    $u = $r['update'];
+    $cid = (int)$u['contractId'];
+    $st = $pdo->prepare('SELECT * FROM contracts WHERE id = ? FOR UPDATE');
+    $st->execute([$cid]);
+    $c = $st->fetch();
+    if (!$c || (string)$c['officer_id'] !== $officerId || (int)$c['is_legacy'] !== 1) {
+        throw new RuntimeException('CON-' . $cid . ' is not one of your imported accounts. Nothing was saved.');
+    }
+    $posted = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE contract_id IN (?, ?, ?) AND (payment_method IS NULL OR payment_method <> 'Imported (Excel)')");
+    $posted->execute(['CON-' . $cid, (string)$cid, 'IHC-' . $cid]);
+    if ((int)$posted->fetchColumn() > 0) {
+        throw new RuntimeException('CON-' . $cid . ' got a payment posted in the system while you were importing. Nothing was saved — upload the file again.');
+    }
+
+    if ($u['mode'] === 'newer') {
+        imp_snapshot_previous_month($pdo, $c, $officerId);
+        // The new AR balance already reflects the earlier imported collections:
+        // keep them as cash history but stop them reducing the new schedule.
+        $alloc = $pdo->prepare(
+            "INSERT IGNORE INTO payment_allocations (payment_id, contract_id, installment_kind, installment_no, allocated_amount, principal_amount)
+             VALUES (?, ?, 'opening_balance', NULL, 0, 0)"
+        );
+        foreach (imp_imported_payments($pdo, $cid) as $p) {
+            $has = $pdo->prepare('SELECT COUNT(*) FROM payment_allocations WHERE payment_id = ?');
+            $has->execute([(int)$p['id']]);
+            if ((int)$has->fetchColumn() === 0) $alloc->execute([(int)$p['id'], $cid]);
+        }
+    }
+
+    $nm = !empty($r['needsMonthly']);
+    $bal = $r['openingBalance'] !== null ? max(0.0, (float)$r['openingBalance']) : 0.0;
+    $email = (string)($r['email'] ?? '') !== '' ? $r['email'] : (string)$c['email'];
+    $phone = (string)($r['phone'] ?? '') !== '' ? $r['phone'] : (string)$c['cellphone_number'];
+    $pdo->prepare(
+        'UPDATE contracts SET total_contract_price = ?, opening_balance = ?, opening_balance_as_of = ?, monthly_amortization = ?,
+                installment_terms = ?, start_date = ?, needs_monthly = ?, legacy_data = ?, legacy_projection = ?,
+                account_status = ?, account_remarks = ?, email = ?, cellphone_number = ?, needs_completion = ?
+         WHERE id = ?'
+    )->execute([
+        $bal, $bal, $cutoff['asOf'], $nm && $r['monthly'] <= 0.009 ? null : $r['monthly'],
+        $nm ? 1 : $r['terms'], $r['startDate'], $nm ? 1 : 0,
+        json_encode($r['raw'], JSON_UNESCAPED_UNICODE), json_encode($r['projection'] ?: new stdClass()),
+        $r['status'], $r['remarks'], $email, $phone, ($email === '' || $phone === '') ? 1 : 0,
+        $cid,
+    ]);
+
+    $paymentAdded = false;
+    if (!empty($u['paymentChanged'])) {
+        $ids = array_map('intval', $u['replacePaymentIds'] ?? []);
+        if ($ids) {
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $pdo->prepare("DELETE FROM payment_allocations WHERE payment_id IN ($ph)")->execute($ids);
+            $pdo->prepare("DELETE FROM payments WHERE id IN ($ph) AND payment_method = 'Imported (Excel)'")->execute($ids);
+        }
+        if ($r['payment']) {
+            $p = $r['payment'];
+            $pdo->prepare(
+                'INSERT INTO payments (contract_id, amount, payment_method, date_collected, or_number, remarks, posted_by,
+                                       invoice_number, installment_kind, installment_no, receipt_requested)
+                 VALUES (?,?,?,?,?,?,?,?,NULL,NULL,0)'
+            )->execute([
+                'CON-' . $cid, $p['amount'], 'Imported (Excel)', $p['date'], $p['orNumber'],
+                'Imported from the collection Excel (' . $cutoff['label'] . ' collection, updated' . ($fileLabel !== '' ? ' from ' . $fileLabel : '') . ')'
+                    . ($p['orNumber'] === 'FOR OR' ? ' — OR not yet issued' : ''),
+                $officerId,
+                $p['orNumber'] !== 'FOR OR' ? $p['orNumber'] : null,
+            ]);
+            $paymentAdded = true;
+        }
+    }
+    if (!empty($c['import_batch_id'])) imp_refresh_batch_totals($pdo, (int)$c['import_batch_id']);
+
+    return [
+        'contractId' => $cid,
+        'mode' => $u['mode'],
+        'changes' => $u['changes'],
+        'before' => ['balance' => (float)$c['opening_balance'], 'asOf' => $c['opening_balance_as_of'],
+                     'monthly' => $c['monthly_amortization'] !== null ? (float)$c['monthly_amortization'] : null,
+                     'startDate' => $c['start_date'], 'needsMonthly' => (int)$c['needs_monthly']],
+        'after' => ['balance' => $bal, 'asOf' => $cutoff['asOf'], 'monthly' => $r['monthly'], 'startDate' => $r['startDate'], 'needsMonthly' => $nm ? 1 : 0],
+        'paymentAdded' => $paymentAdded,
+    ];
 }
 
 /** Re-count a batch's accounts/payments/totals after an edit. */
@@ -1071,11 +1262,25 @@ try {
     $problems = [];
     $skipped = []; // this clerk's rows that will NOT be imported, with the reason
     $alreadyIn = 0; // this clerk's rows that were imported earlier
+    $toUpdate = []; // of those, the ones this file changes (Excel wins)
     foreach ($result['rows'] as $r) {
         $ov = is_array($overrides[(string)$r['n']] ?? null) ? $overrides[(string)$r['n']] : [];
         $include = array_key_exists('include', $ov) ? (bool)$ov['include'] : $r['level'] !== 'error';
-        // Rows already in the system are not "missing" — count them only.
-        if ($r['existingContractId']) { $alreadyIn++; continue; }
+        // Rows already in the system are not "missing": update them when the
+        // file changed something, otherwise just count them.
+        if ($r['existingContractId']) {
+            $alreadyIn++;
+            if ($include && $r['level'] !== 'error' && !empty($r['update']) && empty($r['update']['unchanged'])) {
+                $email = strtolower(trim((string)($ov['email'] ?? '')));
+                if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) { $problems[] = 'Row ' . $r['n'] . ': invalid email.'; continue; }
+                $phone = imp_phone((string)($ov['phone'] ?? ''));
+                if ($phone === null) { $problems[] = 'Row ' . $r['n'] . ': cellphone must be 09XXXXXXXXX.'; continue; }
+                $r['email'] = $email;
+                $r['phone'] = $phone;
+                $toUpdate[] = $r;
+            }
+            continue;
+        }
         if (!$include || $r['level'] === 'error') {
             $skipped[] = [
                 'n' => $r['n'],
@@ -1102,7 +1307,7 @@ try {
         echo json_encode(['success' => false, 'message' => 'Fix these rows first: ' . implode(' | ', array_slice($problems, 0, 8)) . (count($problems) > 8 ? ' …' : ''), 'problems' => $problems]);
         exit;
     }
-    if (!$toImport) imp_fail('No rows selected for import.');
+    if (!$toImport && !$toUpdate) imp_fail('No rows selected — every account in this file is already in the system with the same figures.');
     if (($data['reconciled'] ?? false) !== true) {
         imp_fail('Check the totals against your Excel and tick "These totals match my Excel" before importing.');
     }
@@ -1138,8 +1343,40 @@ try {
          VALUES (?,?,?,?,?,?,?,?,NULL,NULL,0)'
     );
 
+    // DDL commits implicitly in MySQL, so self-heal tables before the transaction.
+    if ($toUpdate) ihc_ensure_month_snapshots($pdo);
+
     $pdo->beginTransaction();
     try {
+        // Existing accounts first (no batch needed when only updating).
+        $updated = []; $updatePayments = 0;
+        foreach ($toUpdate as $r) {
+            $res = imp_apply_update($pdo, $r, $result['cutoff'], $officerId, $fileName);
+            $updated[] = $res;
+            if ($res['paymentAdded']) $updatePayments++;
+        }
+        if ($updated) {
+            try {
+                $pdo->prepare(
+                    'INSERT INTO audit_logs (action, contract_id, from_status, to_status, actor_id, actor_name, details)
+                     VALUES (?,?,?,?,?,?,?)'
+                )->execute(['contracts.import_updated', null, null, null, $officerId, (string)$officer['full_name'],
+                    json_encode(['cutoff' => $result['cutoff']['label'], 'file' => $fileName, 'accounts' => $updated], JSON_UNESCAPED_UNICODE)]);
+            } catch (Throwable $e) { /* audit is best-effort */ }
+        }
+
+        if (!$toImport) {
+            $pdo->commit();
+            $nu = count($updated);
+            echo json_encode([
+                'success' => true,
+                'message' => $nu . ' existing account' . ($nu === 1 ? '' : 's') . ' updated from the Excel (balance, monthly and collection).',
+                'batchId' => null, 'imported' => 0, 'updated' => $nu,
+                'payments' => $updatePayments, 'incomplete' => 0, 'unitsCreated' => 0,
+            ]);
+            exit;
+        }
+
         $pdo->prepare(
             "INSERT INTO import_batches (officer_id, status, file_name, cutoff_label, as_of)
              VALUES (?, 'FOR_VERIFICATION', ?, ?, ?)"
@@ -1265,10 +1502,13 @@ try {
 
     echo json_encode([
         'success' => true,
-        'message' => $imported . ' account' . ($imported === 1 ? '' : 's') . ' imported as batch #' . $batchId . ' — review and confirm it below.',
+        'message' => $imported . ' account' . ($imported === 1 ? '' : 's') . ' imported as batch #' . $batchId
+            . ($updated ? ', ' . count($updated) . ' existing account' . (count($updated) === 1 ? '' : 's') . ' updated' : '')
+            . ' — review and confirm it below.',
         'batchId' => $batchId,
         'imported' => $imported,
-        'payments' => $paymentsAdded,
+        'updated' => count($updated),
+        'payments' => $paymentsAdded + $updatePayments,
         'incomplete' => $incomplete,
         'unitsCreated' => $unitsCreated,
     ]);

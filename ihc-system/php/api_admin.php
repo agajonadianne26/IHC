@@ -611,6 +611,7 @@ try {
         $viewKeys = [];           // global: accounts listed in the table
         $clerkViewKeys = [];      // per clerk
         $accounts = [];           // account detail behind every period card
+        $cashSurplus = [];        // account key => period cash not used by its schedule
 
         // Excel-style figures (match the collection workbook's header row):
         //   actualDue = scheduled amounts falling in the period,
@@ -727,6 +728,10 @@ try {
                 if ($pd >= $from && $pd <= $to) $cCol += (float)($p['cash'] ?? $p['amount'] ?? 0);
             }
             $cUnpaid = max(0.0, $cDue + $cArr - $cCol);
+            // Cash left over is credited against the same account's workbook
+            // month below (a month kept in legacy_month_snapshots when the
+            // account's balance moved to a newer Excel month).
+            $cashSurplus['C:' . $cid] = max(0.0, $cCol - $cDue - $cArr);
             // An account counts once, no matter how many installments or
             // workbook months land on it.
             if ($cUnpaid > 0.009) {
@@ -900,7 +905,10 @@ try {
                 $sKey = ($s['contract_id'] !== null && $s['contract_id'] !== '')
                     ? 'C:' . (int)$s['contract_id']
                     : 'L:' . trim((string)($s['legacy_code'] ?? '')) . '#' . $s['month'];
-                if (max(0.0, $sTot - $sCol) > 0.009) {
+                $sUnpaid = max(0.0, $sTot - $sCol);
+                $credit = min($sUnpaid, $cashSurplus[$sKey] ?? 0.0);
+                if ($credit > 0) { $sUnpaid -= $credit; $cashSurplus[$sKey] -= $credit; }
+                if ($sUnpaid > 0.009) {
                     $balanceKeys[$sKey] = true;
                     $clerkBalanceKeys[$clerkKey][$sKey] = true;
                 }
@@ -923,14 +931,14 @@ try {
                 $accounts[$sKey]['arrears'] += $sArr;
                 $accounts[$sKey]['total'] += $sTot;
                 $accounts[$sKey]['collected'] += $sCol;
-                $accounts[$sKey]['balance'] += max(0.0, $sTot - $sCol);
+                $accounts[$sKey]['balance'] += $sUnpaid;
                 if ((string)($s['due_date'] ?? '') !== '' && ($accounts[$sKey]['oldestDue'] === null || (string)$s['due_date'] < $accounts[$sKey]['oldestDue'])) {
                     $accounts[$sKey]['oldestDue'] = (string)$s['due_date'];
                 }
                 foreach ([$clerkKey, null] as $target) {
                     if ($target === null) $acc = &$totals; else $acc = &$clerks[$target];
                     $acc['actualDue'] += $sDue; $acc['arrears'] += $sArr; $acc['totalDue'] += $sTot;
-                    $acc['collected'] += $sCol; $acc['stillUnpaid'] += max(0.0, $sTot - $sCol);
+                    $acc['collected'] += $sCol; $acc['stillUnpaid'] += $sUnpaid;
                     if ($sCol > 0.009) $acc['collectedCount']++;
                     unset($acc);
                 }

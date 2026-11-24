@@ -19,7 +19,6 @@
 -- Table structure for table `additional_charges`
 --
 
-DROP TABLE IF EXISTS `additional_charges`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `additional_charges` (
@@ -56,7 +55,6 @@ UNLOCK TABLES;
 -- Table structure for table `additional_equity_payments`
 --
 
-DROP TABLE IF EXISTS `additional_equity_payments`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `additional_equity_payments` (
@@ -93,7 +91,6 @@ UNLOCK TABLES;
 -- Table structure for table `audit_logs`
 --
 
-DROP TABLE IF EXISTS `audit_logs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `audit_logs` (
@@ -129,7 +126,6 @@ UNLOCK TABLES;
 -- Table structure for table `bank_rates`
 --
 
-DROP TABLE IF EXISTS `bank_rates`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `bank_rates` (
@@ -158,7 +154,6 @@ UNLOCK TABLES;
 -- Table structure for table `business_rules`
 --
 
-DROP TABLE IF EXISTS `business_rules`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `business_rules` (
@@ -184,7 +179,6 @@ UNLOCK TABLES;
 -- Table structure for table `client_accounts`
 --
 
-DROP TABLE IF EXISTS `client_accounts`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `client_accounts` (
@@ -213,7 +207,6 @@ UNLOCK TABLES;
 -- Table structure for table `contracts`
 --
 
-DROP TABLE IF EXISTS `contracts`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `contracts` (
@@ -291,7 +284,6 @@ UNLOCK TABLES;
 -- Table structure for table `holding_fees`
 --
 
-DROP TABLE IF EXISTS `holding_fees`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `holding_fees` (
@@ -346,7 +338,6 @@ UNLOCK TABLES;
 -- Table structure for table `import_batches`
 --
 
-DROP TABLE IF EXISTS `import_batches`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `import_batches` (
@@ -387,7 +378,6 @@ UNLOCK TABLES;
 -- Table structure for table `legacy_month_snapshots`
 --
 
-DROP TABLE IF EXISTS `legacy_month_snapshots`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `legacy_month_snapshots` (
@@ -429,7 +419,6 @@ UNLOCK TABLES;
 -- Table structure for table `notifications_logs`
 --
 
-DROP TABLE IF EXISTS `notifications_logs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `notifications_logs` (
@@ -461,7 +450,6 @@ UNLOCK TABLES;
 -- Table structure for table `officers`
 --
 
-DROP TABLE IF EXISTS `officers`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `officers` (
@@ -492,7 +480,6 @@ UNLOCK TABLES;
 -- Table structure for table `password_reset_requests`
 --
 
-DROP TABLE IF EXISTS `password_reset_requests`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `password_reset_requests` (
@@ -521,7 +508,6 @@ UNLOCK TABLES;
 -- Table structure for table `payment_allocations`
 --
 
-DROP TABLE IF EXISTS `payment_allocations`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `payment_allocations` (
@@ -555,7 +541,6 @@ UNLOCK TABLES;
 -- Table structure for table `payment_or_counters`
 --
 
-DROP TABLE IF EXISTS `payment_or_counters`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `payment_or_counters` (
@@ -581,7 +566,6 @@ UNLOCK TABLES;
 -- Table structure for table `payments`
 --
 
-DROP TABLE IF EXISTS `payments`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `payments` (
@@ -618,7 +602,6 @@ UNLOCK TABLES;
 -- Table structure for table `property_units`
 --
 
-DROP TABLE IF EXISTS `property_units`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `property_units` (
@@ -658,7 +641,6 @@ UNLOCK TABLES;
 -- Table structure for table `prospect_clients`
 --
 
-DROP TABLE IF EXISTS `prospect_clients`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `prospect_clients` (
@@ -701,7 +683,6 @@ UNLOCK TABLES;
 -- Table structure for table `reservation_fees`
 --
 
-DROP TABLE IF EXISTS `reservation_fees`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `reservation_fees` (
@@ -742,7 +723,6 @@ UNLOCK TABLES;
 -- Table structure for table `soa_settings`
 --
 
-DROP TABLE IF EXISTS `soa_settings`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `soa_settings` (
