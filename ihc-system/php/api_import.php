@@ -943,6 +943,12 @@ try {
     if ($action === 'batches') {
         $st = $pdo->prepare("SELECT * FROM import_batches WHERE officer_id = ? AND status <> 'UNDONE' ORDER BY id DESC");
         $st->execute([$officerId]);
+        // Accounts still flagged needs_monthly — the clerk needs to see which
+        // batch holds them (they stay editable even after the batch is confirmed).
+        $needSt = $pdo->prepare('SELECT import_batch_id, COUNT(*) n FROM contracts WHERE officer_id = ? AND needs_monthly = 1 AND import_batch_id IS NOT NULL GROUP BY import_batch_id');
+        $needSt->execute([$officerId]);
+        $needsByBatch = [];
+        foreach ($needSt->fetchAll() as $r) $needsByBatch[(int)$r['import_batch_id']] = (int)$r['n'];
         $list = array_map(fn($b) => [
             'batchId' => (int)$b['id'],
             'status' => (string)$b['status'],
@@ -956,6 +962,7 @@ try {
             'confirmedAt' => $b['confirmed_at'],
             'fileRows' => $b['file_rows'] !== null ? (int)$b['file_rows'] : null,
             'alreadyRows' => (int)($b['already_rows'] ?? 0),
+            'needsMonthly' => $needsByBatch[(int)$b['id']] ?? 0,
             'skipped' => $b['skipped_rows'] !== null ? (json_decode((string)$b['skipped_rows'], true) ?: []) : null,
         ], $st->fetchAll());
         echo json_encode(['success' => true, 'batches' => $list]);

@@ -2402,6 +2402,7 @@
                   <strong id="impReviewTitle" style="font-size:13px;"></strong>
                   <div class="imp-actions">
                     <input type="search" id="impReviewSearch" placeholder="Search buyer or code" style="height:34px;border:1px solid var(--border);border-radius:8px;padding:0 10px;font-family:inherit;font-size:12px;">
+                    <button class="imp-btn-sm" id="impReviewNeedsMonthly" type="button" style="height:34px;" aria-pressed="false" title="Show only accounts that still have no monthly amount">Needs monthly</button>
                     <button class="imp-btn-sm" id="impReviewClose" type="button" style="height:34px;">Close</button>
                   </div>
                 </div>
@@ -6321,6 +6322,11 @@
         const badge = pending
           ? '<span class="status-badge due-soon"><span class="dot"></span>For Verification</span>'
           : '<span class="status-badge paid"><span class="dot"></span>Confirmed</span><span class="imp-sub">' + escapeHtml(String(b.confirmedAt || '').slice(0, 16)) + '</span>';
+        const needsN = Number(b.needsMonthly) || 0;
+        const needsChip = needsN
+          ? '<span class="imp-chip warn" title="These accounts have no monthly amount yet, so they are not in any dues list. They stay editable even after the batch is confirmed.">'
+            + needsN + ' need monthly</span>'
+          : '';
         const actions = '<button type="button" class="imp-btn-sm" data-act="review" data-id="' + b.batchId + '">' + (pending ? 'Review / Edit' : 'View') + '</button>'
           + (pending
             ? '<button type="button" class="imp-btn-sm ok" data-act="confirm" data-id="' + b.batchId + '">Confirm</button>'
@@ -6332,7 +6338,7 @@
           + '<td>' + accountsCell + '</td>'
           + '<td style="white-space:nowrap;">' + escapeHtml(formatPHP(b.totalBalance)) + '</td>'
           + '<td style="white-space:nowrap;">' + escapeHtml(formatPHP(b.totalCollected)) + '<span class="imp-sub">' + b.payments + ' payment(s)</span></td>'
-          + '<td>' + badge + '</td>'
+          + '<td>' + badge + (needsChip ? '<div style="margin-top:4px;">' + needsChip + '</div>' : '') + '</td>'
           + '<td style="white-space:nowrap;">' + actions + '</td>'
           + '</tr>';
       }).join('');
@@ -6348,10 +6354,8 @@
         showToast(escapeHtml(err.message), 'info');
         return;
       }
-      const editable = impReview.status === 'FOR_VERIFICATION';
-      document.getElementById('impReviewTitle').textContent = 'Batch #' + batchId + ' — ' + impReview.accounts.length + ' account(s)'
-        + (editable ? ' • edit a row, then Save it' : ' • confirmed (read-only)');
       document.getElementById('impReviewSearch').value = '';
+      impReview.needsOnly = false;
       panel.hidden = false;
       impRenderReview();
       panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -6372,7 +6376,9 @@
         + '<td>' + inp('block', a.block) + '</td>'
         + '<td>' + inp('lot', a.lot) + '</td>'
         + '<td>' + inp('balance', money(a.balance), 'w-num') + '</td>'
-        + '<td>' + inp('monthly', money(a.monthly), 'w-num') + '<span class="imp-sub">' + a.terms + ' months</span></td>'
+        + '<td>' + inp('monthly', money(a.monthly), 'w-num') + (a.needsMonthly
+            ? '<span class="imp-chip warn" title="This account has no monthly amount yet — it is not in any dues list. Fill in Balance and Monthly, then Save.">needs monthly</span>'
+            : '<span class="imp-sub">' + a.terms + ' months</span>') + '</td>'
         + '<td>' + inp('firstDue', a.firstDue, 'w-date', 'date') + '</td>'
         + '<td>' + inp('payAmount', money(p.amount), 'w-num') + '</td>'
         + '<td>' + inp('payDate', p.date, 'w-date', 'date') + '</td>'
@@ -6387,14 +6393,32 @@
     function impRenderReview() {
       const body = document.getElementById('impReviewBody');
       const q = document.getElementById('impReviewSearch').value.trim().toLowerCase();
-      const editable = impReview.status === 'FOR_VERIFICATION';
-      const list = impReview.accounts.filter(a => !q
-        || String(a.clientName).toLowerCase().includes(q)
-        || String(a.legacyCode || '').toLowerCase().includes(q)
-        || ('con-' + a.contractId).includes(q));
+      // A confirmed batch is final — EXCEPT for accounts still flagged
+      // needs_monthly: those stay editable (the server allows it too, see
+      // api_import.php update_account) so the clerk can fill in the missing
+      // balance/monthly and the account stops being "floating".
+      const batchEditable = impReview.status === 'FOR_VERIFICATION';
+      const onlyNeeds = !!impReview.needsOnly;
+      const isEditable = (a) => batchEditable || !!a.needsMonthly;
+      const list = impReview.accounts.filter(a => {
+        if (onlyNeeds && !a.needsMonthly) return false;
+        if (!q) return true;
+        return String(a.clientName).toLowerCase().includes(q)
+          || String(a.legacyCode || '').toLowerCase().includes(q)
+          || ('con-' + a.contractId).includes(q);
+      });
+      const nNeeds = impReview.accounts.filter(a => a.needsMonthly).length;
+      document.getElementById('impReviewNeedsMonthly').setAttribute('aria-pressed', onlyNeeds ? 'true' : 'false');
+      if (onlyNeeds) document.getElementById('impReviewNeedsMonthly').classList.add('ok');
+      else document.getElementById('impReviewNeedsMonthly').classList.remove('ok');
       body.innerHTML = list.length
-        ? list.map(a => impReviewRow(a, editable)).join('')
-        : '<tr><td colspan="16" style="text-align:center;padding:18px;color:var(--text-muted);">No accounts match.</td></tr>';
+        ? list.map(a => impReviewRow(a, isEditable(a))).join('')
+        : '<tr><td colspan="16" style="text-align:center;padding:18px;color:var(--text-muted);">'
+          + (onlyNeeds ? 'No account here still needs a monthly amount.' : 'No accounts match.') + '</td></tr>';
+      const title = document.getElementById('impReviewTitle');
+      title.textContent = 'Batch #' + impReview.batchId + ' — ' + impReview.accounts.length + ' account(s)'
+        + (nNeeds ? ' • ' + nNeeds + ' still need a monthly amount' : '')
+        + (batchEditable ? ' • edit a row, then Save it' : ' • confirmed (read-only except “needs monthly”)');
     }
 
     async function impSaveReviewRow(tr) {
@@ -6412,8 +6436,11 @@
         const res = await impApi({ action: 'update_account', contractId: Number(tr.dataset.id), fields });
         const i = impReview.accounts.findIndex(a => a.contractId === res.account.contractId);
         if (i >= 0) impReview.accounts[i] = res.account;
-        tr.outerHTML = impReviewRow(res.account, true);
+        // Re-render the whole table: the saved row loses its needs_monthly
+        // flag, so on a confirmed batch it goes back to read-only (and may
+        // drop out of the "Needs monthly" filter).
         showToast('CON-' + res.account.contractId + ' saved.', 'success');
+        impRenderReview();
         loadImportBatches();
         loadDashboard();
       } catch (err) {
@@ -6531,6 +6558,10 @@
         if (tr) tr.classList.add('imp-dirty');
       });
       document.getElementById('impReviewSearch').addEventListener('input', impRenderReview);
+      document.getElementById('impReviewNeedsMonthly').addEventListener('click', () => {
+        impReview.needsOnly = !impReview.needsOnly;
+        impRenderReview();
+      });
       document.getElementById('impReviewClose').addEventListener('click', () => {
         document.getElementById('impReview').hidden = true;
       });

@@ -774,8 +774,16 @@ try {
             // Excel's JAN..DEC columns, counted when that month's due day falls in
             // the period. Covers needs-monthly accounts too.
             // On hold = imported without a monthly amount (no schedule yet).
+            // Counted only when it still carries a floating balance: a
+            // needs-monthly contract with no TCP (or already fully paid)
+            // contributes ₱0, and the modal lists accounts with
+            // needsMonthly > 0.009 — so the card count and the modal rows
+            // describe the same accounts. The balance is added either way
+            // (a zero addition changes nothing).
             if (!empty($c['needs_monthly'])) {
-                $k['needsMonthlyCount']++; $totals['needsMonthlyCount']++;
+                if ((float)$built['outstanding'] > 0.009) {
+                    $k['needsMonthlyCount']++; $totals['needsMonthlyCount']++;
+                }
                 $k['needsMonthlyBalance'] += (float)$built['outstanding']; $totals['needsMonthlyBalance'] += (float)$built['outstanding'];
                 $accounts[$akey]['needsMonthly'] += (float)$built['outstanding'];
             }
