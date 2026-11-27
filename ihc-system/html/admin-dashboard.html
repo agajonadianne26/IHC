@@ -5411,6 +5411,100 @@ const closeTempPw = () => {
   });
 }
 
+    /* ==========================================
+       DUES REPORT — DARK MODE ADAPTER
+       js/dues-report.js hard-codes light colors, so recolor its output here.
+    ========================================== */
+    const duesHost = document.getElementById('duesReportAdmin');
+    const DUES_NONE = '__none__';
+    const duesRGB = (s) => {
+      const m = String(s).match(/rgba?\(([^)]+)\)/);
+      if (!m) return null;
+      const p = m[1].split(/[,\s/]+/).filter(Boolean).map(parseFloat);
+      return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+    };
+    const duesLum = (c) => (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
+    const duesNeutral = (c) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) < 12;
+
+    function duesSet(el, prop, value) {
+      if (!el.hasAttribute('data-d-orig')) {
+        el.setAttribute('data-d-orig', el.hasAttribute('style') ? el.getAttribute('style') : DUES_NONE);
+      }
+      el.style.setProperty(prop, value, 'important');
+    }
+
+    function duesEffBg(el) {
+      for (let n = el; n && n !== duesHost.parentElement; n = n.parentElement) {
+        const c = duesRGB(getComputedStyle(n).backgroundColor);
+        if (c && c.a > 0.1) return c;
+      }
+      return { r: 15, g: 26, b: 48, a: 1 }; // page background fallback
+    }
+
+    function duesPaint() {
+      if (!duesHost) return;
+      duesHost.querySelectorAll('*:not([data-d-paint])').forEach((el) => {
+        el.setAttribute('data-d-paint', '1');
+        const cs = getComputedStyle(el);
+
+        // Surfaces: white -> card, light neutral gray -> input shade
+        const bg = duesRGB(cs.backgroundColor);
+        if (bg && bg.a > 0.9 && duesNeutral(bg)) {
+          const l = duesLum(bg);
+          if (l >= 0.96) duesSet(el, 'background-color', 'var(--bg-card)');
+          else if (l >= 0.88) duesSet(el, 'background-color', 'var(--bg-input)');
+        }
+
+        // Light neutral borders -> theme border
+        ['Top', 'Right', 'Bottom', 'Left'].forEach((side) => {
+          if (parseFloat(cs['border' + side + 'Width']) > 0) {
+            const c = duesRGB(cs['border' + side + 'Color']);
+            if (c && c.a > 0.1 && duesNeutral(c) && duesLum(c) >= 0.8) {
+              duesSet(el, 'border-' + side.toLowerCase() + '-color', 'var(--border)');
+            }
+          }
+        });
+
+        // Dark text sitting on a dark surface -> light text
+        const tc = duesRGB(cs.color);
+        if (tc) {
+          const l = duesLum(tc);
+          if (l < 0.5 && duesLum(duesEffBg(el)) < 0.4) {
+            duesSet(el, 'color', l > 0.3 ? 'var(--text-secondary)' : 'var(--text-primary)');
+          }
+        }
+      });
+    }
+
+    function duesReset() {
+      if (!duesHost) return;
+      duesHost.querySelectorAll('[data-d-paint]').forEach((el) => {
+        if (el.hasAttribute('data-d-orig')) {
+          const o = el.getAttribute('data-d-orig');
+          if (o === DUES_NONE) el.removeAttribute('style'); else el.setAttribute('style', o);
+          el.removeAttribute('data-d-orig');
+        }
+        el.removeAttribute('data-d-paint');
+      });
+    }
+
+    function syncDuesTheme(dark) {
+      duesReset();
+      if (dark) duesPaint();
+    }
+
+    // Repaint whenever the report re-renders (refresh, filters, period switch)
+    if (duesHost) {
+      let duesRaf = 0;
+      new MutationObserver(() => {
+        if (duesRaf) return;
+        duesRaf = requestAnimationFrame(() => {
+          duesRaf = 0;
+          if (document.documentElement.getAttribute('data-theme') === 'dark') duesPaint();
+        });
+      }).observe(duesHost, { childList: true, subtree: true });
+    }
+
     function applyTheme(theme, persist) {
       const dark = theme === 'dark';
       document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
@@ -5419,6 +5513,7 @@ const closeTempPw = () => {
       themeBtn.setAttribute('aria-pressed', String(dark));
       lucide.createIcons();
       applyChartTheme(dark);
+      syncDuesTheme(dark);  
       if (persist) { try { localStorage.setItem(THEME_KEY, theme); } catch (e) {} }
     }
 
